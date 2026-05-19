@@ -1,20 +1,49 @@
+import networkx as nx
+
+
 class InfluenceService:
     def __init__(self):
         pass
 
     def detect_influencers(self, topic: str):
-        """
-        Identifies key nodes in the network that are central to spreading info.
-        Students can implement PageRank or Degree Centrality here using Neo4j algorithms.
-        """
-        # Dummy response
+
+        # Create directed graph
+        G = nx.DiGraph()
+
+        # Sample propagation network
+        G.add_edges_from([
+            ("Alice", "Bob"),
+            ("Alice", "Charlie"),
+            ("Bob", "David"),
+            ("Charlie", "Eve"),
+            ("Alice", "Eve"),
+            ("David", "Frank")
+        ])
+
+        # Calculate PageRank scores
+        pagerank_scores = nx.pagerank(G)
+
+        # Sort top influencers
+        sorted_users = sorted(
+            pagerank_scores.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+        top_influencers = []
+
+        for user, score in sorted_users[:3]:
+            top_influencers.append({
+                "user_id": user.lower(),
+                "name": user,
+                "influence_score": round(score * 100, 2)
+            })
+
         return {
             "topic": topic,
-            "top_influencers": [
-                {"user_id": "user1", "name": "Alice", "influence_score": 85.5},
-                {"user_id": "user2", "name": "Bob", "influence_score": 62.0}
-            ],
-            "message": "These users are highly active in sharing related posts."
+            "top_influencers": top_influencers,
+            "message": "Top influencers identified using PageRank algorithm."
         }
+
 
 influence_service = InfluenceService()
