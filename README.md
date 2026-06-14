@@ -1,7 +1,5 @@
 # AI-Driven Misinformation Analysis System
 
-This is a clean, modular, and beginner-friendly boilerplate for your VTU final year project.
-
 ## Project Structure
 
 - `backend/`: FastAPI application containing all the ML, NLP, Graph, and OCR logic.
@@ -22,7 +20,7 @@ This is a clean, modular, and beginner-friendly boilerplate for your VTU final y
    ```bash
    cd backend
    ```
-2. Create a virtual environment (optional but recommended):
+2. Create a virtual environment :
    ```bash
    python -m venv venv
    # On Windows:
@@ -64,4 +62,3 @@ This is a clean, modular, and beginner-friendly boilerplate for your VTU final y
 - **Prediction Service (`backend/app/services/prediction_service.py`)**: Predictive modeling placeholder to forecast reach.
 - **OCR Service (`backend/app/services/ocr_service.py`)**: Uses Tesseract OCR to extract text from images.
 
-**Good luck with your project viva!** This boilerplate is designed to be easily extensible. Read the comments in the code to understand where you need to implement your custom algorithms.
