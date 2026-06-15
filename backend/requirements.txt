@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+scikit-learn
+pandas
+numpy
+nltk
+neo4j
+pytesseract
+python-multipart
+Pillow
+pydantic
