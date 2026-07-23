@@ -4,7 +4,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score
+)
 
 from ..utils.preprocess import preprocess_text
 
@@ -23,7 +28,8 @@ class NLPService:
         # TF-IDF Vectorizer
         self.vectorizer = TfidfVectorizer(
             stop_words='english',
-            max_features=5000
+            max_features=10000,
+            ngram_range=(1, 2)
         )
 
         self.is_trained = False
@@ -65,14 +71,20 @@ class NLPService:
                 ignore_index=True
             )
 
-            # Faster training sample
-            df = df.sample(
-                5000,
-                random_state=42
-            )
-
-            # Keep required columns
+            # Keep only required columns
             df = df[['text', 'label']]
+
+            # Remove duplicate news articles
+            df = df.drop_duplicates(subset=['text'])
+
+            # Remove rows with missing text
+            df = df.dropna(subset=['text'])
+
+            # Remove empty text rows
+            df = df[df['text'].str.strip() != ""]
+
+            # Shuffle dataset
+            df = df.sample(frac=1, random_state=42).reset_index(drop=True)
 
             # -----------------------------------
             # Text preprocessing
@@ -100,7 +112,8 @@ class NLPService:
                 X,
                 y,
                 test_size=0.2,
-                random_state=42
+                random_state=42,
+                stratify=y
             )
 
             # -----------------------------------
@@ -119,6 +132,32 @@ class NLPService:
             lr_accuracy = accuracy_score(
                 y_test,
                 lr_predictions
+            )
+            self.lr_precision = round(
+                precision_score(
+                    y_test,
+                    lr_predictions,
+                    pos_label="Real"
+                ) * 100,
+                2
+            )
+
+            self.lr_recall = round(
+                recall_score(
+                    y_test,
+                    lr_predictions,
+                    pos_label="Real"
+                ) * 100,
+                2
+            )
+
+            self.lr_f1 = round(
+                f1_score(
+                    y_test,
+                    lr_predictions,
+                    pos_label="Real"
+                ) * 100,
+                2
             )
 
             # -----------------------------------
@@ -172,10 +211,8 @@ class NLPService:
             )
 
         except Exception as e:
-
-            print(
-                f"Error training NLP model: {e}"
-            )
+            import traceback
+            traceback.print_exc()
 
     def analyze_text(self, text: str):
         """
@@ -298,13 +335,21 @@ class NLPService:
             "logistic_regression_accuracy":
                 self.lr_accuracy,
 
+            "logistic_regression_precision":
+                self.lr_precision,
+
+            "logistic_regression_recall":
+                self.lr_recall,
+
+            "logistic_regression_f1_score":
+                self.lr_f1,
+
             "naive_bayes_accuracy":
                 self.nb_accuracy,
 
             "best_model":
                 self.best_model
         }
-
 
 # Create NLP Service Object
 nlp_service = NLPService()

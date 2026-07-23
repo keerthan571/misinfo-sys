@@ -9,3 +9,5 @@ pytesseract
 python-multipart
 Pillow
 pydantic
+google-generativeai
+python-dotenv
