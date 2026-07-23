@@ -1,56 +1,105 @@
 import React, { useState } from 'react';
-import apiClient from '../api/apiClient';
 
-const InputForm = ({ setNlpResult, setGraphData, setInfluenceData, setPredictionData }) => {
-  const [text, setText] = useState('');
-  const [loading, setLoading] = useState(false);
+const InputForm = ({ onSubmit }) => {
 
-  const handleAnalyze = async () => {
-    if (!text.trim()) return;
-    setLoading(true);
-    
-    try {
-      // 1. Detect Misinformation
-      const detectRes = await apiClient.post('/detect/', { text });
-      setNlpResult(detectRes.data);
+  const [content, setContent] = useState('');
+  const [reposts, setReposts] = useState(5);
 
-      // 2. Fetch Graph Data (dummy)
-      const graphRes = await apiClient.post('/graph/', { post_id: 'sample_123' });
-      setGraphData(graphRes.data);
+  const [likes, setLikes] = useState(500);
+  const [shares, setShares] = useState(150);
+  const [comments, setComments] = useState(100);
+  const [followers, setFollowers] = useState(8000);
+  const [accountAge, setAccountAge] = useState(365);
 
-      // 3. Fetch Influence Data
-      const influenceRes = await apiClient.post('/influence/', { topic: 'General' });
-      setInfluenceData(influenceRes.data);
+  const handleClick = () => {
 
-      // 4. Fetch Prediction
-      const predictRes = await apiClient.post('/predict/', { 
-        initial_likes: 150, 
-        account_age_days: 30 
-      });
-      setPredictionData(predictRes.data);
+    if (!content.trim()) return;
 
-    } catch (error) {
-      console.error("API Error", error);
-      alert("Error analyzing text. Is the backend running?");
-    } finally {
-      setLoading(false);
-    }
+    onSubmit({
+      content,
+      reposts: Number(reposts),
+
+      likes: Number(likes),
+      shares: Number(shares),
+      comments: Number(comments),
+      followers: Number(followers),
+      accountAge: Number(accountAge)
+    });
   };
 
   return (
     <div className="card">
+
       <h2>Analyze Content</h2>
-      <div className="form-group">
-        <textarea 
-          rows="5" 
-          placeholder="Paste news text or social media post here..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
+
+      <textarea
+        rows="5"
+        placeholder="Enter news or social media content..."
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+      />
+
+      <div className="input-group">
+        <label>Reposts</label>
+        <input
+          type="number"
+          value={reposts}
+          onChange={(e) => setReposts(e.target.value)}
         />
       </div>
-      <button onClick={handleAnalyze} disabled={loading}>
-        {loading ? 'Analyzing...' : 'Run Analysis Pipeline'}
+
+      <div className="input-group">
+        <label>Likes</label>
+        <input
+          type="number"
+          value={likes}
+          onChange={(e) => setLikes(e.target.value)}
+        />
+      </div>
+
+      <div className="input-group">
+        <label>Shares</label>
+        <input
+          type="number"
+          value={shares}
+          onChange={(e) => setShares(e.target.value)}
+        />
+      </div>
+
+      <div className="input-group">
+        <label>Comments</label>
+        <input
+          type="number"
+          value={comments}
+          onChange={(e) => setComments(e.target.value)}
+        />
+      </div>
+
+      <div className="input-group">
+        <label>Follower Count</label>
+        <input
+          type="number"
+          value={followers}
+          onChange={(e) => setFollowers(e.target.value)}
+        />
+      </div>
+
+      <div className="input-group">
+        <label>Account Age (Days)</label>
+        <input
+          type="number"
+          value={accountAge}
+          onChange={(e) => setAccountAge(e.target.value)}
+        />
+      </div>
+
+      <button
+        onClick={handleClick}
+        style={{ marginTop: '15px' }}
+      >
+        Run Analysis Pipeline
       </button>
+
     </div>
   );
 };

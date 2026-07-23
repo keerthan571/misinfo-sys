@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from app.routes.analytics import router as analytics_router
 # Import modular routers
 from .routes import detect, graph, influence, predict
 
@@ -24,7 +24,7 @@ app.include_router(detect.router, prefix="/api/detect", tags=["Detection"])
 app.include_router(graph.router, prefix="/api/graph", tags=["Graph & Propagation"])
 app.include_router(influence.router, prefix="/api/influence", tags=["Influence Detection"])
 app.include_router(predict.router, prefix="/api/predict", tags=["Spread Prediction"])
-
+app.include_router(analytics_router,prefix="/api/analytics",tags=["Analytics"])
 @app.get("/")
 def root():
     return {"message": "Welcome to the Misinformation Analysis System API. Go to /docs for Swagger UI."}

@@ -2,31 +2,27 @@ import networkx as nx
 
 
 class InfluenceService:
-    """
-    Detects influential users involved in
-    misinformation propagation using graph analysis.
-    """
 
     def __init__(self):
         pass
 
     def classify_influencer(self, score):
 
-        if score > 30:
+        if score >= 25:
             return "Mega Influencer"
 
-        elif score > 20:
-            return "High Influencer"
+        elif score >= 15:
+            return "Strong Influencer"
 
-        return "Moderate Influencer"
+        elif score >= 8:
+            return "Active User"
+
+        return "Normal User"
 
     def detect_influencers(self, topic: str):
 
-        # Create directed weighted graph
         G = nx.DiGraph()
 
-        # Weighted propagation network
-        # Weight represents interaction/share strength
         weighted_edges = [
             ("Alice", "Bob", 5),
             ("Alice", "Charlie", 3),
@@ -38,14 +34,24 @@ class InfluenceService:
             ("Charlie", "Frank", 3)
         ]
 
-        # Add edges
         for source, target, weight in weighted_edges:
             G.add_edge(source, target, weight=weight)
 
-        # Weighted PageRank calculation
-        pagerank_scores = nx.pagerank(G, weight="weight")
+        follower_data = {
+            "Alice": 85000,
+            "Bob": 45000,
+            "Charlie": 28000,
+            "David": 15000,
+            "Eve": 22000,
+            "Frank": 8000,
+            "George": 5000
+        }
 
-        # Sort influencers
+        pagerank_scores = nx.pagerank(
+            G,
+            weight="weight"
+        )
+
         sorted_users = sorted(
             pagerank_scores.items(),
             key=lambda x: x[1],
@@ -56,38 +62,65 @@ class InfluenceService:
 
         for user, score in sorted_users[:5]:
 
-            influence_score = round(score * 100, 2)
+            influence_score = round(
+                score * 100,
+                2
+            )
+
+            followers = follower_data.get(
+                user,
+                1000
+            )
+
+            connections = len(
+                list(G.neighbors(user))
+            )
 
             top_influencers.append({
                 "user_id": user.lower(),
-
                 "name": user,
-
                 "influence_score": influence_score,
-
+                "followers": followers,
+                "connections": connections,
                 "category": self.classify_influencer(
                     influence_score
                 )
             })
 
+        total_nodes = G.number_of_nodes()
+
+        total_connections = G.number_of_edges()
+
+        average_influence = round(
+            sum(
+                influencer["influence_score"]
+                for influencer in top_influencers
+            ) / len(top_influencers),
+            2
+        )
+
+        highest = top_influencers[0]["name"]
+
+        summary = (
+            f"{highest} emerged as the most influential "
+            f"user in the misinformation network based "
+            f"on weighted PageRank analysis."
+        )
+
         return {
             "status": "success",
-
             "module": "Influence Detection",
-
             "topic": topic,
 
-            "data": {
-                "total_nodes": G.number_of_nodes(),
-
-                "total_connections": G.number_of_edges(),
-
-                "top_influencers": top_influencers
+            "network_statistics": {
+                "total_nodes": total_nodes,
+                "total_connections": total_connections,
+                "average_influence_score": average_influence
             },
 
-            "analysis_summary":
-                "Influencers were identified using weighted "
-                "PageRank graph analysis based on interaction strength."
+            "top_influencers": top_influencers,
+
+            "analysis_summary": summary
         }
 
 

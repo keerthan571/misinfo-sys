@@ -10,16 +10,15 @@ class PredictionService:
 
     def __init__(self):
 
-        # Training dataset
         # Features:
-        # [likes, shares, comments, follower_count]
+        # [likes, shares, comments, followers, account_age_days]
         self.X = np.array([
-            [100, 30, 20, 500],
-            [200, 50, 40, 1200],
-            [300, 80, 60, 2000],
-            [400, 100, 75, 3500],
-            [500, 150, 120, 5000],
-            [700, 250, 180, 8000]
+            [100, 30, 20, 500, 30],
+            [200, 50, 40, 1200, 60],
+            [300, 80, 60, 2000, 120],
+            [400, 100, 75, 3500, 180],
+            [500, 150, 120, 5000, 365],
+            [700, 250, 180, 8000, 730]
         ])
 
         # Expected reach values
@@ -32,22 +31,49 @@ class PredictionService:
             15000
         ])
 
-        # Train Linear Regression model
+        # Train model
         self.model = LinearRegression()
         self.model.fit(self.X, self.y)
 
     def calculate_risk_level(self, predicted_reach):
 
-        if predicted_reach > 12000:
-            return "Very High"
+        if predicted_reach > 50000:
+            return "Critical"
 
-        elif predicted_reach > 7000:
+        elif predicted_reach > 10000:
             return "High"
 
-        elif predicted_reach > 3000:
-            return "Medium"
+        elif predicted_reach > 1000:
+            return "Moderate"
 
         return "Low"
+
+    def generate_reasons(self, likes, shares, followers):
+
+        reasons = []
+
+        if followers > 5000:
+            reasons.append("Large follower base detected")
+
+        if shares > 100:
+            reasons.append("High share activity detected")
+
+        if likes > 300:
+            reasons.append("Strong audience engagement")
+
+        if len(reasons) == 0:
+            reasons.append("Limited engagement indicators")
+
+        return reasons
+
+    def calculate_confidence(self, shares):
+
+        confidence = min(
+            95,
+            round(60 + (shares / 10), 2)
+        )
+
+        return confidence
 
     def predict_spread(self, post_features: dict):
 
@@ -56,17 +82,29 @@ class PredictionService:
         shares = post_features.get("initial_shares", 0)
         comments = post_features.get("comments", 0)
         followers = post_features.get("follower_count", 0)
+        account_age_days = post_features.get(
+            "account_age_days",
+            365
+        )
 
-        # Prepare input
+        # Prepare model input
         input_data = np.array([
-            [likes, shares, comments, followers]
+            [
+                likes,
+                shares,
+                comments,
+                followers,
+                account_age_days
+            ]
         ])
 
         # Predict reach
         predicted_reach = self.model.predict(input_data)[0]
 
-        # Risk analysis
-        risk_level = self.calculate_risk_level(predicted_reach)
+        # Risk level
+        risk_level = self.calculate_risk_level(
+            predicted_reach
+        )
 
         # Virality score
         virality_score = min(
@@ -74,41 +112,44 @@ class PredictionService:
             100
         )
 
-        # Explainable AI summary
-        summary = (
-            "This post shows strong virality potential due to "
-            "high engagement and audience reach."
-            if predicted_reach > 7000
-            else
-            "This post currently shows moderate or limited spread potential."
+        # Confidence score
+        confidence = self.calculate_confidence(
+            shares
+        )
+
+        # Explainability
+        reasons = self.generate_reasons(
+            likes,
+            shares,
+            followers
         )
 
         return {
             "status": "success",
             "module": "Spread Prediction",
 
-            "data": {
-                "features_used": {
-                    "likes": likes,
-                    "shares": shares,
-                    "comments": comments,
-                    "followers": followers
-                },
-
-                "predicted_reach": round(predicted_reach, 2),
+            "prediction": {
+                "predicted_reach": round(
+                    predicted_reach,
+                    2
+                ),
 
                 "risk_level": risk_level,
 
+                "confidence": confidence,
+
                 "virality_score": virality_score,
 
-                "engagement_breakdown": {
-                    "likes": likes,
-                    "shares": shares,
-                    "comments": comments
-                }
+                "reasons": reasons
             },
 
-            "analysis_summary": summary
+            "input_features": {
+                "likes": likes,
+                "shares": shares,
+                "comments": comments,
+                "followers": followers,
+                "account_age_days": account_age_days
+            }
         }
 
 
