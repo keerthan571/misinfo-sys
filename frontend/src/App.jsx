@@ -1,63 +1,30 @@
-import React, { useState } from 'react';
-import InputForm from './components/InputForm';
-import ResultCard from './components/ResultCard';
-import GraphView from './components/GraphView';
-import PredictionView from './components/PredictionView';
-import './App.css';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+import Layout from "./components/layout/Layout";
+
+import Dashboard from "./pages/Dashboard";
+import Analyze from "./pages/Analyze";
+import OCR from "./pages/OCR";
+import Graph from "./pages/Graph";
+import Prediction from "./pages/Prediction";
+import History from "./pages/History";
+import Settings from "./pages/Settings";
 
 function App() {
-  const [nlpResult, setNlpResult] = useState(null);
-  const [factVerification, setFactVerification] = useState(null);
-  const [graphData, setGraphData] = useState(null);
-  const [influenceData, setInfluenceData] = useState(null);
-  const [predictionData, setPredictionData] = useState(null);
-
   return (
-    <div className="app-container">
-      <header>
-        <h1>AI Misinformation Analysis System</h1>
-        <p className="subtitle">
-          VTU Final Year Project Boilerplate
-        </p>
-      </header>
-
-      <div className="main-content">
-        <div className="left-panel">
-          <InputForm
-            setNlpResult={setNlpResult}
-            setFactVerification={setFactVerification}
-            setGraphData={setGraphData}
-            setInfluenceData={setInfluenceData}
-            setPredictionData={setPredictionData}
-          />
-        </div>
-
-        <div className="right-panel">
-          <ResultCard
-            title="NLP Detection Result"
-            data={nlpResult}
-          />
-
-          <ResultCard
-            title="AI Fact Verification"
-            data={factVerification}
-          />
-
-          <PredictionView
-            data={predictionData}
-          />
-
-          <ResultCard
-            title="Key Influencers"
-            data={influenceData}
-          />
-
-          <GraphView
-            data={graphData}
-          />
-        </div>
-      </div>
-    </div>
+    <BrowserRouter>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/analyze" element={<Analyze />} />
+          <Route path="/ocr" element={<OCR />} />
+          <Route path="/graph" element={<Graph />} />
+          <Route path="/prediction" element={<Prediction />} />
+          <Route path="/history" element={<History />} />
+          <Route path="/settings" element={<Settings />} />
+        </Routes>
+      </Layout>
+    </BrowserRouter>
   );
 }
 
