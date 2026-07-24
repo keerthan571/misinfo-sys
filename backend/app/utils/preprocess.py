@@ -2,37 +2,33 @@ import re
 import nltk
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-from nltk.tokenize import word_tokenize
 
-# Download required NLTK data
-nltk.download('punkt')
-nltk.download('stopwords')
+# Download required data
+nltk.download("stopwords", quiet=True)
 
-# Initialize stemmer
+# Initialize
 stemmer = PorterStemmer()
-
-# Load stopwords
-stop_words = set(stopwords.words('english'))
+stop_words = set(stopwords.words("english"))
 
 def preprocess_text(text):
+    # Handle invalid input
+    if not isinstance(text, str):
+        return ""
+
     # Convert to lowercase
     text = text.lower()
 
     # Remove special characters and numbers
-    text = re.sub(r'[^a-zA-Z]', ' ', text)
+    text = re.sub(r'[^a-z\s]', ' ', text)
 
-    # Tokenize text
-    words = word_tokenize(text)
+    # Split into words (much faster than word_tokenize)
+    words = text.split()
 
     # Remove stopwords and apply stemming
-    processed_words = []
+    processed_words = [
+        stemmer.stem(word)
+        for word in words
+        if word not in stop_words
+    ]
 
-    for word in words:
-        if word not in stop_words:
-            stemmed_word = stemmer.stem(word)
-            processed_words.append(stemmed_word)
-
-    # Join words back into sentence
-    processed_text = " ".join(processed_words)
-
-    return processed_text
+    return " ".join(processed_words)

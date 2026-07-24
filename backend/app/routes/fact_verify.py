@@ -10,6 +10,16 @@ class FactRequest(BaseModel):
     claim: str
 
 
-@router.post("/")
+class FactResponse(BaseModel):
+    status: str
+    claim: str | None = None
+    verdict: str | None = None
+    reason: str | None = None
+    confidence: str | None = None
+    sources: list[str] | None = None
+    message: str | None = None
+
+
+@router.post("/", response_model=FactResponse)
 def fact_verify(request: FactRequest):
     return verify_claim(request.claim)
