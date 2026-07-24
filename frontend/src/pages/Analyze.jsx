@@ -1,32 +1,125 @@
 import { useState } from "react";
 import apiClient from "../api/apiClient";
 
+import AnalyzeInput from "../components/analyze/AnalyzeInput";
+import DetectionCard from "../components/analyze/DetectionCard";
+import FactVerificationCard from "../components/analyze/FactVerificationCard";
+import OCRCard from "../components/analyze/OCRCard";
+import SpreadPredictionCard from "../components/analyze/SpreadPredictionCard";
+
 export default function Analyze() {
   const [news, setNews] = useState("");
+  const [image, setImage] = useState(null);
+
   const [result, setResult] = useState(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Temporary Mock Response
+  const mockResult = {
+    status: "success",
+    analysis: {
+      analysis_id: "7b970220-4979-48e4-be43-b85f5f98a4cc",
+      analysis_time: "2026-07-24T18:10:42.862709+00:00",
+
+      detection: {
+        status: "success",
+        prediction: "Fake",
+        confidence: 95,
+        reason:
+          "NASA has not officially announced any discovery of life on Mars, and such a significant finding would be widely reported by credible sources.",
+      },
+
+      fact_verification: {
+        status: "success",
+        claim: "NASA discovered life on Mars yesterday.",
+        verdict: "False",
+        confidence: 100,
+        reason:
+          "NASA discovered a potential biosignature, not confirmed life.",
+        sources: [
+          "https://www.nasa.gov",
+          "https://www.cnn.com",
+        ],
+      },
+
+      ocr: {
+        used: false,
+        extracted_text: "",
+        confidence: 0,
+      },
+
+      prediction: {
+        status: "success",
+        predicted_reach: 0,
+        risk_level: "Low",
+        virality_score: 0,
+      },
+
+      graph: {
+        nodes: [],
+        edges: [],
+      },
+    },
+  };
+
   const handleAnalyze = async () => {
-    if (!news.trim()) {
-      alert("Please enter some news text.");
+    if (!news.trim() && !image) {
+      setError("Please enter news text or upload an image.");
       return;
     }
 
     setLoading(true);
     setError("");
-    setResult(null);
 
     try {
-      const response = await apiClient.post("/api/detect/", {
-        text: news,
-      });
+      // ----------------------------------
+      // TEMPORARY MOCK
+      // ----------------------------------
+      setTimeout(() => {
+        setResult(mockResult);
+        setLoading(false);
+      }, 1000);
+
+      // ----------------------------------
+      // REAL API (Enable after backend merge)
+      // ----------------------------------
+
+      /*
+      const formData = new FormData();
+
+      if (news.trim()) {
+        formData.append("text", news);
+      }
+
+      if (image) {
+        formData.append("image", image);
+      }
+
+      const response = await apiClient.post(
+        "/analyze/",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
 
       setResult(response.data);
+      setLoading(false);
+      */
+
     } catch (err) {
       console.error(err);
-      setError("Unable to connect to backend.");
-    } finally {
+
+      if (err.response) {
+        setError(err.response.data?.detail || "Analysis failed.");
+      } else {
+        setError("Unable to connect to backend.");
+      }
+
       setLoading(false);
     }
   };
@@ -41,47 +134,19 @@ export default function Analyze() {
         </h1>
 
         <p className="text-gray-400 mt-2">
-          Enter a news article or upload an image to detect misinformation.
+          Paste news text or upload a news screenshot to detect misinformation.
         </p>
       </div>
 
-      {/* Input Section */}
-      <div className="bg-slate-800 rounded-2xl p-6 shadow-lg">
-
-        <label className="text-white font-semibold">
-          News Text
-        </label>
-
-        <textarea
-          rows="8"
-          value={news}
-          onChange={(e) => setNews(e.target.value)}
-          placeholder="Paste your news article here..."
-          className="w-full mt-4 bg-slate-900 rounded-xl p-4 text-white outline-none resize-none"
-        />
-
-        <div className="mt-6">
-
-          <label className="text-white font-semibold">
-            Upload Screenshot (OCR)
-          </label>
-
-          <input
-            type="file"
-            className="block mt-3 text-white"
-          />
-
-        </div>
-
-        <button
-          onClick={handleAnalyze}
-          disabled={loading}
-          className="mt-6 bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-xl font-bold disabled:opacity-50"
-        >
-          {loading ? "Analyzing..." : "Analyze"}
-        </button>
-
-      </div>
+      {/* Analyze Input */}
+      <AnalyzeInput
+        news={news}
+        setNews={setNews}
+        image={image}
+        setImage={setImage}
+        loading={loading}
+        onAnalyze={handleAnalyze}
+      />
 
       {/* Error */}
       {error && (
@@ -90,83 +155,25 @@ export default function Analyze() {
         </div>
       )}
 
-      {/* Result */}
+      {/* Result Cards */}
       {result && (
-        <div className="bg-slate-800 rounded-2xl p-6 shadow-lg">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          <h2 className="text-3xl font-bold text-white mb-6">
-            AI Analysis Result
-          </h2>
+          <DetectionCard
+            data={result.analysis.detection}
+          />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <FactVerificationCard
+            data={result.analysis.fact_verification}
+          />
 
-            {/* Prediction */}
-            <div className="bg-slate-900 rounded-xl p-6">
+          <OCRCard
+            data={result.analysis.ocr}
+          />
 
-              <p className="text-gray-400">
-                Prediction
-              </p>
-
-              <h2
-                className={`text-4xl font-bold mt-4 ${
-                  result.prediction.toLowerCase() === "fake"
-                    ? "text-red-500"
-                    : "text-green-500"
-                }`}
-              >
-                {result.prediction}
-              </h2>
-
-            </div>
-
-            {/* Confidence */}
-            <div className="bg-slate-900 rounded-xl p-6">
-
-              <p className="text-gray-400">
-                Confidence
-              </p>
-
-              <h2 className="text-4xl font-bold text-blue-400 mt-4">
-                {Number(result.confidence).toFixed(2)}%
-              </h2>
-
-            </div>
-
-            {/* Risk */}
-            <div className="bg-slate-900 rounded-xl p-6">
-
-              <p className="text-gray-400">
-                Risk Level
-              </p>
-
-              <h2
-                className={`text-4xl font-bold mt-4 ${
-                  result.prediction.toLowerCase() === "fake"
-                    ? "text-red-500"
-                    : "text-green-500"
-                }`}
-              >
-                {result.prediction.toLowerCase() === "fake"
-                  ? "HIGH"
-                  : "LOW"}
-              </h2>
-
-            </div>
-
-          </div>
-
-          {/* Text Analyzed */}
-          <div className="mt-8">
-
-            <h3 className="text-xl font-semibold text-white mb-3">
-              Text Analyzed
-            </h3>
-
-            <div className="bg-slate-900 rounded-xl p-4 text-gray-300 leading-7">
-              {result.text_analyzed}
-            </div>
-
-          </div>
+          <SpreadPredictionCard
+            data={result.analysis.prediction}
+          />
 
         </div>
       )}

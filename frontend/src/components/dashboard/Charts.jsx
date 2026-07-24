@@ -1,9 +1,9 @@
 import {
-  ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
   Tooltip,
+  ResponsiveContainer,
   BarChart,
   Bar,
   XAxis,
@@ -11,68 +11,70 @@ import {
   CartesianGrid,
 } from "recharts";
 
-const pieData = [
-  { name: "Fake", value: 412 },
-  { name: "Real", value: 833 },
-];
+export default function Charts({
+  fakeNews,
+  realNews,
+  weeklyAnalysis,
+}) {
+  const pieData = [
+    { name: "Fake", value: fakeNews },
+    { name: "Real", value: realNews },
+  ];
 
-const barData = [
-  { day: "Mon", analyses: 120 },
-  { day: "Tue", analyses: 180 },
-  { day: "Wed", analyses: 240 },
-  { day: "Thu", analyses: 150 },
-  { day: "Fri", analyses: 280 },
-];
+  const COLORS = ["#ef4444", "#22c55e"];
 
-const COLORS = ["#ef4444", "#22c55e"];
-
-export default function Charts() {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
       {/* Pie Chart */}
       <div className="bg-slate-800 rounded-2xl p-6 shadow-lg">
-        <h2 className="text-2xl font-bold text-white mb-6">
-          Fake vs Real News
+        <h2 className="text-xl font-bold text-white mb-4">
+          Fake vs Real
         </h2>
 
-        <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={pieData}
-                dataKey="value"
-                outerRadius={90}
-                label
-              >
-                {pieData.map((entry, index) => (
-                  <Cell key={index} fill={COLORS[index]} />
-                ))}
-              </Pie>
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={pieData}
+              dataKey="value"
+              outerRadius={90}
+              label
+            >
+              {pieData.map((_, index) => (
+                <Cell
+                  key={index}
+                  fill={COLORS[index]}
+                />
+              ))}
+            </Pie>
 
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
       </div>
 
-      {/* Bar Chart */}
+      {/* Weekly Chart */}
       <div className="bg-slate-800 rounded-2xl p-6 shadow-lg">
-        <h2 className="text-2xl font-bold text-white mb-6">
+        <h2 className="text-xl font-bold text-white mb-4">
           Weekly Analyses
         </h2>
 
-        <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={barData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="analyses" fill="#3b82f6" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={weeklyAnalysis}>
+            <CartesianGrid strokeDasharray="3 3" />
+
+            <XAxis dataKey="day" />
+
+            <YAxis />
+
+            <Tooltip />
+
+            <Bar
+              dataKey="count"
+              fill="#3b82f6"
+            />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
     </div>

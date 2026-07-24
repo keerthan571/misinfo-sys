@@ -1,123 +1,98 @@
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import Charts from "../components/dashboard/Charts";
+import StatCard from "../components/dashboard/StatCard";
+import RecentActivity from "../components/dashboard/RecentActivity";
+import QuickActions from "../components/dashboard/QuickActions";
+import DashboardHeader from "../components/dashboard/DashboardHeader";
 
 export default function Dashboard() {
-  const navigate = useNavigate();
+  
+  const [dashboard,setDashboard] = useState({
+    totalAnalyses: 0,
+    fakeNews: 0,
+    realNews: 0,
+    ocrUploads: 0,
+    reports: 0,
+    avgConfidence: 0,
+    recentActivity: [],
+    weeklyAnalysis: [
+      { day: "Mon", count: 0 },
+      { day: "Tue", count: 0 },
+      { day: "Wed", count: 0 },
+      { day: "Thu", count: 0 },
+      { day: "Fri", count: 0 },
+      { day: "Sat", count: 0 },
+      { day: "Sun", count: 0 },
+    ],
+  });
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-4xl font-bold text-white">Dashboard</h1>
-
-        <p className="text-gray-400 mt-2">
-          Welcome back! Here's an overview of your AI-powered misinformation
-          analysis platform.
-        </p>
-      </div>
+      <DashboardHeader userName="User" />
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <StatCard
+          title="Total Analyses"
+          value={dashboard.totalAnalyses}
+          subtitle="All analyses performed"
+          icon="📊"
+        />
 
-        <div className="bg-slate-800 rounded-2xl p-6 shadow-lg hover:scale-105 transition duration-300">
-          <p className="text-gray-400 text-lg">📊 Total Analyses</p>
-          <h2 className="text-4xl font-bold text-white mt-4">1245</h2>
-          <p className="text-green-400 mt-2">+12% Today</p>
-        </div>
+        <StatCard
+          title="Fake News"
+          value={dashboard.fakeNews}
+          subtitle="Detected as misinformation"
+          icon="🚨"
+          valueColor="text-red-500"
+        />
 
-        <div className="bg-slate-800 rounded-2xl p-6 shadow-lg hover:scale-105 transition duration-300">
-          <p className="text-gray-400 text-lg">🚨 Fake News</p>
-          <h2 className="text-4xl font-bold text-red-500 mt-4">412</h2>
-          <p className="text-red-400 mt-2">High Detection Rate</p>
-        </div>
+        <StatCard
+          title="Real News"
+          value={dashboard.realNews}
+          subtitle="Verified content"
+          icon="✅"
+          valueColor="text-green-400"
+        />
 
-        <div className="bg-slate-800 rounded-2xl p-6 shadow-lg hover:scale-105 transition duration-300">
-          <p className="text-gray-400 text-lg">⚠ High Risk</p>
-          <h2 className="text-4xl font-bold text-yellow-400 mt-4">23</h2>
-          <p className="text-yellow-400 mt-2">Critical Posts</p>
-        </div>
+        <StatCard
+          title="OCR Uploads"
+          value={dashboard.ocrUploads}
+          subtitle="Images processed"
+          icon="📷"
+          valueColor="text-purple-400"
+        />
 
-        <div className="bg-slate-800 rounded-2xl p-6 shadow-lg hover:scale-105 transition duration-300">
-          <p className="text-gray-400 text-lg">👥 Influencers</p>
-          <h2 className="text-4xl font-bold text-green-400 mt-4">87</h2>
-          <p className="text-green-400 mt-2">Active Accounts</p>
-        </div>
+        <StatCard
+          title="Reports"
+          value={dashboard.reports}
+          subtitle="Generated reports"
+          icon="📄"
+          valueColor="text-blue-400"
+        />
 
+        <StatCard
+          title="Avg. Confidence"
+          value={`${dashboard.avgConfidence}%`}
+          subtitle="Prediction confidence"
+          icon="🎯"
+          valueColor="text-yellow-400"
+        />
       </div>
 
       {/* Charts */}
-      <Charts />
+      <Charts
+        fakeNews={dashboard.fakeNews}
+        realNews={dashboard.realNews}
+        weeklyAnalysis={dashboard.weeklyAnalysis}
+      />
 
-      {/* Recent Activity */}
-      <div className="bg-slate-800 rounded-2xl p-6 shadow-lg">
+      <RecentActivity
+        activities={dashboard.recentActivity}
+      />
+      
 
-        <h2 className="text-2xl font-bold text-white mb-4">
-          📰 Recent Activity
-        </h2>
-
-        <div className="space-y-3">
-
-          <div className="bg-slate-900 p-4 rounded-lg">
-            🚨 Fake news detected in uploaded article
-          </div>
-
-          <div className="bg-slate-900 p-4 rounded-lg">
-            📷 OCR analysis completed
-          </div>
-
-          <div className="bg-slate-900 p-4 rounded-lg">
-            🌐 Propagation graph generated
-          </div>
-
-          <div className="bg-slate-900 p-4 rounded-lg">
-            📈 Spread prediction completed
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* Quick Actions */}
-      <div>
-
-        <h2 className="text-2xl font-bold text-white mb-4">
-          ⚡ Quick Actions
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-
-          <button
-            onClick={() => navigate("/analyze")}
-            className="bg-blue-600 hover:bg-blue-700 rounded-xl py-4 font-semibold transition"
-          >
-            📰 Analyze News
-          </button>
-
-          <button
-            onClick={() => navigate("/ocr")}
-            className="bg-purple-600 hover:bg-purple-700 rounded-xl py-4 font-semibold transition"
-          >
-            📷 OCR Scanner
-          </button>
-
-          <button
-            onClick={() => navigate("/graph")}
-            className="bg-green-600 hover:bg-green-700 rounded-xl py-4 font-semibold transition"
-          >
-            🌐 View Graph
-          </button>
-
-          <button
-            onClick={() => navigate("/prediction")}
-            className="bg-red-600 hover:bg-red-700 rounded-xl py-4 font-semibold transition"
-          >
-            📈 Prediction
-          </button>
-
-        </div>
-
-      </div>
-
+      <QuickActions />
     </div>
   );
 }
