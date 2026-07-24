@@ -3,13 +3,14 @@ import apiClient from "../api/apiClient";
 
 export default function Analyze() {
   const [news, setNews] = useState("");
+  const [image, setImage] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleAnalyze = async () => {
-    if (!news.trim()) {
-      alert("Please enter some news text.");
+    if (!news.trim() && !image) {
+      alert("Please enter text or upload an image.");
       return;
     }
 
@@ -18,11 +19,26 @@ export default function Analyze() {
     setResult(null);
 
     try {
-      const response = await apiClient.post("/api/detect/", {
-        text: news,
-      });
+      const formData = new FormData();
 
-      setResult(response.data);
+      formData.append("text", news);
+
+      if (image) {
+        formData.append("image", image);
+      }
+
+      const response = await apiClient.post(
+        "/api/analyze/",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      setResult(response.data.analysis);
+
     } catch (err) {
       console.error(err);
       setError("Unable to connect to backend.");
@@ -31,21 +47,23 @@ export default function Analyze() {
     }
   };
 
+
   return (
     <div className="space-y-8">
 
-      {/* Header */}
       <div>
         <h1 className="text-4xl font-bold text-white">
           Analyze News
         </h1>
 
         <p className="text-gray-400 mt-2">
-          Enter a news article or upload an image to detect misinformation.
+          Detect misinformation using AI, fact verification and OCR.
         </p>
       </div>
 
-      {/* Input Section */}
+
+      {/* INPUT */}
+
       <div className="bg-slate-800 rounded-2xl p-6 shadow-lg">
 
         <label className="text-white font-semibold">
@@ -55,120 +73,176 @@ export default function Analyze() {
         <textarea
           rows="8"
           value={news}
-          onChange={(e) => setNews(e.target.value)}
-          placeholder="Paste your news article here..."
-          className="w-full mt-4 bg-slate-900 rounded-xl p-4 text-white outline-none resize-none"
+          onChange={(e)=>setNews(e.target.value)}
+          placeholder="Paste news article..."
+          className="w-full mt-4 bg-slate-900 rounded-xl p-4 text-white"
         />
 
-        <div className="mt-6">
 
-          <label className="text-white font-semibold">
-            Upload Screenshot (OCR)
-          </label>
+        <label className="text-white font-semibold block mt-6">
+          Upload Image (OCR)
+        </label>
 
-          <input
-            type="file"
-            className="block mt-3 text-white"
-          />
 
-        </div>
+        <input
+          type="file"
+          onChange={(e)=>setImage(e.target.files[0])}
+          className="mt-3 text-white"
+        />
+
 
         <button
           onClick={handleAnalyze}
           disabled={loading}
-          className="mt-6 bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-xl font-bold disabled:opacity-50"
+          className="mt-6 bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-xl font-bold"
         >
           {loading ? "Analyzing..." : "Analyze"}
         </button>
 
       </div>
 
-      {/* Error */}
+
+
       {error && (
-        <div className="bg-red-500 text-white rounded-xl p-4">
+        <div className="bg-red-500 p-4 rounded-xl text-white">
           {error}
         </div>
       )}
 
-      {/* Result */}
+
+
       {result && (
-        <div className="bg-slate-800 rounded-2xl p-6 shadow-lg">
 
-          <h2 className="text-3xl font-bold text-white mb-6">
-            AI Analysis Result
-          </h2>
+        <div className="space-y-6">
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-            {/* Prediction */}
-            <div className="bg-slate-900 rounded-xl p-6">
+          {/* DETECTION */}
 
-              <p className="text-gray-400">
-                Prediction
-              </p>
+          <div className="bg-slate-800 rounded-2xl p-6">
 
-              <h2
-                className={`text-4xl font-bold mt-4 ${
-                  result.prediction.toLowerCase() === "fake"
-                    ? "text-red-500"
-                    : "text-green-500"
-                }`}
-              >
-                {result.prediction}
-              </h2>
+            <h2 className="text-2xl font-bold text-white">
+              AI Detection
+            </h2>
 
-            </div>
 
-            {/* Confidence */}
-            <div className="bg-slate-900 rounded-xl p-6">
+            <p className="text-gray-400 mt-4">
+              Prediction
+            </p>
 
-              <p className="text-gray-400">
-                Confidence
-              </p>
-
-              <h2 className="text-4xl font-bold text-blue-400 mt-4">
-                {Number(result.confidence).toFixed(2)}%
-              </h2>
-
-            </div>
-
-            {/* Risk */}
-            <div className="bg-slate-900 rounded-xl p-6">
-
-              <p className="text-gray-400">
-                Risk Level
-              </p>
-
-              <h2
-                className={`text-4xl font-bold mt-4 ${
-                  result.prediction.toLowerCase() === "fake"
-                    ? "text-red-500"
-                    : "text-green-500"
-                }`}
-              >
-                {result.prediction.toLowerCase() === "fake"
-                  ? "HIGH"
-                  : "LOW"}
-              </h2>
-
-            </div>
-
-          </div>
-
-          {/* Text Analyzed */}
-          <div className="mt-8">
-
-            <h3 className="text-xl font-semibold text-white mb-3">
-              Text Analyzed
+            <h3
+              className={`text-4xl font-bold ${
+                result.detection.prediction === "Fake"
+                ? "text-red-500"
+                : "text-green-500"
+              }`}
+            >
+              {result.detection.prediction}
             </h3>
 
-            <div className="bg-slate-900 rounded-xl p-4 text-gray-300 leading-7">
-              {result.text_analyzed}
-            </div>
+
+            <p className="text-gray-400 mt-4">
+              Confidence
+            </p>
+
+            <h3 className="text-3xl text-blue-400 font-bold">
+              {result.detection.confidence}%
+            </h3>
+
+
+            <p className="text-gray-300 mt-4">
+              {result.detection.reason}
+            </p>
+
 
           </div>
 
+
+
+          {/* FACT CHECK */}
+
+          <div className="bg-slate-800 rounded-2xl p-6">
+
+            <h2 className="text-2xl font-bold text-white">
+              Fact Verification
+            </h2>
+
+
+            <p className="text-gray-300 mt-4">
+              Claim:
+            </p>
+
+            <p className="text-white">
+              {result.fact_verification.claim}
+            </p>
+
+
+            <p className="text-gray-300 mt-4">
+              Verdict:
+            </p>
+
+            <p className="text-red-400 font-bold">
+              {result.fact_verification.verdict}
+            </p>
+
+
+            <p className="text-gray-300 mt-4">
+              {result.fact_verification.reason}
+            </p>
+
+
+          </div>
+
+
+
+
+          {/* OCR */}
+
+          <div className="bg-slate-800 rounded-2xl p-6">
+
+            <h2 className="text-2xl font-bold text-white">
+              OCR Result
+            </h2>
+
+
+            <p className="text-gray-300 mt-4">
+              Used: {result.ocr.used ? "Yes" : "No"}
+            </p>
+
+
+            <p className="text-white mt-3">
+              {result.ocr.extracted_text}
+            </p>
+
+
+          </div>
+
+
+
+
+          {/* PREDICTION */}
+
+          <div className="bg-slate-800 rounded-2xl p-6">
+
+            <h2 className="text-2xl font-bold text-white">
+              Spread Prediction
+            </h2>
+
+
+            <p className="text-white mt-4">
+              Risk Level: {result.prediction.risk_level}
+            </p>
+
+
+            <p className="text-white">
+              Virality Score: {result.prediction.virality_score}
+            </p>
+
+
+          </div>
+
+
         </div>
+
       )}
 
     </div>

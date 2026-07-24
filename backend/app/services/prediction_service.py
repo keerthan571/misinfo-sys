@@ -63,7 +63,7 @@ class PredictionService:
         ])
 
         # Predict reach
-        predicted_reach = self.model.predict(input_data)[0]
+        predicted_reach = max(0, self.model.predict(input_data)[0])
 
         # Risk analysis
         risk_level = self.calculate_risk_level(predicted_reach)

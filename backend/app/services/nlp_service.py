@@ -1,53 +1,137 @@
-import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
 import os
+import json
+from groq import Groq
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+groq_client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
+
 
 class NLPService:
-    def __init__(self):
-        # We will use a basic Logistic Regression model for demonstration
-        self.model = LogisticRegression()
-        self.vectorizer = TfidfVectorizer(stop_words='english')
-        self.is_trained = False
-        
-    def train_model(self):
-        """
-        Loads the dummy dataset and trains a basic model.
-        In a real scenario, this would load a pre-trained model file (e.g., .pkl)
-        """
-        csv_path = os.path.join(os.path.dirname(__file__), '../../dummy_dataset.csv')
-        try:
-            df = pd.read_csv(csv_path)
-            # Simple preprocessing
-            X = self.vectorizer.fit_transform(df['text'])
-            y = df['label']
-            self.model.fit(X, y)
-            self.is_trained = True
-            print("NLP Model trained successfully.")
-        except Exception as e:
-            print(f"Error training NLP model: {e}")
 
     def analyze_text(self, text: str):
-        """
-        Analyzes the given text for misinformation.
-        """
-        if not self.is_trained:
-            self.train_model()
-            
-        if not self.is_trained:
-             return {"error": "Model not trained."}
 
-        # Vectorize input text
-        X_input = self.vectorizer.transform([text])
-        
-        # Predict
-        prediction = self.model.predict(X_input)[0]
-        confidence = self.model.predict_proba(X_input).max()
-        
-        return {
-            "text_analyzed": text,
-            "prediction": prediction,
-            "confidence": round(confidence * 100, 2)
-        }
+        try:
+
+            if not text or len(text.strip()) < 5:
+                return {
+                    "status": "error",
+                    "message": "Please enter valid text."
+                }
+
+
+            prompt = f"""
+You are an AI misinformation detection expert.
+
+Analyze the following text:
+
+"{text}"
+
+Decide whether the content is:
+- Fake
+- Real
+- Misleading
+- Uncertain
+
+Return ONLY valid JSON.
+
+Format:
+
+{{
+    "prediction": "Fake",
+    "confidence": "90%",
+    "reason": "Explain in 2-3 lines."
+}}
+
+Rules:
+- Do not return markdown.
+- Do not add extra text.
+- Return only JSON.
+"""
+
+
+            response = groq_client.chat.completions.create(
+
+                model="llama-3.3-70b-versatile",
+
+                temperature=0,
+
+                messages=[
+                    {
+                        "role": "system",
+                        "content":
+                        "You are an expert AI misinformation detector."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+
+            )
+
+
+            content = response.choices[0].message.content.strip()
+
+
+            # Remove markdown if returned
+            content = (
+                content
+                .replace("```json", "")
+                .replace("```", "")
+                .strip()
+            )
+
+
+            result = json.loads(content)
+
+
+            return {
+
+                "status": "success",
+
+                "text_analyzed": text,
+
+                "prediction":
+                    result.get(
+                        "prediction",
+                        "Uncertain"
+                    ),
+
+                "confidence":
+                    result.get(
+                        "confidence",
+                        "0%"
+                    ),
+
+                "reason":
+                    result.get(
+                        "reason",
+                        ""
+                    )
+
+            }
+
+
+        except json.JSONDecodeError:
+
+            return {
+                "status": "error",
+                "message": "Invalid JSON received from Groq."
+            }
+
+
+        except Exception as e:
+
+            return {
+                "status": "error",
+                "message": str(e)
+            }
+
+
 
 nlp_service = NLPService()
