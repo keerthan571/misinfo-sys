@@ -10,7 +10,6 @@ import SpreadPredictionCard from "../components/analyze/SpreadPredictionCard";
 export default function Analyze() {
   const [news, setNews] = useState("");
   const [image, setImage] = useState(null);
-
   const [result, setResult] = useState(null);
 
   const [loading, setLoading] = useState(false);
@@ -82,11 +81,11 @@ export default function Analyze() {
         setLoading(false);
       }, 1000);
 
+      /*
       // ----------------------------------
       // REAL API (Enable after backend merge)
       // ----------------------------------
 
-      /*
       const formData = new FormData();
 
       if (news.trim()) {
@@ -127,7 +126,6 @@ export default function Analyze() {
   return (
     <div className="space-y-8">
 
-      {/* Header */}
       <div>
         <h1 className="text-4xl font-bold text-white">
           Analyze News
@@ -138,7 +136,6 @@ export default function Analyze() {
         </p>
       </div>
 
-      {/* Analyze Input */}
       <AnalyzeInput
         news={news}
         setNews={setNews}
@@ -148,14 +145,12 @@ export default function Analyze() {
         onAnalyze={handleAnalyze}
       />
 
-      {/* Error */}
       {error && (
-        <div className="bg-red-500 text-white rounded-xl p-4">
+        <div className="bg-red-500 p-4 rounded-xl text-white">
           {error}
         </div>
       )}
 
-      {/* Result Cards */}
       {result && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 

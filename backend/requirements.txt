@@ -10,3 +10,5 @@ python-multipart
 Pillow
 pydantic
 networkx
+google-generativeai
+python-dotenv

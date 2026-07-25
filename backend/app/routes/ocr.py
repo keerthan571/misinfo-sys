@@ -3,11 +3,20 @@ from ..services.ocr_service import ocr_service
 
 router = APIRouter()
 
+
 @router.post("/")
 async def extract_text(file: UploadFile = File(...)):
     """
-    Endpoint to extract text from an uploaded image using OCR.
+    Extract text from an uploaded image using OCR.
     """
+
+    # Validate uploaded file
+    if not file.content_type or not file.content_type.startswith("image/"):
+        return {
+            "status": "error",
+            "message": "Please upload a valid image file."
+        }
+
     image_bytes = await file.read()
-    result = ocr_service.extract_text_from_image(image_bytes)
-    return result
+
+    return ocr_service.extract_text_from_image(image_bytes)
