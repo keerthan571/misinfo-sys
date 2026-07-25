@@ -1,199 +1,506 @@
 import os
 import json
+
 from groq import Groq
 from tavily import TavilyClient
 from dotenv import load_dotenv
 
+
 load_dotenv()
 
-# Initialize Groq
+
+
+# ==========================
+# Clients
+# ==========================
+
 groq_client = Groq(
     api_key=os.getenv("GROQ_API_KEY")
 )
 
-# Initialize Tavily
+
 tavily_client = TavilyClient(
     api_key=os.getenv("TAVILY_API_KEY")
 )
 
 
+
+
+
 def verify_claim(claim: str):
+
     try:
-        # -----------------------------
+
+
+        # ==========================
         # Validate Input
-        # -----------------------------
+        # ==========================
+
         if not claim or len(claim.strip()) < 5:
+
             return {
-                "status": "error",
-                "message": "Please enter a valid claim."
+
+                "status":"error",
+
+                "claim":claim,
+
+                "verdict":"Uncertain",
+
+                "reason":
+                "Invalid claim provided.",
+
+                "confidence":"0%",
+
+                "sources":[]
+
             }
 
-        # -----------------------------
-        # Search Latest Information
-        # -----------------------------
+
+
+
+
+
+        # ==========================
+        # Tavily Search
+        # ==========================
+
+
         search_results = tavily_client.search(
+
             query=claim,
+
             search_depth="advanced",
+
             max_results=5
+
         )
 
-        results = search_results.get("results", [])
+
+
+        results = search_results.get(
+            "results",
+            []
+        )
+
+
+
 
         if not results:
+
+
             return {
-                "status": "success",
-                "claim": claim,
-                "verdict": "Uncertain",
-                "reason": "No reliable web evidence found.",
-                "confidence": "0%",
-                "sources": []
+
+                "status":"success",
+
+                "claim":claim,
+
+                "verdict":"Uncertain",
+
+                "reason":
+                "No reliable evidence found from available sources.",
+
+                "confidence":"0%",
+
+                "sources":[]
+
             }
 
+
+
+
+
+
         evidence = ""
+
         sources = []
 
-        for result in results:
-            title = result.get("title", "")
-            content = result.get("content", "")
-            url = result.get("url", "")
+
+
+
+
+        for item in results:
+
+
+            title = item.get(
+                "title",
+                ""
+            )
+
+
+            content = item.get(
+                "content",
+                ""
+            )
+
+
+            url = item.get(
+                "url",
+                ""
+            )
+
+
 
             evidence += f"""
-Title: {title}
-Content: {content}
-Source: {url}
+
+Title:
+{title}
+
+Content:
+{content}
+
+Source:
+{url}
 
 """
 
+
+
             if url:
+
                 sources.append(url)
 
-        # Remove duplicate URLs while preserving order
-        sources = list(dict.fromkeys(sources))
 
-        # -----------------------------
-        # Prompt
-        # -----------------------------
+
+
+
+
+        sources = list(
+            dict.fromkeys(
+                sources
+            )
+        )
+
+
+
+
+
+
+
+
+        # ==========================
+        # Groq Prompt
+        # ==========================
+
+
         prompt = f"""
-You are an expert AI Fact Checker.
 
-A user submitted the following claim:
+You are an expert fact verification AI.
+
+Claim:
 
 "{claim}"
 
-Below is the latest information retrieved from the web.
+
+Evidence collected from web:
 
 {evidence}
 
+
+
 Rules:
 
-1. Use ONLY the evidence provided.
-2. Never use your own knowledge.
-3. Never guess.
-4. If the evidence supports the claim, return "True".
-5. If the evidence contradicts the claim, return "False".
-6. If the evidence is conflicting, return "Misleading".
-7. If the evidence is insufficient, return "Uncertain".
+- Use only provided evidence.
+- Do not use previous knowledge.
+- Do not guess.
+- If evidence supports claim return True.
+- If evidence contradicts claim return False.
+- If partially correct return Misleading.
+- If insufficient evidence return Uncertain.
 
-Return ONLY valid JSON.
 
-The verdict MUST be exactly one of:
+Return ONLY JSON.
 
-- True
-- False
-- Misleading
-- Uncertain
 
 Format:
 
+
 {{
-    "verdict": "True",
-    "reason": "Explain the verdict in 3-5 lines.",
-    "confidence": "98%"
+"verdict":"True",
+"reason":"Short explanation",
+"confidence":"90%"
 }}
 
-Do NOT return markdown.
-Do NOT return any explanation outside the JSON.
-Do NOT wrap the JSON inside ```json ... ```.
 """
 
-        # -----------------------------
-        # Groq Response
-        # -----------------------------
+
+
+
+
+
+
         response = groq_client.chat.completions.create(
+
+
             model="llama-3.3-70b-versatile",
+
+
             temperature=0,
+
+
             messages=[
+
+
                 {
-                    "role": "system",
-                    "content": "You are an expert AI fact checker. Use ONLY the provided evidence. Never invent facts."
+
+
+                    "role":"system",
+
+
+                    "content":
+                    "You are a strict fact checking AI."
+
+
                 },
+
+
                 {
-                    "role": "user",
-                    "content": prompt
+
+
+                    "role":"user",
+
+
+                    "content":prompt
+
+
                 }
+
+
             ]
+
         )
 
-        content = response.choices[0].message.content.strip()
 
-        if not content:
+
+
+
+
+
+        output = response.choices[0].message.content.strip()
+
+
+
+
+
+
+        if not output:
+
+
             return {
-                "status": "error",
-                "message": "Empty response received from Groq."
+
+                "status":"error",
+
+                "claim":claim,
+
+                "verdict":"Uncertain",
+
+                "reason":
+                "Empty AI response received.",
+
+                "confidence":"0%",
+
+                "sources":sources
+
             }
 
-        # Remove markdown code fences if present
-        content = (
-            content.replace("```json", "")
-                   .replace("```", "")
-                   .strip()
+
+
+
+
+
+
+        # remove markdown
+
+        output = (
+
+            output
+
+            .replace(
+                "```json",
+                ""
+            )
+
+            .replace(
+                "```",
+                ""
+            )
+
+            .strip()
+
         )
 
-        result = json.loads(content)
 
-        # -----------------------------
-        # Validate Verdict
-        # -----------------------------
-        verdict = result.get("verdict", "Uncertain").strip().title()
 
-        valid_verdicts = {
+
+
+        result = json.loads(output)
+
+
+
+
+
+
+        # ==========================
+        # Normalize Result
+        # ==========================
+
+
+        verdict = (
+
+            result.get(
+                "verdict",
+                "Uncertain"
+            )
+
+            .strip()
+
+            .title()
+
+        )
+
+
+
+
+        allowed = [
+
             "True",
-            "False",
-            "Misleading",
-            "Uncertain"
-        }
 
-        if verdict not in valid_verdicts:
+            "False",
+
+            "Misleading",
+
+            "Uncertain"
+
+        ]
+
+
+
+        if verdict not in allowed:
+
             verdict = "Uncertain"
 
-        # -----------------------------
-        # Normalize Confidence
-        # -----------------------------
-        confidence = str(result.get("confidence", "0%")).strip()
 
-        if confidence and not confidence.endswith("%"):
+
+
+
+
+
+        confidence = str(
+
+            result.get(
+
+                "confidence",
+
+                "0%"
+
+            )
+
+        )
+
+
+
+        if not confidence.endswith("%"):
+
             confidence += "%"
 
-        # -----------------------------
-        # Final Response
-        # -----------------------------
+
+
+
+
+
+
+
         return {
-            "status": "success",
-            "claim": claim,
-            "verdict": verdict,
-            "reason": result.get("reason", ""),
-            "confidence": confidence,
-            "sources": sources
+
+
+            "status":"success",
+
+
+            "claim":claim,
+
+
+            "verdict":verdict,
+
+
+            "reason":
+
+            result.get(
+
+                "reason",
+
+                "No explanation available."
+
+            ),
+
+
+            "confidence":confidence,
+
+
+            "sources":sources
+
+
         }
+
+
+
+
+
+
+
+
 
     except json.JSONDecodeError:
+
+
         return {
-            "status": "error",
-            "message": "Groq returned an invalid JSON response."
+
+
+            "status":"error",
+
+
+            "claim":claim,
+
+
+            "verdict":"Uncertain",
+
+
+            "reason":
+            "Invalid JSON returned by AI model.",
+
+
+            "confidence":"0%",
+
+
+            "sources":[]
+
+
         }
 
+
+
+
+
     except Exception as e:
+
+
         return {
-            "status": "error",
-            "message": str(e)
+
+
+            "status":"error",
+
+
+            "claim":claim,
+
+
+            "verdict":"Uncertain",
+
+
+            "reason":str(e),
+
+
+            "confidence":"0%",
+
+
+            "sources":[]
+
+
         }

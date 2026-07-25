@@ -1,5 +1,10 @@
 from fastapi import APIRouter, UploadFile, File
+from datetime import datetime, timezone
+import uuid
+
 from ..services.ocr_service import ocr_service
+from ..database.mongodb import ocr_history_collection
+
 
 router = APIRouter()
 
@@ -17,6 +22,52 @@ async def extract_text(file: UploadFile = File(...)):
             "message": "Please upload a valid image file."
         }
 
+
     image_bytes = await file.read()
 
-    return ocr_service.extract_text_from_image(image_bytes)
+
+    ocr_result = (
+        ocr_service
+        .extract_text_from_image(image_bytes)
+    )
+
+
+    # -------------------------
+    # Save OCR History
+    # Member 1 Collection
+    # -------------------------
+
+    ocr_document = {
+
+        "analysis_id": str(uuid.uuid4()),
+
+        "userId": "test_user",
+
+        "image_name": file.filename,
+
+        "extracted_text": ocr_result.get(
+            "extracted_text",
+            ""
+        ),
+
+        "confidence": 98,
+
+        "timestamp": datetime.now(
+            timezone.utc
+        ).isoformat()
+
+    }
+
+
+    result = ocr_history_collection.insert_one(
+        ocr_document
+    )
+
+
+    print(
+        "OCR MongoDB inserted ID:",
+        result.inserted_id
+    )
+
+
+    return ocr_result
