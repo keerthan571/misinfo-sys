@@ -1,7 +1,7 @@
-from fastapi import APIRouter, UploadFile, File, Form
+from fastapi import APIRouter, UploadFile, File, Form, Depends
 from datetime import datetime, timezone
 import uuid
-
+from app.auth.dependencies import get_current_user
 
 from ..services.nlp_service import nlp_service
 from ..services.ocr_service import ocr_service
@@ -33,21 +33,12 @@ def safe_confidence(value):
 
         return 0
 
-
-
-
-
-
 @router.post("/")
 async def analyze(
-
     text: str = Form(None),
-
-    image: UploadFile = File(None)
-
+    image: UploadFile = File(None),
+    current_user=Depends(get_current_user)
 ):
-
-
     analysis_id = str(uuid.uuid4())
 
 
@@ -525,59 +516,35 @@ async def analyze(
     # =========================
     # SAVE TO MONGODB
     # =========================
-
-
     analysis_document = {
 
+        "analysis_id": analysis_id,
 
-        "analysis_id":
-        analysis_id,
+        "email": current_user["email"],
 
+        "userId": current_user["email"],
 
-        "userId":
-        "test_user",
+        "text": final_text,
 
+        "analysis_time": analysis_time,
 
-        "analysis_time":
-        analysis_time,
+        "platform": response["platform"],
 
+        "detection": response["detection"],
 
-        "platform":
-        response["platform"],
+        "fact_verification": response["fact_verification"],
 
+        "ocr": response["ocr"],
 
-        "detection":
-        response["detection"],
+        "engagement": response["engagement"],
 
+        "spread_analysis": response["spread_analysis"],
 
-        "fact_verification":
-        response["fact_verification"],
+        "prediction": response["prediction"],
 
-
-        "ocr":
-        response["ocr"],
-
-
-        "engagement":
-        response["engagement"],
-
-
-        "spread_analysis":
-        response["spread_analysis"],
-
-
-        "prediction":
-        response["prediction"],
-
-
-        "graph":
-        response["graph"]
+        "graph": response["graph"]
 
     }
-
-
-
-
     try:
 
 

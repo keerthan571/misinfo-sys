@@ -18,9 +18,9 @@ from .routes import (
     fact_verify,
     ocr,
     analyze,
-    auth          # <-- NEW
+    auth,
+    dashboard
 )
-
 app = FastAPI(
     title="Misinformation Analysis System API",
     description="Backend API for the VTU final year project.",
@@ -43,7 +43,11 @@ app.add_middleware(
 app.include_router(
     auth.router              # <-- NEW
 )
-
+app.include_router(
+    dashboard.router,
+    prefix="/api/dashboard",
+    tags=["Dashboard"]
+)
 app.include_router(
     analyze.router,
     prefix="/api/analyze",
