@@ -12,6 +12,7 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
@@ -26,63 +27,77 @@ function App() {
         <Route
           path="/"
           element={
-            <Layout>
-              <Dashboard />
-            </Layout>
+            <ProtectedRoute>
+              <Layout>
+                <Dashboard />
+              </Layout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/analyze"
           element={
-            <Layout>
-              <Analyze />
-            </Layout>
+            <ProtectedRoute>
+              <Layout>
+                <Analyze />
+              </Layout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/ocr"
           element={
-            <Layout>
-              <OCR />
-            </Layout>
+            <ProtectedRoute>
+              <Layout>
+                <OCR />
+              </Layout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/graph"
           element={
-            <Layout>
-              <Graph />
-            </Layout>
+            <ProtectedRoute>
+              <Layout>
+                <Graph />
+              </Layout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/prediction"
           element={
-            <Layout>
-              <Prediction />
-            </Layout>
+            <ProtectedRoute>
+              <Layout>
+                <Prediction />
+              </Layout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/history"
           element={
-            <Layout>
-              <History />
-            </Layout>
+            <ProtectedRoute>
+              <Layout>
+                <History />
+              </Layout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/settings"
           element={
-            <Layout>
-              <Settings />
-            </Layout>
+            <ProtectedRoute>
+              <Layout>
+                <Settings />
+              </Layout>
+            </ProtectedRoute>
           }
         />
 

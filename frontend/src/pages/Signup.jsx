@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { User, Mail, Lock } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import apiClient from "../api/apiClient";
 
 export default function Signup() {
+  const navigate = useNavigate();
+
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -17,12 +20,32 @@ export default function Signup() {
     });
   };
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
 
-    console.log(form);
+    if (form.password !== form.confirmPassword) {
+      alert("Passwords do not match");
+      return;
+    }
 
-    // Backend integration will be done later
+    try {
+      const response = await apiClient.post("/api/auth/register", {
+        name: form.name,
+        email: form.email,
+        password: form.password,
+      });
+
+      alert(response.data.message);
+
+      navigate("/login");
+    } catch (error) {
+      console.error(error);
+
+      alert(
+        error.response?.data?.detail ||
+        "Registration failed. Please try again."
+      );
+    }
   };
 
   return (
@@ -45,8 +68,10 @@ export default function Signup() {
               type="text"
               name="name"
               placeholder="Full Name"
-              className="bg-transparent outline-none w-full p-4 text-white"
+              value={form.name}
               onChange={handleChange}
+              required
+              className="bg-transparent outline-none w-full p-4 text-white"
             />
           </div>
 
@@ -56,8 +81,10 @@ export default function Signup() {
               type="email"
               name="email"
               placeholder="Email"
-              className="bg-transparent outline-none w-full p-4 text-white"
+              value={form.email}
               onChange={handleChange}
+              required
+              className="bg-transparent outline-none w-full p-4 text-white"
             />
           </div>
 
@@ -67,8 +94,10 @@ export default function Signup() {
               type="password"
               name="password"
               placeholder="Password"
-              className="bg-transparent outline-none w-full p-4 text-white"
+              value={form.password}
               onChange={handleChange}
+              required
+              className="bg-transparent outline-none w-full p-4 text-white"
             />
           </div>
 
@@ -78,12 +107,17 @@ export default function Signup() {
               type="password"
               name="confirmPassword"
               placeholder="Confirm Password"
-              className="bg-transparent outline-none w-full p-4 text-white"
+              value={form.confirmPassword}
               onChange={handleChange}
+              required
+              className="bg-transparent outline-none w-full p-4 text-white"
             />
           </div>
 
-          <button className="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-xl font-bold transition">
+          <button
+            type="submit"
+            className="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-xl font-bold text-white transition"
+          >
             Create Account
           </button>
 

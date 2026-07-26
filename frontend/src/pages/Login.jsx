@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import apiClient from "../api/apiClient";
 
 export default function Login() {
 
@@ -9,6 +10,7 @@ export default function Login() {
     const [showPassword, setShowPassword] = useState(false);
     const [remember, setRemember] = useState(false);
     const [loading, setLoading] = useState(false);
+    const navigate = useNavigate();
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -20,18 +22,42 @@ export default function Login() {
 
         setLoading(true);
 
-        // Simulate API call
-        setTimeout(() => {
-            console.log({
-                email,
-                password,
-                remember,
-            });
+        try {
+
+            const formData = new URLSearchParams();
+
+            formData.append("username", email);
+            formData.append("password", password);
+
+            const response = await apiClient.post(
+                "/api/auth/login",
+                formData,
+                {
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                }
+            );
+            const token = response.data.access_token;
+
+            localStorage.setItem("token", token);
+            localStorage.setItem("email", email);
+
+            navigate("/");
+
+        } catch (error) {
+
+            alert(
+                error.response?.data?.detail ||
+                "Login failed"
+            );
+
+        } finally {
 
             setLoading(false);
-        }, 1500);
-    };
 
+        }
+    };
     return (
 
         <div className="min-h-screen bg-slate-950 flex justify-center items-center">
