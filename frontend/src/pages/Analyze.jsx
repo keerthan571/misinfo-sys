@@ -12,24 +12,25 @@ import PlatformCard from "../components/analyze/PlatformCard";
 export default function Analyze() {
 
 
-  const [news,setNews] = useState("");
+  const [news, setNews] = useState("");
 
-  const [image,setImage] = useState(null);
+  const [image, setImage] = useState(null);
 
-  const [result,setResult] = useState(null);
+  const [result, setResult] = useState(null);
 
-  const [loading,setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const [error,setError] = useState("");
-
-
+  const [error, setError] = useState("");
 
 
 
-  const handleAnalyze = async()=>{
 
 
-    if(!news.trim() && !image){
+  const handleAnalyze = async () => {
+
+
+    if (!news.trim() && !image) {
+
 
       setError(
         "Please enter news text or upload an image."
@@ -41,12 +42,16 @@ export default function Analyze() {
 
 
 
-    try{
+
+    try {
 
 
       setLoading(true);
 
       setError("");
+
+      setResult(null);
+
 
 
 
@@ -54,23 +59,37 @@ export default function Analyze() {
 
 
 
-      if(news.trim()){
+
+      /*
+        Priority:
+        1. User edited OCR text
+        2. Manual text
+        3. Backend OCR
+      */
+
+
+      if (news.trim()) {
+
 
         formData.append(
           "text",
           news
         );
 
+
       }
 
 
 
-      if(image){
+
+      if (image) {
+
 
         formData.append(
           "image",
           image
         );
+
 
       }
 
@@ -85,32 +104,65 @@ export default function Analyze() {
         formData,
 
         {
-          headers:{
+          headers: {
+
             "Content-Type":
             "multipart/form-data"
+
           }
+
         }
 
       );
 
 
 
-      console.log(
-        "Analysis Result:",
-        response.data
-      );
+
+
+      const data = response.data;
 
 
 
-      setResult(
-        response.data
-      );
+      setResult(data);
+
+
+
+
+
+      /*
+        Put OCR extracted text into editor
+        so user can modify and re-analyze
+      */
+
+
+      if (
+
+        data?.analysis?.ocr?.extracted_text
+
+        &&
+
+        !news.trim()
+
+      ) {
+
+
+        setNews(
+
+          data.analysis.ocr.extracted_text
+
+        );
+
+
+      }
+
 
 
 
     }
 
-    catch(err){
+
+
+    catch(err) {
 
 
       console.error(err);
@@ -128,9 +180,12 @@ export default function Analyze() {
     }
 
 
-    finally{
+
+    finally {
+
 
       setLoading(false);
+
 
     }
 
@@ -153,6 +208,7 @@ export default function Analyze() {
 
       <div>
 
+
         <h1 className="text-4xl font-bold text-white">
 
           Analyze News
@@ -160,12 +216,14 @@ export default function Analyze() {
         </h1>
 
 
+
         <p className="text-gray-400 mt-2">
 
-          Enter text or upload content image.
-          AI will extract, verify and analyze misinformation spread.
+          Upload news images or enter text.
+          OCR extraction, misinformation detection and verification happen automatically.
 
         </p>
+
 
 
       </div>
@@ -175,19 +233,25 @@ export default function Analyze() {
 
 
 
+
       <AnalyzeInput
+
 
         news={news}
 
         setNews={setNews}
 
+
         image={image}
 
         setImage={setImage}
 
+
         loading={loading}
 
+
         onAnalyze={handleAnalyze}
+
 
       />
 
@@ -196,15 +260,26 @@ export default function Analyze() {
 
 
 
-      {error && (
 
-        <div className="bg-red-500 p-4 rounded-xl text-white">
 
-          {error}
+      {
+        error && (
 
-        </div>
 
-      )}
+          <div className="bg-red-500 p-4 rounded-xl text-white">
+
+
+            {error}
+
+
+          </div>
+
+
+        )
+      }
+
+
+
 
 
 
@@ -215,218 +290,113 @@ export default function Analyze() {
       {
         result?.analysis && (
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
 
+          <div className="space-y-6">
 
 
 
 
-          {/* Content Summary */}
 
-          <OCRCard
 
-            data={
-              result.analysis.ocr
-            }
 
-          />
 
+            {/* FINAL RESULT */}
 
 
+            <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
 
 
 
-          {/* Platform */}
+              <h2 className="text-3xl font-bold mb-5">
 
-          <PlatformCard
+                🧠 Final Analysis Result
 
-            data={
-              result.analysis.platform
-            }
+              </h2>
 
-          />
 
 
 
+              <p className="text-xl">
 
+                Prediction:
 
+                <span className="ml-3 font-bold text-red-400">
 
 
+                  {
+                    result.analysis.final_result?.label
+                  }
 
-          {/* AI Detection */}
 
-          <DetectionCard
+                </span>
 
-            data={
-              result.analysis.detection
-            }
 
-          />
+              </p>
 
 
 
 
 
+              <p className="text-xl mt-3">
 
 
+                Confidence:
 
-          {/* Fact Verification */}
 
-          <FactVerificationCard
+                <span className="ml-3 font-bold text-green-400">
 
-            data={
-              result.analysis.fact_verification
-            }
 
-          />
+                  {
+                    result.analysis.final_result?.confidence
+                  }%
 
 
+                </span>
 
 
+              </p>
 
 
 
 
 
-          {/* Engagement */}
+              <p className="text-xl mt-3">
 
-          <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
 
+                Risk Level:
 
-            <h2 className="text-2xl font-bold mb-5">
 
-              📊 Engagement Analysis
+                <span className="ml-3 font-bold text-yellow-400">
 
-            </h2>
 
+                  {
+                    result.analysis.final_result?.risk_level
+                  }
 
 
+                </span>
 
-            <p>
-              ❤️ Likes:
 
-              {
-                result.analysis.engagement?.likes ??
-                "Not detected"
-              }
+              </p>
 
-            </p>
 
 
 
 
-            <p>
-              🔁 Shares/Reposts:
+              <p className="text-gray-300 mt-5">
 
-              {
-                result.analysis.engagement?.shares ??
-                "Not detected"
-              }
-
-            </p>
-
-
-
-
-            <p>
-              👀 Views:
-
-              {
-                result.analysis.engagement?.views ??
-                "Not detected"
-              }
-
-            </p>
-
-
-
-
-            <p>
-              🔖 Bookmarks:
-
-              {
-                result.analysis.engagement?.bookmarks ??
-                "Not detected"
-              }
-
-            </p>
-
-
-
-          </div>
-
-
-
-
-
-
-
-
-
-          {/* Spread Analysis */}
-
-          <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
-
-
-            <h2 className="text-2xl font-bold mb-5">
-
-              🚀 Spread Analysis
-
-            </h2>
-
-
-
-
-            <p className="mb-3">
-
-              Spread Score:
-
-              <span className="ml-2 font-bold text-green-400">
 
                 {
-                  result.analysis.spread_analysis
-                  ?.metrics
-                  ?.spread_score
-                  ??
-                  0
+                  result.analysis.final_result?.summary
                 }
 
-              </span>
 
-
-            </p>
-
+              </p>
 
 
 
-
-
-            {
-              result.analysis.spread_analysis
-              ?.factors
-              ?.map(
-
-                (item,index)=>(
-
-                  <p
-                    key={index}
-                    className="mb-2"
-                  >
-
-                    🔥 {item.factor}
-
-                    {" - "}
-
-                    {item.impact}
-
-                  </p>
-
-                )
-
-              )
-
-            }
+            </div>
 
 
 
@@ -434,45 +404,94 @@ export default function Analyze() {
 
 
 
-            <p className="mt-4 text-gray-300">
 
-              {
-                result.analysis.spread_analysis
-                ?.summary
-                ??
-                "No spread analysis available."
-              }
 
-            </p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
+
+
+
+
+
+              <OCRCard
+
+                data={
+                  result.analysis.ocr
+                }
+
+              />
+
+
+
+
+
+
+
+              <PlatformCard
+
+                data={
+                  result.analysis.platform
+                }
+
+              />
+
+
+
+
+
+
+
+
+              <DetectionCard
+
+                data={
+                  result.analysis.detection
+                }
+
+              />
+
+
+
+
+
+
+
+
+              <FactVerificationCard
+
+                data={
+                  result.analysis.fact_verification
+                }
+
+              />
+
+
+
+
+
+
+
+
+
+              <SpreadPredictionCard
+
+                data={
+                  result.analysis.prediction
+                }
+
+              />
+
+
+
+
+
+
+            </div>
 
 
 
           </div>
 
-
-
-
-
-
-
-
-
-          {/* Prediction */}
-
-          <SpreadPredictionCard
-
-            data={
-              result.analysis.prediction
-            }
-
-          />
-
-
-
-
-
-        </div>
 
         )
       }

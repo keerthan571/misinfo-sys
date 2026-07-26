@@ -1,120 +1,289 @@
 import re
 
 
+
 class PlatformDetector:
+
 
     def __init__(self):
 
+
         self.platform_patterns = {
+
 
             "Instagram": {
 
+
                 "strong": [
-                    r"instagram",
-                    r"insta",
-                    r"reels?",
-                    r"followers?",
-                    r"following"
+
+                    r"\binstagram\b",
+                    r"\binsta\b",
+                    r"\breels?\b",
+                    r"\bstory\b",
+                    r"\bstories\b",
+                    r"\bfollowers?\b",
+                    r"\bfollowing\b",
+                    r"\bprofile\b",
+                    r"\bexplore\b"
+
                 ],
 
+
                 "engagement": [
-                    r"likes?",
-                    r"comments?",
-                    r"shares?",
-                    r"saves?"
+
+                    r"\blikes?\b",
+                    r"\bcomments?\b",
+                    r"\bshares?\b",
+                    r"\bsaves?\b"
+
+                ],
+
+
+                "unique": [
+
+                    r"liked by",
+                    r"view insights",
+                    r"add comment",
+                    r"send message"
+
                 ]
+
             },
+
+
+
 
 
             "Twitter/X": {
 
+
                 "strong": [
-                    r"twitter",
-                    r"x\.com",
-                    r"tweet",
-                    r"reposts?",
-                    r"retweets?",
-                    r"quote tweets?"
+
+                    r"\btwitter\b",
+                    r"\bx\.com\b",
+                    r"\btweet\b",
+                    r"\bpost\b",
+                    r"\breposts?\b",
+                    r"\bretweets?\b",
+                    r"\bquote tweet\b"
+
                 ],
 
+
                 "engagement": [
-                    r"likes?",
-                    r"views?",
-                    r"bookmarks?",
-                    r"replies?"
+
+                    r"\blikes?\b",
+                    r"\bviews?\b",
+                    r"\breplies?\b",
+                    r"\bbookmarks?\b"
+
+                ],
+
+
+                "unique": [
+
+                    r"reply",
+                    r"repost",
+                    r"quote",
+                    r"verified"
+
                 ]
+
             },
+
+
+
+
 
 
             "YouTube": {
 
+
                 "strong": [
-                    r"youtube",
-                    r"youtu\.be",
-                    r"subscribers?",
-                    r"channel"
+
+                    r"\byoutube\b",
+                    r"\byoutu\.be\b",
+                    r"\bchannel\b",
+                    r"\bsubscribe\b",
+                    r"\bsubscribers?\b",
+                    r"\bvideo\b"
+
                 ],
 
+
                 "engagement": [
-                    r"views?",
-                    r"likes?",
-                    r"comments?"
+
+                    r"\bviews?\b",
+                    r"\blikes?\b",
+                    r"\bcomments?\b"
+
+                ],
+
+
+                "unique": [
+
+                    r"watch later",
+                    r"youtube studio",
+                    r"live"
+
                 ]
+
             },
+
+
+
+
+
 
 
             "Facebook": {
 
+
                 "strong": [
-                    r"facebook",
-                    r"fb",
-                    r"reactions?"
+
+                    r"\bfacebook\b",
+                    r"\bfb\b",
+                    r"\breactions?\b",
+                    r"\btimeline\b",
+                    r"\bprofile\b",
+                    r"\bpage\b"
+
                 ],
 
+
                 "engagement": [
-                    r"likes?",
-                    r"shares?",
-                    r"comments?",
-                    r"followers?"
+
+                    r"\blikes?\b",
+                    r"\bshares?\b",
+                    r"\bcomments?\b",
+                    r"\breactions?\b"
+
+                ],
+
+
+                "unique": [
+
+                    r"like react share",
+                    r"feeling",
+                    r"write something"
+
                 ]
+
             },
+
+
+
+
+
+
 
 
             "TikTok": {
 
+
                 "strong": [
-                    r"tiktok",
-                    r"tt",
-                    r"followers?"
+
+                    r"\btiktok\b",
+                    r"\btt\b",
+                    r"\bfor you\b",
+                    r"\bfyp\b"
+
                 ],
 
+
                 "engagement": [
-                    r"likes?",
-                    r"favorites?",
-                    r"shares?",
-                    r"views?"
+
+                    r"\blikes?\b",
+                    r"\bcomments?\b",
+                    r"\bfavorites?\b",
+                    r"\bviews?\b",
+                    r"\bshares?\b"
+
+                ],
+
+
+                "unique": [
+
+                    r"following",
+                    r"discover"
+
                 ]
+
+            },
+
+
+
+
+
+
+
+
+            "WhatsApp": {
+
+
+                "strong": [
+
+                    r"whatsapp",
+                    r"forwarded",
+                    r"forwarded many times",
+                    r"group chat"
+
+                ],
+
+
+                "engagement": [
+
+                    r"forwards?",
+                    r"messages?"
+
+                ],
+
+
+                "unique": [
+
+                    r"end-to-end encrypted",
+                    r"typing",
+                    r"online"
+
+                ]
+
             }
+
 
         }
 
 
 
+
+
+
+
     def detect_platform(self, text):
+
 
         if not text:
 
+
             return {
 
-                "platform": "Unknown",
-                "confidence": 0,
-                "matched_signals": [],
-                "engagement_supported": []
+                "platform":"Unknown",
+
+                "confidence":0,
+
+                "matched_signals":[],
+
+                "engagement_supported":[],
+
+                "all_scores":{}
 
             }
 
 
+
+
+
         text = text.lower()
+
 
 
         scores = {}
@@ -123,53 +292,105 @@ class PlatformDetector:
 
 
 
-        for platform,data in self.platform_patterns.items():
+
+
+        for platform, data in self.platform_patterns.items():
+
 
             score = 0
 
             signals = []
 
 
-            # Strong indicators
+
+
+
+            # Strong signals
+
             for pattern in data["strong"]:
 
+
                 if re.search(pattern,text):
 
-                    score += 3
 
-                    signals.append(pattern)
+                    score += 4
+
+                    signals.append(
+                        pattern
+                    )
 
 
 
-            # Engagement indicators
+
+
+            # Engagement signals
+
             for pattern in data["engagement"]:
 
+
                 if re.search(pattern,text):
+
 
                     score += 1
 
-                    signals.append(pattern)
-
-
-
-            scores[platform]=score
-
-            matched[platform]=signals
+                    signals.append(
+                        pattern
+                    )
 
 
 
 
-        best_platform=max(
+
+
+
+            # Unique UI signals
+
+            for pattern in data["unique"]:
+
+
+                if re.search(pattern,text):
+
+
+                    score += 5
+
+                    signals.append(
+                        pattern
+                    )
+
+
+
+
+
+
+            scores[platform] = score
+
+            matched[platform] = signals
+
+
+
+
+
+
+
+        best_platform = max(
+
             scores,
+
             key=scores.get
+
         )
 
 
-        best_score=scores[best_platform]
+
+        best_score = scores[best_platform]
 
 
 
-        if best_score==0:
+
+
+
+        if best_score == 0:
+
 
             return {
 
@@ -187,22 +408,42 @@ class PlatformDetector:
 
 
 
-        # Better confidence calculation
 
-        confidence=min(
-            round((best_score/10)*100,2),
-            95
+
+
+
+        # confidence calculation
+
+
+        confidence = min(
+
+            round(
+
+                (best_score / 20) * 100,
+
+                2
+
+            ),
+
+            98
+
         )
+
+
+
 
 
 
         return {
 
 
+
             "platform":best_platform,
 
 
+
             "confidence":confidence,
+
 
 
             "matched_signals":
@@ -210,14 +451,22 @@ class PlatformDetector:
 
 
 
+
             "engagement_supported":
+
             self.platform_patterns[best_platform]["engagement"],
+
 
 
 
             "all_scores":scores
 
+
+
         }
+
+
+
 
 
 
