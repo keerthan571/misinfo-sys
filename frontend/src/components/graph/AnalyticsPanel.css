@@ -1,0 +1,58 @@
+.analytics-panel {
+  width: 320px;
+  min-height: 500px;
+
+  background: #ffffff;
+  border-radius: 16px;
+
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+
+  padding: 24px;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 20px;
+}
+
+.analytics-title{
+  font-size:24px;
+  font-weight:700;
+  color:#111827;
+}
+
+.analytics-card{
+
+  background:#f8fafc;
+
+  border-radius:12px;
+
+  padding:16px;
+
+  transition:.25s;
+}
+
+.analytics-card:hover{
+
+  transform:translateY(-3px);
+
+  box-shadow:0 5px 15px rgba(0,0,0,.08);
+}
+
+.analytics-label{
+
+  color:#6b7280;
+
+  font-size:13px;
+}
+
+.analytics-value{
+
+  margin-top:6px;
+
+  font-size:24px;
+
+  font-weight:700;
+
+  color:#2563eb;
+}

@@ -1,5 +1,6 @@
 import React from "react";
 import ForceGraph2D from "react-force-graph-2d";
+import AnalyticsPanel from "./graph/AnalyticsPanel";
 
 const GraphView = ({ data }) => {
   if (!data || !data.nodes || !data.edges) {
@@ -14,12 +15,45 @@ const GraphView = ({ data }) => {
   // ----------------------------
   // Backend already sends complete node objects
   // ----------------------------
-  const nodes = data.nodes.map((node) => ({
-    ...node,
-    color: node.color || "#3b82f6",
-    size: node.size || 10
-  }));
+  
+  const TYPE_CONFIG = {
+  origin: {
+    color: "#ef4444",
+    icon: "📢",
+    size: 16,
+  },
+  influencer: {
+    color: "#f59e0b",
+    icon: "⭐",
+    size: 14,
+  },
+  media: {
+    color: "#10b981",
+    icon: "📰",
+    size: 13,
+  },
+  bot: {
+    color: "#6b7280",
+    icon: "🤖",
+    size: 11,
+  },
+  user: {
+    color: "#2563eb",
+    icon: "👤",
+    size: 10,
+  },
+};
 
+const nodes = data.nodes.map((node) => {
+  const config = TYPE_CONFIG[node.type] || TYPE_CONFIG.user;
+
+  return {
+    ...node,
+    color: config.color,
+    icon: config.icon,
+    size: config.size,
+  };
+});
   // ----------------------------
   // Links
   // ----------------------------
@@ -32,7 +66,7 @@ const GraphView = ({ data }) => {
     nodes,
     links
   };
-
+  const analytics = data.analytics || {};
   return (
     <div
       className="card"
@@ -72,12 +106,12 @@ const GraphView = ({ data }) => {
           backgroundColor="#ffffff"
 
           nodeLabel={(node) => `
-${node.label}
-Type : ${node.type}
-Followers : ${node.followers ?? "-"}
-Engagement : ${node.engagement ?? "-"}
-Influence : ${node.influence ?? "-"}
-`}
+          ${node.label}
+          Type : ${node.type}
+          Followers : ${node.followers ?? "-"}
+          Engagement : ${node.engagement ?? "-"}
+          Influence : ${node.influence ?? "-"}
+          `}
 
           nodeCanvasObject={(node, ctx, globalScale) => {
 
