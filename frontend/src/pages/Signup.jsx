@@ -2,9 +2,14 @@ import { useState } from "react";
 import { User, Mail, Lock } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
+import apiClient from "../api/apiClient";
+
+
 export default function Signup() {
 
+
   const navigate = useNavigate();
+
 
 
   const [form, setForm] = useState({
@@ -19,6 +24,8 @@ export default function Signup() {
 
 
   const [loading, setLoading] = useState(false);
+
+
 
 
 
@@ -37,6 +44,7 @@ export default function Signup() {
 
 
 
+
   const handleSignup = async (e) => {
 
     e.preventDefault();
@@ -51,18 +59,22 @@ export default function Signup() {
     ) {
 
       alert("Please fill all fields");
+
       return;
 
     }
+
 
 
 
     if (form.password !== form.confirmPassword) {
 
       alert("Passwords do not match");
+
       return;
 
     }
+
 
 
 
@@ -73,30 +85,17 @@ export default function Signup() {
     try {
 
 
-      const response = await fetch(
+      const response = await apiClient.post(
 
-        "http://127.0.0.1:8000/api/auth/register",
+        "/api/auth/register",
 
         {
 
-          method: "POST",
+          name: form.name,
 
-          headers: {
+          email: form.email,
 
-            "Content-Type": "application/json",
-
-          },
-
-
-          body: JSON.stringify({
-
-            name: form.name,
-
-            email: form.email,
-
-            password: form.password,
-
-          }),
+          password: form.password,
 
         }
 
@@ -104,38 +103,40 @@ export default function Signup() {
 
 
 
+      alert(
 
-      const data = await response.json();
+        response.data.message ||
 
+        "Account created successfully 🎉"
 
+      );
 
-      if (!response.ok) {
-
-        throw new Error(
-
-          data.detail || "Registration failed"
-
-        );
-
-      }
-
-
-
-
-      alert("Account created successfully 🎉");
 
 
       navigate("/login");
 
 
 
-    } catch(error) {
+    }
+
+    catch(error) {
 
 
-      alert(error.message);
+      console.error(error);
 
 
-    } finally {
+      alert(
+
+        error.response?.data?.detail ||
+
+        "Registration failed. Please try again."
+
+      );
+
+
+    }
+
+    finally {
 
 
       setLoading(false);
@@ -149,12 +150,14 @@ export default function Signup() {
 
 
 
+
   return (
 
     <div className="min-h-screen bg-slate-950 flex justify-center items-center">
 
 
       <div className="bg-slate-900 w-[450px] rounded-3xl shadow-2xl p-10">
+
 
 
         <h1 className="text-4xl font-bold text-center text-blue-500">
@@ -174,6 +177,7 @@ export default function Signup() {
 
 
 
+
         <form
 
           onSubmit={handleSignup}
@@ -184,7 +188,10 @@ export default function Signup() {
 
 
 
+
+
           <div className="flex items-center bg-slate-800 rounded-xl px-4">
+
 
             <User className="text-gray-400" />
 
@@ -195,16 +202,22 @@ export default function Signup() {
 
               name="name"
 
+              value={form.name}
+
+              onChange={handleChange}
+
+              required
+
               placeholder="Full Name"
 
               className="bg-transparent outline-none w-full p-4 text-white"
-
-              onChange={handleChange}
 
             />
 
 
           </div>
+
+
 
 
 
@@ -222,16 +235,22 @@ export default function Signup() {
 
               name="email"
 
+              value={form.email}
+
+              onChange={handleChange}
+
+              required
+
               placeholder="Email"
 
               className="bg-transparent outline-none w-full p-4 text-white"
-
-              onChange={handleChange}
 
             />
 
 
           </div>
+
+
 
 
 
@@ -249,16 +268,22 @@ export default function Signup() {
 
               name="password"
 
+              value={form.password}
+
+              onChange={handleChange}
+
+              required
+
               placeholder="Password"
 
               className="bg-transparent outline-none w-full p-4 text-white"
-
-              onChange={handleChange}
 
             />
 
 
           </div>
+
+
 
 
 
@@ -276,11 +301,15 @@ export default function Signup() {
 
               name="confirmPassword"
 
+              value={form.confirmPassword}
+
+              onChange={handleChange}
+
+              required
+
               placeholder="Confirm Password"
 
               className="bg-transparent outline-none w-full p-4 text-white"
-
-              onChange={handleChange}
 
             />
 
@@ -291,11 +320,15 @@ export default function Signup() {
 
 
 
+
+
           <button
+
+            type="submit"
 
             disabled={loading}
 
-            className="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-xl font-bold transition disabled:opacity-60"
+            className="w-full bg-blue-600 hover:bg-blue-700 py-4 rounded-xl font-bold text-white transition disabled:opacity-60"
 
           >
 
@@ -318,7 +351,11 @@ export default function Signup() {
 
 
 
+
+
         </form>
+
+
 
 
 
@@ -329,6 +366,7 @@ export default function Signup() {
           Already have an account?
 
         </p>
+
 
 
 
@@ -350,6 +388,8 @@ export default function Signup() {
 
 
         </div>
+
+
 
 
 

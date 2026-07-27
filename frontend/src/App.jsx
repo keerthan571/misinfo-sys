@@ -45,155 +45,82 @@ function App() {
 
 
 
-
-
-        {/* Protected Application Pages */}
+        {/* Protected Pages */}
 
 
         <Route
-
           path="/"
-
           element={
-
             <ProtectedRoute>
-
               <Layout>
-
                 <Dashboard />
-
               </Layout>
-
             </ProtectedRoute>
-
           }
-
         />
 
 
-
-
-
         <Route
-
           path="/analyze"
-
           element={
-
             <ProtectedRoute>
-
               <Layout>
-
                 <Analyze />
-
               </Layout>
-
             </ProtectedRoute>
-
           }
-
         />
 
 
-
-
-
         <Route
-
           path="/graph"
-
           element={
-
             <ProtectedRoute>
-
               <Layout>
-
                 <Graph />
-
               </Layout>
-
             </ProtectedRoute>
-
           }
-
         />
 
 
-
-
-
         <Route
-
           path="/prediction"
-
           element={
-
             <ProtectedRoute>
-
               <Layout>
-
                 <Prediction />
-
               </Layout>
-
             </ProtectedRoute>
-
           }
-
         />
 
 
-
-
-
         <Route
-
           path="/history"
-
           element={
-
             <ProtectedRoute>
-
               <Layout>
-
                 <History />
-
               </Layout>
-
             </ProtectedRoute>
-
           }
-
         />
-
-
-
 
 
         <Route
-
           path="/settings"
-
           element={
-
             <ProtectedRoute>
-
               <Layout>
-
                 <Settings />
-
               </Layout>
-
             </ProtectedRoute>
-
           }
-
         />
-
 
 
       </Routes>
-
 
     </BrowserRouter>
 

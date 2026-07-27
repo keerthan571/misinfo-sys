@@ -13,15 +13,24 @@ client = MongoClient(MONGO_URI)
 
 db = client["misinformation_db"]
 
-# Member 1 owned collections only
+# ======================================================
+# Collections
+# ======================================================
 
-analyses_collection = db["analyses"]
+# Main analysis history
+analysis_collection = db["analysis"]
+analyses_collection = analysis_collection
 
-ocr_history_collection = db["ocr_history"]
+# OCR history
+ocr_collection = db["ocr_history"]
+ocr_history_collection = ocr_collection
 
+# Reports
 reports_collection = db["reports"]
 
-spread_predictions_collection = db["spread_predictions"]
+# Spread prediction history
+prediction_collection = db["spread_predictions"]
+spread_predictions_collection = prediction_collection
 
 
 def get_database():

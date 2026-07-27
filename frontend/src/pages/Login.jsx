@@ -2,90 +2,96 @@ import { useState } from "react";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
+import apiClient from "../api/apiClient";
+
+
 export default function Login() {
+
 
     const navigate = useNavigate();
 
+
     const [email, setEmail] = useState("");
+
     const [password, setPassword] = useState("");
+
     const [showPassword, setShowPassword] = useState(false);
+
     const [remember, setRemember] = useState(false);
+
     const [loading, setLoading] = useState(false);
+
+
 
 
 
     const handleLogin = async (e) => {
 
+
         e.preventDefault();
+
 
 
         if (!email || !password) {
 
             alert("Please enter email and password.");
+
             return;
 
         }
 
 
+
         setLoading(true);
+
 
 
         try {
 
 
-            const response = await fetch(
+            const formData = new URLSearchParams();
 
-                "http://127.0.0.1:8000/api/auth/login",
+
+            formData.append(
+                "username",
+                email
+            );
+
+
+            formData.append(
+                "password",
+                password
+            );
+
+
+
+
+            const response = await apiClient.post(
+
+                "/api/auth/login",
+
+                formData,
 
                 {
-
-                    method: "POST",
-
                     headers: {
 
                         "Content-Type":
                         "application/x-www-form-urlencoded",
 
                     },
-
-
-                    body: new URLSearchParams({
-
-                        username: email,
-
-                        password: password,
-
-                    }),
-
                 }
 
             );
 
 
 
-            const data = await response.json();
 
-
-
-            if (!response.ok) {
-
-                throw new Error(
-
-                    data.detail || "Login failed"
-
-                );
-
-            }
-
-
-
-            // Store JWT Token
 
             localStorage.setItem(
 
                 "token",
 
-                data.access_token
+                response.data.access_token
 
             );
 
@@ -95,13 +101,26 @@ export default function Login() {
 
                 "token_type",
 
-                data.token_type
+                response.data.token_type
 
             );
 
 
 
+            localStorage.setItem(
+
+                "email",
+
+                email
+
+            );
+
+
+
+
+
             if (remember) {
+
 
                 localStorage.setItem(
 
@@ -111,12 +130,13 @@ export default function Login() {
 
                 );
 
+
             }
 
 
 
-            alert("Login successful 🎉");
 
+            alert("Login successful 🎉");
 
 
             navigate("/");
@@ -129,7 +149,13 @@ export default function Login() {
         catch(error) {
 
 
-            alert(error.message);
+            alert(
+
+                error.response?.data?.detail ||
+
+                "Login failed"
+
+            );
 
 
         }
@@ -143,7 +169,9 @@ export default function Login() {
 
         }
 
+
     };
+
 
 
 
@@ -156,11 +184,13 @@ export default function Login() {
             <div className="bg-slate-900 w-[430px] rounded-3xl shadow-2xl p-10">
 
 
+
                 <h1 className="text-4xl font-bold text-center text-blue-500">
 
                     AI MISINFO
 
                 </h1>
+
 
 
 
@@ -173,11 +203,14 @@ export default function Login() {
 
 
 
+
                 <h2 className="text-white text-2xl font-bold mt-10">
 
                     Welcome Back 👋
 
                 </h2>
+
+
 
 
 
@@ -192,6 +225,8 @@ export default function Login() {
 
 
 
+
+
                     <div>
 
 
@@ -200,6 +235,7 @@ export default function Login() {
                             Email
 
                         </label>
+
 
 
 
@@ -237,6 +273,8 @@ export default function Login() {
 
 
 
+
+
                     <div>
 
 
@@ -248,7 +286,9 @@ export default function Login() {
 
 
 
+
                         <div className="flex items-center bg-slate-800 rounded-xl mt-2 px-4">
+
 
 
                             <Lock className="text-gray-400" />
@@ -257,29 +297,40 @@ export default function Login() {
 
                             <input
 
+
                                 type={
                                     showPassword
                                     ? "text"
                                     : "password"
                                 }
 
+
                                 value={password}
+
 
                                 onChange={(e)=>
                                     setPassword(e.target.value)
                                 }
 
+
                                 className="bg-transparent outline-none w-full p-4 text-white"
 
+
                                 placeholder="Enter Password"
+
 
                             />
 
 
 
+
+
+
                             <button
 
+
                                 type="button"
+
 
                                 onClick={() =>
                                     setShowPassword(
@@ -287,20 +338,30 @@ export default function Login() {
                                     )
                                 }
 
+
                                 className="text-gray-400 hover:text-white"
+
 
                             >
 
+
                                 {
                                     showPassword
+
                                     ?
+
                                     <EyeOff size={20}/>
+
                                     :
+
                                     <Eye size={20}/>
+
                                 }
 
 
+
                             </button>
+
 
 
 
@@ -308,6 +369,7 @@ export default function Login() {
 
 
                     </div>
+
 
 
 
@@ -323,13 +385,17 @@ export default function Login() {
 
                             <input
 
+
                                 type="checkbox"
 
+
                                 checked={remember}
+
 
                                 onChange={() =>
                                     setRemember(!remember)
                                 }
+
 
                             />
 
@@ -349,6 +415,7 @@ export default function Login() {
 
 
 
+
                     <button
 
 
@@ -359,6 +426,7 @@ export default function Login() {
 
 
                         className="w-full bg-blue-600 hover:bg-blue-700 rounded-xl py-4 font-bold text-lg transition disabled:opacity-60"
+
 
 
                     >
@@ -379,7 +447,9 @@ export default function Login() {
                         }
 
 
+
                     </button>
+
 
 
 
@@ -391,7 +461,10 @@ export default function Login() {
 
 
 
+
+
                 <div className="mt-8 text-center">
+
 
 
                     <Link
@@ -409,11 +482,15 @@ export default function Login() {
 
 
 
+
+
                     <p className="text-gray-400 mt-5">
 
                         Don't have an account?
 
                     </p>
+
+
 
 
 
@@ -431,7 +508,10 @@ export default function Login() {
 
 
 
+
+
                 </div>
+
 
 
 

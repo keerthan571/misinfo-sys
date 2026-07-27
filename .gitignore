@@ -33,3 +33,7 @@ backend/.env
 # =========================
 .DS_Store
 Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]

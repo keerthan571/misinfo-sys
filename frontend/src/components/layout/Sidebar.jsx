@@ -7,6 +7,7 @@ import {
   TrendingUp,
   History,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 
 
@@ -18,13 +19,11 @@ const menuItems = [
     path: "/",
   },
 
-
   {
     title: "Analyze",
     icon: <Search size={20} />,
     path: "/analyze",
   },
-
 
   {
     title: "Graph Analytics",
@@ -32,20 +31,17 @@ const menuItems = [
     path: "/graph",
   },
 
-
   {
     title: "Prediction",
     icon: <TrendingUp size={20} />,
     path: "/prediction",
   },
 
-
   {
     title: "History",
     icon: <History size={20} />,
     path: "/history",
   },
-
 
   {
     title: "Settings",
@@ -59,43 +55,56 @@ const menuItems = [
 
 export default function Sidebar() {
 
-
   return (
 
-    <div className="w-64 min-h-screen bg-slate-900 border-r border-slate-800">
+    <aside className="w-72 min-h-screen bg-slate-950 border-r border-slate-800 flex flex-col">
 
 
       {/* Logo */}
 
-      <div className="p-6 border-b border-slate-800">
+      <div className="px-7 py-8 border-b border-slate-800">
 
-        <h1 className="text-3xl font-bold text-blue-500">
+        <div className="flex items-center gap-3">
 
-          AI MISINFO
+          <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg">
 
-        </h1>
+            <ShieldCheck size={28} className="text-white" />
+
+          </div>
 
 
-        <p className="text-gray-400 text-sm mt-2">
+          <div>
 
-          Analysis Platform
+            <h1 className="text-xl font-bold text-white tracking-wide">
 
-        </p>
+              AI MISINFO
 
+            </h1>
+
+
+            <p className="text-slate-400 text-sm">
+
+              Analysis Platform
+
+            </p>
+
+          </div>
+
+
+        </div>
 
       </div>
 
 
 
 
+      {/* Navigation */}
 
-      {/* Menu */}
-
-      <div className="p-4 space-y-2">
+      <nav className="flex-1 p-5 space-y-2">
 
 
         {
-          menuItems.map((item) => (
+          menuItems.map((item)=>(
 
             <NavLink
 
@@ -105,17 +114,25 @@ export default function Sidebar() {
 
               end={item.path === "/"}
 
-              className={({ isActive }) =>
+              className={({isActive}) =>
 
-                `flex items-center gap-4 p-4 rounded-xl transition-all ${
-                  
+                `
+                flex
+                items-center
+                gap-4
+                px-4
+                py-3.5
+                rounded-2xl
+                font-medium
+                transition-all
+                duration-300
+
+                ${
                   isActive
-
-                  ? "bg-blue-600 text-white"
-
-                  : "text-gray-300 hover:bg-slate-800"
-
-                }`
+                  ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                }
+                `
 
               }
 
@@ -123,24 +140,51 @@ export default function Sidebar() {
 
               {item.icon}
 
-              <span>
-
-                {item.title}
-
-              </span>
+              <span>{item.title}</span>
 
 
             </NavLink>
 
-
           ))
+
         }
+
+
+      </nav>
+
+
+
+
+      {/* Footer */}
+
+      <div className="p-5 border-t border-slate-800">
+
+
+        <div className="bg-slate-900 rounded-2xl p-4">
+
+
+          <p className="text-sm font-semibold text-white">
+
+            AI Misinformation
+
+          </p>
+
+
+          <p className="text-xs text-slate-400 mt-1">
+
+            Version 2.0
+
+          </p>
+
+
+        </div>
 
 
       </div>
 
 
-    </div>
+
+    </aside>
 
   );
 

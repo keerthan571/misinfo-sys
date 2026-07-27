@@ -1,7 +1,7 @@
-from fastapi import APIRouter, UploadFile, File, Form
+from fastapi import APIRouter, UploadFile, File, Form, Depends
 from datetime import datetime, timezone
 import uuid
-
+from app.auth.dependencies import get_current_user
 
 from ..services.nlp_service import nlp_service
 from ..services.ocr_service import ocr_service
@@ -149,14 +149,10 @@ def generate_final_result(response):
 
 @router.post("/")
 async def analyze(
-
     text: str = Form(None),
-
-    image: UploadFile = File(None)
-
+    image: UploadFile = File(None),
+    current_user=Depends(get_current_user)
 ):
-
-
     analysis_id = str(uuid.uuid4())
 
 
@@ -718,74 +714,37 @@ async def analyze(
     # =========================
     # SAVE ANALYSIS
     # =========================
-
-
     analysis_document = {
 
+        "analysis_id": analysis_id,
 
-        "analysis_id":
+        "email": current_user["email"],
 
-        analysis_id,
+        "userId": current_user["email"],
 
+        "text": final_text,
 
-        "userId":
+        "analysis_time": analysis_time,
 
-        "test_user",
+        "platform": response["platform"],
 
+        "final_result": response["final_result"],
 
-        "analysis_time":
+        "detection": response["detection"],
 
-        analysis_time,
+        "fact_verification": response["fact_verification"],
 
+        "ocr": response["ocr"],
 
-        "final_result":
+        "engagement": response["engagement"],
 
-        response["final_result"],
+        "spread_analysis": response["spread_analysis"],
 
+        "prediction": response["prediction"],
 
-        "platform":
-
-        response["platform"],
-
-
-        "detection":
-
-        response["detection"],
-
-
-        "fact_verification":
-
-        response["fact_verification"],
-
-
-        "ocr":
-
-        response["ocr"],
-
-
-        "engagement":
-
-        response["engagement"],
-
-
-        "spread_analysis":
-
-        response["spread_analysis"],
-
-
-        "prediction":
-
-        response["prediction"],
-
-
-        "graph":
-
-        response["graph"]
-
+        "graph": response["graph"]
     }
-
-
-
+    
     try:
 
 
