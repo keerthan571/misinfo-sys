@@ -1,0 +1,114 @@
+.graph-node {
+  min-width: 210px;
+  border-radius: 14px;
+  padding: 12px;
+  border: 2px solid transparent;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  transition: all 0.25s ease;
+  font-family: "Inter", sans-serif;
+}
+
+.graph-node:hover {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+}
+
+.graph-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.graph-node-icon {
+  font-size: 20px;
+}
+
+.graph-node-title {
+  flex: 1;
+  margin-left: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.verified {
+  color: #2563eb;
+  font-size: 15px;
+}
+
+.graph-node-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.graph-node-body div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.graph-node-body strong {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.graph-node-body span {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Origin */
+.graph-node.origin {
+  border-color: #ef4444;
+  background: linear-gradient(
+    135deg,
+    #fee2e2,
+    #ffffff
+  );
+}
+
+/* Influencer */
+.graph-node.influencer {
+  border-color: #f59e0b;
+  background: linear-gradient(
+    135deg,
+    #fef3c7,
+    #ffffff
+  );
+}
+
+/* User */
+.graph-node.user {
+  border-color: #2563eb;
+  background: linear-gradient(
+    135deg,
+    #dbeafe,
+    #ffffff
+  );
+}
+
+/* Bot */
+.graph-node.bot {
+  border-color: #6b7280;
+  background: linear-gradient(
+    135deg,
+    #e5e7eb,
+    #ffffff
+  );
+}
+
+/* Media */
+.graph-node.media {
+  border-color: #10b981;
+  background: linear-gradient(
+    135deg,
+    #d1fae5,
+    #ffffff
+  );
+}
