@@ -3,20 +3,18 @@ export default function DetectionCard({ data }) {
   if (!data) return null;
 
 
-
   const getBadgeColor = (prediction) => {
 
     switch(prediction?.toLowerCase()) {
 
-      case "high risk":
-      case "suspicious":
+      case "potential misinformation":
         return "bg-red-500";
 
-      case "normal":
-        return "bg-green-500";
-
-      case "uncertain":
+      case "needs verification":
         return "bg-yellow-500";
+
+      case "likely reliable":
+        return "bg-green-500";
 
       default:
         return "bg-blue-500";
@@ -27,38 +25,10 @@ export default function DetectionCard({ data }) {
 
 
 
-
-
-  const getRiskBadge = (risk) => {
-
-    switch(risk?.toLowerCase()) {
-
-      case "high":
-        return "bg-red-500";
-
-      case "medium":
-        return "bg-yellow-500";
-
-      case "low":
-        return "bg-green-500";
-
-      default:
-        return "bg-gray-500";
-
-    }
-
-  };
-
-
-
-
-
   const confidenceValue = Number(
-    String(data.confidence)
+    String(data.confidence || "0")
     .replace("%","")
   ) || 0;
-
-
 
 
 
@@ -68,15 +38,12 @@ export default function DetectionCard({ data }) {
 
 
       <h2 className="text-2xl font-bold text-white mb-6">
-        🧠 NLP Content Intelligence
+        🧠 NLP Analysis
       </h2>
 
 
 
-
       <div className="space-y-5">
-
-
 
 
 
@@ -94,14 +61,10 @@ export default function DetectionCard({ data }) {
               data.prediction
             )}`}
           >
-
-            {data.prediction || "Normal"}
-
+            {data.prediction || "Unknown"}
           </span>
 
         </div>
-
-
 
 
 
@@ -129,17 +92,32 @@ export default function DetectionCard({ data }) {
           <div className="w-full bg-slate-900 rounded-full h-2">
 
             <div
-
               className="bg-green-400 h-2 rounded-full"
-
               style={{
                 width:`${confidenceValue}%`
               }}
-
-            ></div>
-
+            />
 
           </div>
+
+        </div>
+
+
+
+
+
+        {/* Claim */}
+
+        <div className="bg-slate-900 rounded-xl p-4">
+
+          <h3 className="text-white font-bold mb-3">
+            📌 Detected Claim
+          </h3>
+
+
+          <p className="text-gray-300">
+            {data.claim || "Unknown"}
+          </p>
 
 
         </div>
@@ -149,33 +127,9 @@ export default function DetectionCard({ data }) {
 
 
 
-
-
-        {/* Content Understanding */}
+        {/* Claim Type + Language + Time */}
 
         <div className="bg-slate-900 rounded-xl p-4 space-y-3">
-
-
-          <h3 className="text-white font-bold mb-3">
-            📌 Content Understanding
-          </h3>
-
-
-
-          <div className="flex justify-between">
-
-            <span className="text-gray-400">
-              Content Type
-            </span>
-
-            <span className="text-white font-semibold">
-              {data.content_type || "Unknown"}
-            </span>
-
-          </div>
-
-
-
 
 
           <div className="flex justify-between">
@@ -183,6 +137,7 @@ export default function DetectionCard({ data }) {
             <span className="text-gray-400">
               Claim Type
             </span>
+
 
             <span className="text-white font-semibold">
               {data.claim_type || "Unknown"}
@@ -193,13 +148,29 @@ export default function DetectionCard({ data }) {
 
 
 
+          <div className="flex justify-between">
+
+            <span className="text-gray-400">
+              Language
+            </span>
+
+
+            <span className="text-white font-semibold">
+              {data.language || "Unknown"}
+            </span>
+
+          </div>
+
+
+
 
 
           <div className="flex justify-between">
 
             <span className="text-gray-400">
-              Temporal Context
+              Time Context
             </span>
+
 
             <span className="text-white font-semibold">
               {data.temporal_context || "Unknown"}
@@ -208,7 +179,6 @@ export default function DetectionCard({ data }) {
           </div>
 
 
-
         </div>
 
 
@@ -217,90 +187,70 @@ export default function DetectionCard({ data }) {
 
 
 
-
-
-        {/* Risk Analysis */}
-
-        <div className="bg-slate-900 rounded-xl p-4 space-y-3">
-
-
-          <h3 className="text-white font-bold mb-3">
-            ⚠️ Risk Analysis
-          </h3>
-
-
-
-          <div className="flex justify-between items-center">
-
-
-            <span className="text-gray-400">
-              Risk Level
-            </span>
-
-
-
-            <span
-
-              className={`px-3 py-1 rounded-full text-white font-semibold ${getRiskBadge(
-                data.risk_level
-              )}`}
-
-            >
-
-              {data.risk_level || "Unknown"}
-
-            </span>
-
-
-          </div>
-
-
-
-
-
-
-          <div className="flex justify-between">
-
-            <span className="text-gray-400">
-              Risk Score
-            </span>
-
-
-            <span className="text-white font-bold">
-
-              {data.risk_score ?? 0}
-
-              <span className="text-gray-400">
-                /100
-              </span>
-
-            </span>
-
-
-          </div>
-
-
-
-        </div>
-
-
-
-
-
-
-
-
-
-        {/* Indicators */}
+        {/* Keywords */}
 
         {
-          data.indicators?.length > 0 && (
+          data.keywords?.length > 0 && (
+
+            <div>
+
+              <p className="text-gray-400 mb-2">
+                🔑 Keywords
+              </p>
+
+
+              <div className="flex flex-wrap gap-2">
+
+
+                {
+                  data.keywords.map(
+
+                    (item,index)=>(
+
+                      <span
+
+                        key={index}
+
+                        className="bg-slate-900 px-3 py-2 rounded-lg text-gray-300"
+
+                      >
+
+                        {item}
+
+                      </span>
+
+                    )
+
+                  )
+                }
+
+
+              </div>
+
+
+            </div>
+
+          )
+
+        }
+
+
+
+
+
+
+
+
+        {/* Manipulation Signals */}
+
+        {
+          data.manipulation_signals?.length > 0 && (
 
             <div>
 
 
               <p className="text-gray-400 mb-2">
-                🔍 Detected Indicators
+                ⚠️ Manipulation Signals
               </p>
 
 
@@ -309,7 +259,8 @@ export default function DetectionCard({ data }) {
 
 
                 {
-                  data.indicators.map(
+                  data.manipulation_signals.map(
+
                     (item,index)=>(
 
                       <div
@@ -324,10 +275,9 @@ export default function DetectionCard({ data }) {
 
                       </div>
 
-
                     )
-                  )
 
+                  )
                 }
 
 
@@ -335,7 +285,6 @@ export default function DetectionCard({ data }) {
 
 
             </div>
-
 
           )
 
@@ -368,17 +317,18 @@ export default function DetectionCard({ data }) {
 
                 {
                   data.entities.map(
+
                     (entity,index)=>(
 
                       <div
 
                         key={index}
 
-                        className="bg-slate-900 rounded-lg p-3 text-gray-300 flex justify-between"
+                        className="bg-slate-900 rounded-lg p-3 flex justify-between"
 
                       >
 
-                        <span>
+                        <span className="text-gray-300">
                           {entity.name}
                         </span>
 
@@ -390,10 +340,9 @@ export default function DetectionCard({ data }) {
 
                       </div>
 
-
                     )
-                  )
 
+                  )
                 }
 
 
@@ -411,35 +360,32 @@ export default function DetectionCard({ data }) {
 
 
 
+        {/* Similar Claim */}
+
+        <div className="flex justify-between">
 
 
-
-        {/* Reason */}
-
-        <div>
-
-
-          <p className="text-gray-400 mb-2">
-            🤖 AI Explanation
-          </p>
+          <span className="text-gray-400">
+            Similar Claim
+          </span>
 
 
+          <span className="text-white font-semibold">
 
-          <div className="bg-slate-900 rounded-xl p-4 text-gray-300 leading-relaxed">
+            {
+              data.similar_claim
+              ? "Detected"
+              : "Not Detected"
+            }
 
-            {data.reason || "No explanation available."}
-
-          </div>
+          </span>
 
 
         </div>
 
 
 
-
-
       </div>
-
 
 
     </div>

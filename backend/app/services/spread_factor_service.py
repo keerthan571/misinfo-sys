@@ -13,18 +13,24 @@ class SpreadFactorService:
 
         warnings = []
 
+        trend_signals = []
+
+        risk_factors = []
+
+
 
         likes = engagement.get("likes") or 0
+
         shares = engagement.get("shares") or 0
+
         comments = engagement.get("comments") or 0
+
         views = engagement.get("views") or 0
+
         bookmarks = engagement.get("bookmarks") or 0
 
 
 
-        # ==========================
-        # Metrics
-        # ==========================
 
 
         engagement_rate = 0
@@ -42,7 +48,10 @@ class SpreadFactorService:
                 ) / views * 100,
 
                 2
+
             )
+
+
 
 
 
@@ -57,6 +66,8 @@ class SpreadFactorService:
                 2
 
             )
+
+
 
 
 
@@ -76,10 +87,8 @@ class SpreadFactorService:
 
 
 
-        # ==========================
-        # Share Signals
-        # ==========================
 
+        # Share analysis
 
         if share_ratio >= 5:
 
@@ -94,6 +103,11 @@ class SpreadFactorService:
 
             })
 
+            trend_signals.append(
+                "Rapid redistribution detected"
+            )
+
+
 
         elif share_ratio >= 2:
 
@@ -101,12 +115,15 @@ class SpreadFactorService:
             factors.append({
 
                 "factor":
-                "Strong redistribution through shares/reposts",
+                "Strong redistribution through shares",
 
                 "impact":
                 "High"
 
             })
+
+
+
 
 
         elif shares > 0:
@@ -115,7 +132,7 @@ class SpreadFactorService:
             factors.append({
 
                 "factor":
-                "Content is being redistributed",
+                "Content redistribution detected",
 
                 "impact":
                 "Medium"
@@ -127,10 +144,9 @@ class SpreadFactorService:
 
 
 
-        # ==========================
-        # Engagement
-        # ==========================
 
+
+        # Engagement
 
         if engagement_rate >= 15:
 
@@ -144,6 +160,7 @@ class SpreadFactorService:
                 "Very High"
 
             })
+
 
 
         elif engagement_rate >= 5:
@@ -160,29 +177,11 @@ class SpreadFactorService:
             })
 
 
-        elif engagement_rate > 0:
-
-
-            factors.append({
-
-                "factor":
-                "Audience interaction detected",
-
-                "impact":
-                "Medium"
-
-            })
 
 
 
 
-
-
-
-        # ==========================
         # Comments
-        # ==========================
-
 
         if comment_ratio >= 2:
 
@@ -203,10 +202,8 @@ class SpreadFactorService:
 
 
 
-        # ==========================
-        # Saves
-        # ==========================
 
+        # Saves
 
         if bookmarks > 0:
 
@@ -214,7 +211,7 @@ class SpreadFactorService:
             factors.append({
 
                 "factor":
-                "Users saving this content",
+                "Users saving content",
 
                 "impact":
                 "Medium"
@@ -228,114 +225,164 @@ class SpreadFactorService:
 
 
 
-        # ==========================
-        # Platform Behaviour
-        # ==========================
+
+        # Platform behaviour
+
+        platform_name = str(platform).lower()
 
 
-        if platform:
-
-
-            platform_name = str(platform).lower()
-
-
-
-            if "twitter" in platform_name or "x" == platform_name:
-
-
-                if shares > likes:
-
-
-                    factors.append({
-
-                        "factor":
-                        "Repost-driven Twitter/X spread",
-
-                        "impact":
-                        "High"
-
-                    })
+        platform_influence = "Low"
 
 
 
-
-            elif "instagram" in platform_name:
-
-
-                if bookmarks > 0:
+        if "instagram" in platform_name:
 
 
-                    factors.append({
-
-                        "factor":
-                        "Instagram save-based distribution",
-
-                        "impact":
-                        "Medium"
-
-                    })
+            platform_influence = "Medium"
 
 
+            if bookmarks > 0:
 
 
+                factors.append({
 
-            elif "youtube" in platform_name:
+                    "factor":
+                    "Instagram save-based distribution",
 
+                    "impact":
+                    "Medium"
 
-                if views >= 10000:
-
-
-                    factors.append({
-
-                        "factor":
-                        "Large video audience exposure",
-
-                        "impact":
-                        "High"
-
-                    })
+                })
 
 
 
+        elif "twitter" in platform_name or "x" == platform_name:
 
 
-            elif "facebook" in platform_name:
+            platform_influence = "High"
 
 
-                if shares > 0:
+            if shares > likes:
 
 
-                    factors.append({
+                factors.append({
 
-                        "factor":
-                        "Facebook share-driven spread",
+                    "factor":
+                    "X/Twitter repost-driven spread",
 
-                        "impact":
-                        "High"
+                    "impact":
+                    "High"
 
-                    })
+                })
+
+
+
+        elif "youtube" in platform_name:
+
+
+            platform_influence = "High"
+
+
+
+            if views >= 10000:
+
+
+                factors.append({
+
+                    "factor":
+                    "Large video audience exposure",
+
+                    "impact":
+                    "High"
+
+                })
 
 
 
 
+        elif "facebook" in platform_name:
+
+
+            platform_influence = "High"
 
 
 
-        # ==========================
-        # Content Emotion
-        # ==========================
+            if shares > 0:
 
+
+                factors.append({
+
+                    "factor":
+                    "Facebook share-driven spread",
+
+                    "impact":
+                    "High"
+
+                })
+
+
+
+
+
+
+
+
+        # NLP influence
 
         if content_analysis:
 
 
-            emotion_score = content_analysis.get(
-                "emotion_score",
+            risk_score = content_analysis.get(
+                "risk_score",
                 0
             )
 
 
-            if emotion_score >= 70:
+            if risk_score >= 70:
+
+
+                factors.append({
+
+                    "factor":
+                    "High misinformation-style language risk",
+
+                    "impact":
+                    "High"
+
+                })
+
+
+                risk_factors.append(
+                    "High NLP risk score"
+                )
+
+
+
+
+
+            emotion = content_analysis.get(
+                "emotion_analysis",
+                {}
+            )
+
+
+            scores = emotion.get(
+                "scores",
+                {}
+            )
+
+
+            emotional_score = max(
+
+                scores.values()
+
+            ) if scores else 0
+
+
+
+
+
+            if emotional_score >= 70:
 
 
                 factors.append({
@@ -350,14 +397,33 @@ class SpreadFactorService:
 
 
 
+                risk_factors.append(
+                    "High emotional influence"
+                )
 
 
 
 
 
-        # ==========================
-        # Warnings
-        # ==========================
+
+            manipulation = content_analysis.get(
+                "manipulation_signals",
+                []
+            )
+
+
+            if manipulation:
+
+
+                risk_factors.extend(
+                    manipulation
+                )
+
+
+
+
+
+
 
 
         if views == 0:
@@ -379,56 +445,81 @@ class SpreadFactorService:
 
 
 
-        # ==========================
-        # Spread Score
-        # ==========================
+        # Spread score
 
 
         spread_score = 0
 
 
 
-        # Shares = strongest signal
-
         spread_score += min(
+
             share_ratio * 5,
+
             40
+
         )
 
 
 
-        # Interaction
-
         spread_score += min(
+
             engagement_rate * 2,
+
             30
+
         )
 
 
 
-        # Discussion
-
         spread_score += min(
+
             comment_ratio * 5,
+
             15
+
         )
 
 
-
-        # Saves
 
         spread_score += min(
+
             bookmarks / 10,
+
             15
+
         )
+
+
+
+
+
+        if content_analysis:
+
+
+            spread_score += min(
+
+                content_analysis.get(
+                    "risk_score",
+                    0
+                ) * 0.1,
+
+                10
+
+            )
+
+
 
 
 
         spread_score = round(
 
             min(
+
                 spread_score,
+
                 100
+
             ),
 
             2
@@ -447,34 +538,44 @@ class SpreadFactorService:
             "metrics":{
 
 
-                "likes": likes,
+                "likes":likes,
 
-                "shares": shares,
+                "shares":shares,
 
-                "comments": comments,
+                "comments":comments,
 
-                "views": views,
+                "views":views,
 
-                "bookmarks": bookmarks,
+                "bookmarks":bookmarks,
 
-                "engagement_rate": engagement_rate,
+                "engagement_rate":engagement_rate,
 
-                "share_ratio": share_ratio,
+                "share_ratio":share_ratio,
 
-                "comment_ratio": comment_ratio,
+                "comment_ratio":comment_ratio,
 
-                "spread_score": spread_score
+                "spread_score":spread_score
 
             },
 
 
-            "factors": factors,
+            "factors":factors,
 
 
-            "warnings": warnings,
+            "warnings":warnings,
+
+
+            "trend_signals":trend_signals,
+
+
+            "risk_factors":risk_factors,
+
+
+            "platform_influence":platform_influence,
 
 
             "summary":
+
             self.generate_summary(
 
                 spread_score,
@@ -484,6 +585,7 @@ class SpreadFactorService:
             )
 
         }
+
 
 
 
@@ -501,11 +603,15 @@ class SpreadFactorService:
             f for f in factors
 
             if f["impact"] in [
+
                 "High",
+
                 "Very High"
+
             ]
 
         ])
+
 
 
 
@@ -515,7 +621,7 @@ class SpreadFactorService:
             return (
 
                 "High spread potential detected due to "
-                "multiple strong engagement signals."
+                "multiple engagement and content risk signals."
 
             )
 
@@ -527,7 +633,7 @@ class SpreadFactorService:
             return (
 
                 "Moderate spread potential detected "
-                "based on available engagement signals."
+                "from available signals."
 
             )
 
@@ -538,12 +644,9 @@ class SpreadFactorService:
 
             return (
 
-                "Low spread potential due to limited "
-                "redistribution signals."
+                "Low spread potential detected."
 
             )
-
-
 
 
 

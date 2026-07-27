@@ -15,7 +15,6 @@ from ..services.spread_factor_service import spread_factor_service
 from ..database.mongodb import analyses_collection
 
 
-
 router = APIRouter()
 
 
@@ -23,15 +22,130 @@ router = APIRouter()
 def safe_confidence(value):
 
     try:
-
         return int(
-            str(value)
-            .replace("%", "")
+            str(value).replace("%", "")
         )
 
     except:
-
         return 0
+
+
+
+
+def generate_final_result(response):
+
+    detection = response.get(
+        "detection",
+        {}
+    )
+
+    fact = response.get(
+        "fact_verification",
+        {}
+    )
+
+    prediction = response.get(
+        "prediction",
+        {}
+    )
+
+
+    detection_conf = safe_confidence(
+        detection.get(
+            "confidence",
+            0
+        )
+    )
+
+
+    fact_conf = safe_confidence(
+        fact.get(
+            "confidence",
+            0
+        )
+    )
+
+
+    virality_score = int(
+        prediction.get(
+            "virality_score",
+            0
+        )
+    )
+
+
+    final_confidence = int(
+        (
+            detection_conf * 0.5
+            +
+            fact_conf * 0.3
+            +
+            virality_score * 0.2
+        )
+    )
+
+
+    verdict = str(
+        fact.get(
+            "verdict",
+            ""
+        )
+    ).lower()
+
+
+
+    if "false" in verdict or "fake" in verdict:
+
+        label = "False Information"
+
+
+    elif "verified" in verdict or "true" in verdict:
+
+        label = "Verified Information"
+
+
+    elif "misleading" in verdict:
+
+        label = "Misleading Information"
+
+
+    else:
+
+        label = "Insufficient Evidence"
+
+
+
+    if final_confidence >= 75:
+
+        risk_level = "High"
+
+    elif final_confidence >= 40:
+
+        risk_level = "Medium"
+
+    else:
+
+        risk_level = "Low"
+
+
+
+    return {
+
+        "label": label,
+
+        "confidence": final_confidence,
+
+        "risk_level": risk_level,
+
+        "summary":
+        f"Final analysis result: {label} with {final_confidence}% confidence."
+
+    }
+
+
+
+
+
 
 @router.post("/")
 async def analyze(
@@ -53,6 +167,10 @@ async def analyze(
         "analysis_id": analysis_id,
 
         "analysis_time": analysis_time,
+        
+
+        "final_result": {},
+
 
         "platform": {},
 
@@ -60,11 +178,19 @@ async def analyze(
 
         "fact_verification": {},
 
+
         "ocr": {
+
             "used": False,
+
             "extracted_text": "",
-            "confidence": 0
+
+            "confidence": 0,
+
+            "word_count": 0
+
         },
+
 
         "engagement": {},
 
@@ -72,9 +198,23 @@ async def analyze(
 
         "prediction": {},
 
+
         "graph": {
+
             "nodes": [],
-            "edges": []
+
+            "edges": [],
+
+            "trend_data": {
+
+                "spread_score": [],
+
+                "risk_score": [],
+
+                "virality_score": []
+
+            }
+
         }
 
     }
@@ -84,12 +224,13 @@ async def analyze(
 
     final_text = text or ""
 
+    extracted_text = ""
 
 
 
 
     # =========================
-    # OCR EXTRACTION
+    # OCR PROCESSING
     # =========================
 
 
@@ -99,14 +240,11 @@ async def analyze(
         image_bytes = await image.read()
 
 
-
         ocr_result = (
-
             ocr_service
             .extract_text_from_image(
                 image_bytes
             )
-
         )
 
 
@@ -120,14 +258,22 @@ async def analyze(
             )
 
 
-
             response["ocr"] = {
 
                 "used": True,
 
                 "extracted_text": extracted_text,
 
-                "confidence": 98
+                "confidence":
+                ocr_result.get(
+                    "confidence",
+                    0
+                ),
+
+                "word_count":
+                len(
+                    extracted_text.split()
+                )
 
             }
 
@@ -148,11 +294,20 @@ async def analyze(
     # =========================
 
 
+    platform_text = final_text
+
+
+    if extracted_text:
+
+        platform_text += " " + extracted_text
+
+
+
     response["platform"] = (
 
         platform_detector
         .detect_platform(
-            final_text
+            platform_text
         )
 
     )
@@ -171,7 +326,6 @@ async def analyze(
     if final_text.strip():
 
 
-
         detection_result = (
 
             nlp_service
@@ -183,9 +337,31 @@ async def analyze(
 
 
 
-        # COMPLETE NLP OUTPUT
-
         response["detection"] = {
+            
+            "language":
+            detection_result.get(
+                "language",
+                "Unknown"
+            ),
+
+            "keywords":
+            detection_result.get(
+                "keywords",
+                []
+            ),
+
+            "manipulation_signals":
+            detection_result.get(
+                "manipulation_signals",
+                []
+            ),
+
+            "similar_claim":
+            detection_result.get(
+                "similar_claim",
+                False
+            ),
 
 
             "status":
@@ -195,13 +371,18 @@ async def analyze(
                 "success"
             ),
 
+            "claim":
+            detection_result.get(
+                "claim",
+                final_text
+            ),
 
 
             "prediction":
 
             detection_result.get(
                 "prediction",
-                "Normal"
+                "Needs Verification"
             ),
 
 
@@ -209,12 +390,10 @@ async def analyze(
             "confidence":
 
             safe_confidence(
-
                 detection_result.get(
                     "confidence",
                     0
                 )
-
             ),
 
 
@@ -227,9 +406,6 @@ async def analyze(
             ),
 
 
-
-
-            # CONTENT INTELLIGENCE
 
             "content_type":
 
@@ -258,9 +434,6 @@ async def analyze(
 
 
 
-
-            # RISK ANALYSIS
-
             "risk_level":
 
             detection_result.get(
@@ -278,9 +451,6 @@ async def analyze(
             ),
 
 
-
-
-            # ENTITY + INDICATORS
 
             "entities":
 
@@ -304,16 +474,12 @@ async def analyze(
 
 
 
-
-
-        # FACT VERIFICATION
-
         fact_result = verify_claim(
-
-            final_text
-
+            detection_result.get(
+                "claim",
+                final_text
+            )
         )
-
 
 
 
@@ -359,12 +525,10 @@ async def analyze(
             "confidence":
 
             safe_confidence(
-
                 fact_result.get(
                     "confidence",
                     0
                 )
-
             ),
 
 
@@ -386,7 +550,7 @@ async def analyze(
 
 
     # =========================
-    # ENGAGEMENT ANALYSIS
+    # ENGAGEMENT
     # =========================
 
 
@@ -413,17 +577,6 @@ async def analyze(
     # =========================
 
 
-    platform_name = (
-
-        response["platform"].get(
-            "platform"
-        )
-
-    )
-
-
-
-
     response["spread_analysis"] = (
 
         spread_factor_service
@@ -433,7 +586,9 @@ async def analyze(
 
             content_analysis=response["detection"],
 
-            platform=platform_name
+            platform=response["platform"].get(
+                "platform"
+            )
 
         )
 
@@ -446,7 +601,7 @@ async def analyze(
 
 
     # =========================
-    # SPREAD PREDICTION
+    # PREDICTION
     # =========================
 
 
@@ -454,7 +609,30 @@ async def analyze(
 
         prediction_service
         .predict_spread(
-            engagement_data
+
+            {
+
+                **engagement_data,
+
+
+                "spread_score":
+
+                response["spread_analysis"]
+
+                .get("metrics", {})
+
+                .get("spread_score", 0),
+
+
+
+                "risk_score":
+
+                response["detection"]
+
+                .get("risk_score", 0)
+
+            }
+
         )
 
     )
@@ -513,8 +691,28 @@ async def analyze(
 
 
 
+
     # =========================
-    # SAVE TO MONGODB
+    # FINAL RESULT
+    # =========================
+
+
+    response["final_result"] = (
+
+        generate_final_result(
+            response
+        )
+
+    )
+
+
+
+
+
+
+
+    # =========================
+    # SAVE ANALYSIS
     # =========================
     analysis_document = {
 
@@ -530,6 +728,8 @@ async def analyze(
 
         "platform": response["platform"],
 
+        "final_result": response["final_result"],
+
         "detection": response["detection"],
 
         "fact_verification": response["fact_verification"],
@@ -543,8 +743,8 @@ async def analyze(
         "prediction": response["prediction"],
 
         "graph": response["graph"]
-
     }
+    
     try:
 
 
@@ -564,6 +764,7 @@ async def analyze(
         )
 
 
+
     except Exception as e:
 
 
@@ -580,8 +781,31 @@ async def analyze(
 
     return {
 
-        "status":"success",
+        "status": "success",
 
-        "analysis":response
+        "analysis": {
+
+            **response,
+
+            "verification_status":
+            response["fact_verification"].get(
+                "verdict",
+                "Insufficient Evidence"
+            ),
+
+            "spread_prediction":
+            response["prediction"],
+
+            "metadata": {
+
+                "analysis_id": analysis_id,
+
+                "timestamp": analysis_time,
+
+                "processing_status": "completed"
+
+        }
 
     }
+
+}

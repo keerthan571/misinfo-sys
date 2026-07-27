@@ -1,8 +1,9 @@
 import os
 import json
-import re
+
 from groq import Groq
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -16,92 +17,21 @@ groq_client = Groq(
 class NLPService:
 
 
-    def correct_temporal_context(self, text, model_result):
+    def normalize_confidence(self, value):
 
-        text_lower = text.lower()
+        try:
 
+            value = str(value).replace("%", "")
 
-        future_patterns = [
-            "will",
-            "going to",
-            "expected",
-            "predicted",
-            "upcoming",
-            "next year",
-            "next month",
-            "soon"
-        ]
+            value = int(value)
 
+            value = max(0, min(value, 100))
 
-        past_patterns = [
-            "won",
-            "defeated",
-            "launched",
-            "released",
-            "completed",
-            "announced",
-            "happened",
-            "finished",
-            "was",
-            "were"
-        ]
+            return f"{value}%"
 
+        except:
 
-        present_patterns = [
-            "currently",
-            "today",
-            "now",
-            "is happening",
-            "are happening"
-        ]
-
-
-
-        has_future = any(
-            word in text_lower
-            for word in future_patterns
-        )
-
-
-        has_past = any(
-            word in text_lower
-            for word in past_patterns
-        )
-
-
-        has_present = any(
-            word in text_lower
-            for word in present_patterns
-        )
-
-
-
-        # Future has priority if future action exists
-        if has_future:
-
-            return "Future Event"
-
-
-        if has_past:
-
-            return "Past Event"
-
-
-        if has_present:
-
-            return "Present Event"
-
-
-        # General statements
-        if model_result in [
-            "Timeless",
-            "Unknown"
-        ]:
-
-            return model_result
-
-
-        return model_result
+            return "0%"
 
 
 
@@ -115,202 +45,317 @@ class NLPService:
             if not text or len(text.strip()) < 5:
 
                 return {
-                    "status":"error",
-                    "message":"Please enter valid text."
+
+                    "status": "error",
+
+                    "message": "Invalid text."
+
                 }
+
+
+
 
 
 
             prompt = f"""
 
-You are an advanced NLP Content Intelligence Engine
-for an AI misinformation analysis system.
+You are an NLP analysis engine for an AI misinformation detection system.
 
 
-Analyze ONLY language structure,
-content type, claim style and risk patterns.
+Your job:
+
+- Understand the content.
+- Extract the main claim.
+- Prepare information for verification.
+- Detect suspicious language patterns.
 
 
-TEXT:
+You are NOT a fact checker.
+
+You must NOT decide absolute truth.
+
+Do not use outside knowledge.
+
+Analyze only the given text.
+
+
+
+CONTENT:
 
 "{text}"
 
 
-IMPORTANT:
-
-You are NOT a fact checker.
-
-Never decide:
-
-True
-False
-Fake
-Real
 
 
-Fact verification is handled separately.
+Return the following fields:
 
 
 
-Analyze:
 
 
-1. CONTENT TYPE
+1. CLASSIFICATION
 
 Choose:
 
-News Article
-Social Media Post
-Viral Forward
-Rumor
-Opinion
-Prediction
-Announcement
-Advertisement
-Other
+- Likely Reliable
+- Needs Verification
+- Potential Misinformation
 
 
 
-2. CLAIM TYPE
 
-Choose:
+2. CONFIDENCE
 
-Factual Statement
-Event Claim
-Future Prediction
-Opinion
-Allegation
-Question
-Other
+Return percentage.
+
+This represents NLP analysis confidence only,
+not truth accuracy.
 
 
 
-3. TEMPORAL CONTEXT
-
-Choose:
-
-Past Event
-Present Event
-Future Event
-Timeless
-Unknown
 
 
+3. CLAIM EXTRACTION
 
-Understand complete meaning.
-
-Do not depend only on keywords.
+Extract the main claim that requires verification.
+If information is unavailable, return "Unknown".
+Do not invent information.
+For lists (entities, keywords, manipulation signals), return [] when nothing is detected.
 
 
 
-4. NLP RISK ANALYSIS
 
 
-Check:
-
-- Clickbait
-- Sensational words
-- Fear
-- Anger
-- Urgency
-- Emotional manipulation
-- Share requests
-- Extreme claims
-- Conspiracy language
-- Missing context
-
-
-
-Risk:
-
-Low
-Medium
-High
-
-
-
-Risk score:
-
-0-100
-
-
-
-5. LANGUAGE
+4. CLAIM TYPE
 
 Choose:
 
-English
-Hindi
-Kannada
-Tamil
-Mixed
-Unknown
+- Scientific Claim
+- Health Claim
+- Political Claim
+- Financial Claim
+- Event Claim
+- Social Claim
+- Opinion
+- Prediction
+- Other
 
 
 
-6. ENTITIES
+
+
+5. DOMAIN
+
+Choose:
+
+- Health
+- Politics
+- Science
+- Technology
+- Finance
+- Crime
+- Entertainment
+- General
+- Other
+
+
+
+
+
+6. CONTENT STYLE
+
+Choose:
+
+- News
+- Social Media Post
+- Viral Forward
+- Article
+- Advertisement
+- Opinion
+- Other
+
+
+
+
+
+7. ENTITY EXTRACTION
 
 Extract:
 
-Person
-Organization
-Location
-Event
-Product
+- Person
+- Organization
+- Location
+- Event
+- Date
+- Product
+
+
+Format:
+
+
+[
+ {{
+ "name":"",
+ "type":""
+ }}
+]
 
 
 
-7. INDICATORS
-
-Examples:
-
-Neutral language
-Specific event mentioned
-Emotional wording
-Urgency detected
-Clickbait pattern
-Share request
-Strong claim
-No suspicious pattern
 
 
+8. KEYWORD EXTRACTION
 
-Return only JSON.
+Extract important search keywords
+for verification.
+
+
+Format:
+
+
+[
+"keyword1",
+"keyword2"
+]
+
+
+
+
+
+9. LANGUAGE
+
+Choose:
+
+- English
+- Hindi
+- Kannada
+- Tamil
+- Mixed
+- Unknown
+
+
+
+
+
+10. TIME CONTEXT
+
+Choose:
+
+- Past
+- Present
+- Future
+- Unknown
+
+
+
+
+
+11. MANIPULATION SIGNALS
+
+Return only detected signals.
+
+
+Allowed:
+
+- Clickbait wording detected
+- Urgency language detected
+- Fear appeal detected
+- Extreme claim detected
+- Share bait detected
+- False authority wording detected
+- Missing context detected
+
+
+If nothing detected:
+
+[]
+
+
+
+
+
+12. VERIFICATION PRIORITY
+
+Choose:
+
+- High
+- Medium
+- Low
+
+
+Based on whether external verification is required.
+
+
+
+
+
+13. SIMILAR CLAIM
+
+Return:
+
+true
+
+if the content appears similar to repeated misinformation patterns.
+
+Otherwise:
+
+false
+
+
+
+
+
+Return ONLY JSON.
+
+No explanation.
+
+No markdown.
+
+No extra fields.
+
 
 
 FORMAT:
 
 
 {{
-"prediction":"Normal",
+"classification":"Needs Verification",
+
 "confidence":"90%",
-"language":"English",
-"content_type":"News Article",
-"claim_type":"Event Claim",
-"temporal_context":"Past Event",
-"risk_level":"Low",
-"risk_score":10,
+
+"claim":"",
+
+"claim_type":"",
+
+"domain":"",
+
+"content_style":"",
 
 "entities":[],
 
-"indicators":[],
+"keywords":[],
 
-"reason":"Short NLP explanation"
+"language":"English",
+
+"time_context":"Unknown",
+
+"manipulation_signals":[],
+
+"verification_priority":"Medium",
+
+"similar_claim":false
+
 }}
 
 
 Rules:
 
-- Never fact check.
-- Never use external knowledge.
-- Never judge truth.
-- Analyze only text characteristics.
-- Return JSON only.
+- Every field is mandatory.
+- Use "Unknown" when a value cannot be determined.
+- Use empty array [] when no entities, keywords, or manipulation signals exist.
+- Return valid JSON only.
 
 """
-
-
-
             response = groq_client.chat.completions.create(
 
                 model="llama-3.3-70b-versatile",
@@ -320,14 +365,14 @@ Rules:
                 messages=[
 
                     {
-                        "role":"system",
+                        "role": "system",
                         "content":
-                        "You are a professional NLP content intelligence analyzer."
+                        "You are a professional NLP misinformation analysis engine."
                     },
 
                     {
-                        "role":"user",
-                        "content":prompt
+                        "role": "user",
+                        "content": prompt
                     }
 
                 ]
@@ -336,59 +381,221 @@ Rules:
 
 
 
-            content = response.choices[0].message.content.strip()
+            output = response.choices[0].message.content.strip()
 
 
-            content = (
-                content
-                .replace("```json","")
-                .replace("```","")
+
+            output = (
+
+                output
+
+                .replace("```json", "")
+
+                .replace("```", "")
+
                 .strip()
+
             )
 
 
 
-            result = json.loads(content)
+            result = json.loads(output)
 
 
 
-            # Fix temporal mistakes
-            result["temporal_context"] = self.correct_temporal_context(
-                text,
-                result.get(
-                    "temporal_context",
-                    "Unknown"
-                )
+
+
+            # ---------- Normalize Fields ----------
+
+
+            result["classification"] = result.get(
+
+                "classification",
+
+                "Needs Verification"
+
             )
 
 
+            result["confidence"] = self.normalize_confidence(
 
-            confidence = str(
                 result.get(
+
                     "confidence",
-                    "0%"
+
+                    "0"
+
                 )
+
             )
 
 
-            if not confidence.endswith("%"):
+            result["claim"] = result.get(
+                "claim",
+                "Unknown"
+            )
 
-                confidence += "%"
+
+
+            result["claim_type"] = result.get(
+
+                "claim_type",
+
+                "Other"
+
+            )
 
 
 
-            try:
+            result["domain"] = result.get(
 
-                risk_score = int(
-                    result.get(
-                        "risk_score",
-                        0
-                    )
-                )
+                "domain",
 
-            except:
+                "General"
 
-                risk_score = 0
+            )
+
+
+
+            result["content_style"] = result.get(
+
+                "content_style",
+
+                "Other"
+
+            )
+
+
+
+            result["language"] = result.get(
+
+                "language",
+
+                "Unknown"
+
+            )
+
+
+
+            result["time_context"] = result.get(
+
+                "time_context",
+
+                "Unknown"
+
+            )
+            result["verification_priority"] = result.get(
+                "verification_priority",
+                "Medium"
+            )
+
+
+            result["similar_claim"] = result.get(
+                "similar_claim",
+                False
+            )
+
+
+
+
+
+            # ---------- Clean Entities ----------
+
+
+            entities = result.get(
+
+                "entities",
+
+                []
+
+            )
+
+
+            clean_entities = []
+
+
+
+            if isinstance(entities, list):
+
+                for entity in entities:
+
+
+                    if isinstance(entity, dict):
+
+                        clean_entities.append({
+
+                            "name": entity.get(
+
+                                "name",
+
+                                ""
+
+                            ),
+
+                            "type": entity.get(
+
+                                "type",
+
+                                "Unknown"
+
+                            )
+
+                        })
+
+
+                    elif isinstance(entity, str):
+
+                        clean_entities.append({
+
+                            "name": entity,
+
+                            "type": "Unknown"
+
+                        })
+
+
+
+
+
+
+            # ---------- Keywords ----------
+
+
+            keywords = result.get(
+
+                "keywords",
+
+                []
+
+            )
+
+
+            if not isinstance(keywords, list):
+
+                keywords = []
+
+
+
+
+
+
+            # ---------- Manipulation Signals ----------
+
+
+            manipulation_signals = result.get(
+
+                "manipulation_signals",
+
+                []
+
+            )
+
+
+            if not isinstance(manipulation_signals, list):
+
+                manipulation_signals = []
+
+
 
 
 
@@ -396,82 +603,155 @@ Rules:
 
             return {
 
-                "status":"success",
 
-                "text_analyzed":text,
+                "status": "success",
 
 
-                "prediction":
+                "text_analyzed": text,
+
+
+
+                "classification":
+
                 result.get(
-                    "prediction",
-                    "Normal"
+
+                    "classification",
+
+                    "Needs Verification"
+
                 ),
+
 
 
                 "confidence":
-                confidence,
 
-
-                "language":
                 result.get(
-                    "language",
+
+                    "confidence",
+
+                    "0%"
+
+                ),
+
+
+
+                "claim": result.get(
+                    "claim",
                     "Unknown"
                 ),
 
-
-                "content_type":
-                result.get(
-                    "content_type",
-                    "Other"
-                ),
 
 
                 "claim_type":
+
                 result.get(
+
                     "claim_type",
+
                     "Other"
+
                 ),
 
 
-                "temporal_context":
+
+                "domain":
+
                 result.get(
-                    "temporal_context",
-                    "Unknown"
+
+                    "domain",
+
+                    "General"
+
                 ),
 
 
-                "risk_level":
+
+                "content_style":
+
                 result.get(
-                    "risk_level",
-                    "Low"
+
+                    "content_style",
+
+                    "Other"
+
                 ),
 
-
-                "risk_score":
-                risk_score,
 
 
                 "entities":
+
+                clean_entities,
+
+
+
+                "keywords":
+
+                keywords,
+
+
+
+                "language":
+
                 result.get(
-                    "entities",
-                    []
+
+                    "language",
+
+                    "Unknown"
+
                 ),
 
 
-                "indicators":
+
+                "time_context":
+
                 result.get(
-                    "indicators",
-                    []
+
+                    "time_context",
+
+                    "Unknown"
+
                 ),
 
 
-                "reason":
+
+                "manipulation_signals":
+
+                manipulation_signals,
+
+
+
+                "verification_priority":
+
                 result.get(
-                    "reason",
-                    ""
+
+                    "verification_priority",
+
+                    "Medium"
+
+                ),
+
+
+
+                "similar_claim":
+
+                bool(
+
+                    result.get(
+
+                        "similar_claim",
+
+                        False
+
+                    )
+
                 )
 
+
             }
+
+
+
+
 
 
 
@@ -480,12 +760,19 @@ Rules:
 
             return {
 
-                "status":"error",
+
+                "status": "error",
+
 
                 "message":
-                "Invalid JSON received from NLP model."
+
+                "Invalid JSON response from NLP model."
 
             }
+
+
+
+
 
 
 
@@ -494,11 +781,16 @@ Rules:
 
             return {
 
-                "status":"error",
 
-                "message":str(e)
+                "status": "error",
+
+
+                "message": str(e)
 
             }
+
+
+
 
 
 

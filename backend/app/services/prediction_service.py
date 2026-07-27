@@ -2,30 +2,36 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 
 
+
 class PredictionService:
 
 
     def __init__(self):
 
+
+        # Training examples
         # Features:
-        # likes, shares, comments, views, bookmarks
+        # likes, shares, comments, views, bookmarks, spread_score, risk_score
+
 
         self.X = np.array([
 
-            [100, 20, 10, 1000, 5],
+            [100,20,10,1000,5,10,20],
 
-            [500, 100, 50, 5000, 20],
+            [500,100,50,5000,20,30,30],
 
-            [1000, 250, 100, 15000, 50],
+            [1000,250,100,15000,50,50,40],
 
-            [5000, 1000, 500, 50000, 200],
+            [5000,1000,500,50000,200,75,60],
 
-            [10000, 3000, 1000, 150000, 500]
+            [10000,3000,1000,150000,500,95,80]
 
         ])
 
 
-        # Estimated reach labels
+
+        # Expected reach
+
         self.y = np.array([
 
             2000,
@@ -42,18 +48,25 @@ class PredictionService:
 
 
 
+
         self.model = LinearRegression()
 
+
         self.model.fit(
+
             self.X,
+
             self.y
+
         )
 
 
 
 
 
+
     def calculate_risk_level(self, reach):
+
 
         if reach >= 100000:
 
@@ -79,6 +92,8 @@ class PredictionService:
 
 
 
+
+
     def predict_spread(self, features):
 
 
@@ -88,10 +103,12 @@ class PredictionService:
         ) or 0
 
 
+
         shares = features.get(
             "shares",
             0
         ) or 0
+
 
 
         comments = features.get(
@@ -100,10 +117,12 @@ class PredictionService:
         ) or 0
 
 
+
         views = features.get(
             "views",
             0
         ) or 0
+
 
 
         bookmarks = features.get(
@@ -113,9 +132,24 @@ class PredictionService:
 
 
 
+        spread_score = features.get(
+            "spread_score",
+            0
+        ) or 0
+
+
+
+        risk_score = features.get(
+            "risk_score",
+            0
+        ) or 0
+
+
+
 
 
         input_data = np.array([[
+
 
             likes,
 
@@ -125,7 +159,12 @@ class PredictionService:
 
             views,
 
-            bookmarks
+            bookmarks,
+
+            spread_score,
+
+            risk_score
+
 
         ]])
 
@@ -133,22 +172,36 @@ class PredictionService:
 
 
 
+
+
         predicted_reach = self.model.predict(
+
             input_data
+
         )[0]
 
 
+
         predicted_reach = max(
-            0,
-            predicted_reach
+
+            predicted_reach,
+
+            0
+
         )
+
+
 
 
 
 
         risk = self.calculate_risk_level(
+
             predicted_reach
+
         )
+
+
 
 
 
@@ -156,8 +209,17 @@ class PredictionService:
         virality_score = min(
 
             round(
-                (predicted_reach / 200000) * 100,
+
+                (
+
+                    predicted_reach /
+
+                    200000
+
+                ) * 100,
+
                 2
+
             ),
 
             100
@@ -167,28 +229,53 @@ class PredictionService:
 
 
 
-        # Explanation based on available signals
+
+
 
         if shares > likes:
 
-            reason = (
-                "High sharing activity indicates "
-                "strong propagation potential."
-            )
-
-        elif views > 0 and likes > 0:
 
             reason = (
-                "Engagement detected from views and "
-                "user interactions."
+
+                "High redistribution activity detected. "
+                "Shares/reposts indicate strong propagation potential."
+
             )
+
+
+        elif spread_score >= 50:
+
+
+            reason = (
+
+                "Multiple engagement signals indicate "
+                "moderate to high spread probability."
+
+            )
+
+
+        elif risk_score >= 70:
+
+
+            reason = (
+
+                "Content has high-risk language patterns "
+                "that may increase viral behaviour."
+
+            )
+
 
         else:
 
+
             reason = (
-                "Limited engagement signals available "
-                "for prediction."
+
+                "Limited spread indicators detected "
+                "from available engagement data."
+
             )
+
+
 
 
 
@@ -197,50 +284,65 @@ class PredictionService:
         return {
 
 
-            "status": "success",
+            "status":"success",
 
 
-            "module": "Spread Prediction",
+            "module":"Spread Prediction",
 
 
 
-            "data": {
+
+            "data":{
 
 
-                "features_used": {
+                "features_used":{
 
 
-                    "likes": likes,
+                    "likes":likes,
 
-                    "shares": shares,
+                    "shares":shares,
 
-                    "comments": comments,
+                    "comments":comments,
 
-                    "views": views,
+                    "views":views,
 
-                    "bookmarks": bookmarks
+                    "bookmarks":bookmarks,
+
+                    "spread_score":spread_score,
+
+                    "risk_score":risk_score
+
 
                 },
 
 
-                "predicted_reach": round(
+
+                "predicted_reach":round(
+
                     predicted_reach,
+
                     2
+
                 ),
 
 
-                "risk_level": risk,
+
+                "risk_level":risk,
 
 
-                "virality_score": virality_score
+
+                "virality_score":virality_score
 
 
             },
 
 
-            "analysis_summary": reason
+
+            "analysis_summary":reason
+
 
         }
+
 
 
 

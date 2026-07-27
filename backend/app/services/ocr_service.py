@@ -1,102 +1,215 @@
 import io
+import re
 
 import pytesseract
+
 from PIL import Image, ImageEnhance, ImageFilter
 
 
-# Direct Tesseract path
-# Required because Windows PATH is not detecting it
 pytesseract.pytesseract.tesseract_cmd = (
     r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 )
 
 
+
 class OCRService:
 
-    def __init__(self):
-        pass
+
+    def clean_text(self, text):
+
+        text = re.sub(
+            r"\s+",
+            " ",
+            text
+        )
+
+        return text.strip()
 
 
-    def extract_text_from_image(self, image_bytes: bytes):
-        """
-        Extract text from image using Tesseract OCR
-        with preprocessing.
-        """
+
+    def calculate_confidence(self, image):
 
         try:
 
+            data = pytesseract.image_to_data(
+                image,
+                output_type=pytesseract.Output.DICT
+            )
+
+
+            confidence_values = []
+
+
+            for conf in data["conf"]:
+
+                if int(conf) > 0:
+
+                    confidence_values.append(
+                        int(conf)
+                    )
+
+
+            if confidence_values:
+
+                return int(
+                    sum(confidence_values)
+                    /
+                    len(confidence_values)
+                )
+
+
+            return 0
+
+
+        except:
+
+            return 0
+
+
+
+
+
+    def extract_text_from_image(self, image_bytes: bytes):
+
+        try:
+
+
             if not image_bytes:
+
                 return {
-                    "status": "error",
-                    "message": "No image provided."
+
+                    "status":"error",
+
+                    "message":
+                    "No image provided."
+
                 }
 
 
-            # Load image
+
+
             image = Image.open(
                 io.BytesIO(image_bytes)
             )
 
 
-            # Convert to grayscale
-            image = image.convert("L")
+
+            image = image.convert(
+                "L"
+            )
 
 
-            # Resize for better OCR accuracy
+
             image = image.resize(
+
                 (
                     image.width * 2,
                     image.height * 2
                 )
+
             )
 
 
-            # Increase contrast
-            enhancer = ImageEnhance.Contrast(image)
 
-            image = enhancer.enhance(2)
+            enhancer = ImageEnhance.Contrast(
+                image
+            )
 
 
-            # Sharpen image
+            image = enhancer.enhance(
+                2
+            )
+
+
+
             image = image.filter(
                 ImageFilter.SHARPEN
             )
 
 
-            # OCR configuration
-            # psm 6 = assume a uniform block of text
+
+
+
             config = "--psm 6"
 
 
-            text = pytesseract.image_to_string(
+
+            raw_text = pytesseract.image_to_string(
+
                 image,
+
                 config=config
-            ).strip()
+
+            )
+
+
+
+            cleaned_text = self.clean_text(
+                raw_text
+            )
+
+
+
+            confidence = self.calculate_confidence(
+                image
+            )
+
+
 
 
             return {
 
-                "status": "success",
 
-                "extracted_text": text,
+                "status":"success",
 
-                "confidence": 98,
 
-                "ready_for_analysis": True
+                "extracted_text":
+                cleaned_text,
+
+
+                "confidence":
+                confidence,
+
+
+                "word_count":
+                len(
+                    cleaned_text.split()
+                ),
+
+
+                "language":
+                "Unknown",
+
+
+                "ready_for_analysis":
+
+                True if cleaned_text else False
+
+
             }
+
+
 
 
         except Exception as e:
 
+
             return {
 
-                "status": "error",
 
-                "message": "OCR processing failed.",
+                "status":"error",
 
-                "error": str(e)
+
+                "message":
+                "OCR processing failed.",
+
+
+                "error":
+                str(e)
 
             }
+
+
 
 
 ocr_service = OCRService()

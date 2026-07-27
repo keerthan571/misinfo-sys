@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-
 # ==========================
 # Clients
 # ==========================
@@ -25,12 +24,9 @@ tavily_client = TavilyClient(
 
 
 
-
-
 def verify_claim(claim: str):
 
     try:
-
 
         # ==========================
         # Validate Input
@@ -39,31 +35,19 @@ def verify_claim(claim: str):
         if not claim or len(claim.strip()) < 5:
 
             return {
-
-                "status":"error",
-
-                "claim":claim,
-
-                "verdict":"Uncertain",
-
-                "reason":
-                "Invalid claim provided.",
-
-                "confidence":"0%",
-
-                "sources":[]
-
+                "status": "error",
+                "claim": claim,
+                "verdict": "Insufficient Evidence",
+                "reason": "Invalid claim provided.",
+                "confidence": "0%",
+                "sources": []
             }
-
-
-
 
 
 
         # ==========================
         # Tavily Search
         # ==========================
-
 
         search_results = tavily_client.search(
 
@@ -76,7 +60,6 @@ def verify_claim(claim: str):
         )
 
 
-
         results = search_results.get(
             "results",
             []
@@ -84,37 +67,30 @@ def verify_claim(claim: str):
 
 
 
-
         if not results:
-
 
             return {
 
-                "status":"success",
+                "status": "success",
 
-                "claim":claim,
+                "claim": claim,
 
-                "verdict":"Uncertain",
+                "verdict": "Insufficient Evidence",
 
                 "reason":
                 "No reliable evidence found from available sources.",
 
-                "confidence":"0%",
+                "confidence": "0%",
 
-                "sources":[]
+                "sources": []
 
             }
-
-
-
 
 
 
         evidence = ""
 
         sources = []
-
-
 
 
 
@@ -130,7 +106,7 @@ def verify_claim(claim: str):
             content = item.get(
                 "content",
                 ""
-            )
+            )[:1000]
 
 
             url = item.get(
@@ -161,9 +137,6 @@ Source:
 
 
 
-
-
-
         sources = list(
             dict.fromkeys(
                 sources
@@ -172,19 +145,15 @@ Source:
 
 
 
-
-
-
-
-
         # ==========================
-        # Groq Prompt
+        # Groq Verification
         # ==========================
 
 
         prompt = f"""
 
 You are an expert fact verification AI.
+
 
 Claim:
 
@@ -202,20 +171,22 @@ Rules:
 - Use only provided evidence.
 - Do not use previous knowledge.
 - Do not guess.
-- If evidence supports claim return True.
-- If evidence contradicts claim return False.
-- If partially correct return Misleading.
-- If insufficient evidence return Uncertain.
+- If evidence strongly supports the claim return Verified Information.
+- If evidence contradicts the claim return False Information.
+- If evidence shows partial or misleading context return Misleading Information.
+- If evidence is insufficient return Insufficient Evidence.
+
 
 
 Return ONLY JSON.
+
 
 
 Format:
 
 
 {{
-"verdict":"True",
+"verdict":"Verified Information",
 "reason":"Short explanation",
 "confidence":"90%"
 }}
@@ -224,46 +195,24 @@ Format:
 
 
 
-
-
-
-
         response = groq_client.chat.completions.create(
-
 
             model="llama-3.3-70b-versatile",
 
-
             temperature=0,
-
 
             messages=[
 
-
                 {
-
-
-                    "role":"system",
-
-
+                    "role": "system",
                     "content":
                     "You are a strict fact checking AI."
-
-
                 },
 
-
                 {
-
-
-                    "role":"user",
-
-
-                    "content":prompt
-
-
+                    "role": "user",
+                    "content": prompt
                 }
-
 
             ]
 
@@ -271,44 +220,30 @@ Format:
 
 
 
-
-
-
-
         output = response.choices[0].message.content.strip()
-
-
-
 
 
 
         if not output:
 
-
             return {
 
-                "status":"error",
+                "status": "error",
 
-                "claim":claim,
+                "claim": claim,
 
-                "verdict":"Uncertain",
+                "verdict": "Insufficient Evidence",
 
                 "reason":
                 "Empty AI response received.",
 
-                "confidence":"0%",
+                "confidence": "0%",
 
-                "sources":sources
+                "sources": sources
 
             }
 
 
-
-
-
-
-
-        # remove markdown
 
         output = (
 
@@ -330,12 +265,7 @@ Format:
 
 
 
-
-
         result = json.loads(output)
-
-
-
 
 
 
@@ -348,7 +278,7 @@ Format:
 
             result.get(
                 "verdict",
-                "Uncertain"
+                "Insufficient Evidence"
             )
 
             .strip()
@@ -359,16 +289,15 @@ Format:
 
 
 
-
         allowed = [
 
-            "True",
+            "Verified Information",
 
-            "False",
+            "False Information",
 
-            "Misleading",
+            "Misleading Information",
 
-            "Uncertain"
+            "Insufficient Evidence"
 
         ]
 
@@ -376,11 +305,7 @@ Format:
 
         if verdict not in allowed:
 
-            verdict = "Uncertain"
-
-
-
-
+            verdict = "Insufficient Evidence"
 
 
 
@@ -397,7 +322,6 @@ Format:
         )
 
 
-
         if not confidence.endswith("%"):
 
             confidence += "%"
@@ -405,21 +329,14 @@ Format:
 
 
 
-
-
-
-
         return {
 
 
-            "status":"success",
+            "status": "success",
 
+            "claim": claim,
 
-            "claim":claim,
-
-
-            "verdict":verdict,
-
+            "verdict": verdict,
 
             "reason":
 
@@ -431,19 +348,11 @@ Format:
 
             ),
 
+            "confidence": confidence,
 
-            "confidence":confidence,
-
-
-            "sources":sources
-
+            "sources": sources
 
         }
-
-
-
-
-
 
 
 
@@ -453,28 +362,20 @@ Format:
 
         return {
 
+            "status": "error",
 
-            "status":"error",
+            "claim": claim,
 
-
-            "claim":claim,
-
-
-            "verdict":"Uncertain",
-
+            "verdict": "Insufficient Evidence",
 
             "reason":
             "Invalid JSON returned by AI model.",
 
+            "confidence": "0%",
 
-            "confidence":"0%",
-
-
-            "sources":[]
-
+            "sources": []
 
         }
-
 
 
 
@@ -484,23 +385,16 @@ Format:
 
         return {
 
+            "status": "error",
 
-            "status":"error",
+            "claim": claim,
 
+            "verdict": "Insufficient Evidence",
 
-            "claim":claim,
+            "reason": str(e),
 
+            "confidence": "0%",
 
-            "verdict":"Uncertain",
-
-
-            "reason":str(e),
-
-
-            "confidence":"0%",
-
-
-            "sources":[]
-
+            "sources": []
 
         }

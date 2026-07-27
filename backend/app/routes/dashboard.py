@@ -8,92 +8,173 @@ from app.database.mongodb import (
 
 from app.auth.dependencies import get_current_user
 
+
 router = APIRouter()
 
+
+def normalize_verdict(verdict):
+    """
+    Convert all possible database verdict formats
+    into dashboard-friendly values.
+    """
+
+    if not verdict:
+        return "Unknown"
+
+    verdict = str(verdict).lower().strip()
+
+
+    # TRUE cases
+    if verdict in [
+        "true",
+        "verified true",
+        "verified information",
+        "verified",
+        "real",
+        "correct"
+    ]:
+        return "Verified True"
+
+
+    # FALSE cases
+    if verdict in [
+        "false",
+        "verified false",
+        "false information",
+        "misinformation",
+        "fake information",
+        "fake",
+        "misleading"
+    ]:
+        return "Verified False"
+
+
+    return "Unknown"
+
+
+
+# =====================================================
+# DASHBOARD STATS
+# =====================================================
 
 @router.get("/stats")
 def get_dashboard_stats(
     current_user=Depends(get_current_user)
 ):
 
-    # Logged-in user's filter
     user_filter = {
         "email": current_user["email"]
     }
 
-    # ---------------- DEBUG ----------------
+
     print("\n========== DASHBOARD DEBUG ==========")
-    print("Current User :", current_user["email"])
-    print("Database     :", analysis_collection.database.name)
-    print("Collection   :", analysis_collection.name)
-    # ---------------------------------------
+    print("User:", current_user["email"])
 
-    # Total analyses
-    total = analysis_collection.count_documents(user_filter)
 
-    # Verified False
-    fake = analysis_collection.count_documents({
-        **user_filter,
-        "fact_verification.verdict": "False"
-    })
+    total = analysis_collection.count_documents(
+        user_filter
+    )
 
-    # Verified True
-    real = analysis_collection.count_documents({
-        **user_filter,
-        "fact_verification.verdict": "True"
-    })
 
-    # OCR uploads
-    ocr = analysis_collection.count_documents({
-        **user_filter,
-        "ocr.used": True
-    })
-
-    # Reports
-    reports = reports_collection.count_documents(user_filter)
-
-    # -----------------------------
-    # Average AI Confidence
-    # -----------------------------
     analyses = list(
         analysis_collection.find(
             user_filter,
             {
-                "detection.confidence": 1
+                "fact_verification.verdict": 1,
+                "detection.confidence": 1,
+                "ocr.used": 1
             }
         )
     )
 
+
+    verified_true = 0
+    verified_false = 0
     confidence_values = []
+    ocr_uploads = 0
+
+
 
     for analysis in analyses:
 
+
+        # Verdict
+        verdict = normalize_verdict(
+            analysis
+            .get("fact_verification", {})
+            .get("verdict", "")
+        )
+
+
+        if verdict == "Verified True":
+            verified_true += 1
+
+
+        elif verdict == "Verified False":
+            verified_false += 1
+
+
+
+        # Confidence
         confidence = (
             analysis
             .get("detection", {})
             .get("confidence")
         )
 
-        if isinstance(confidence, (int, float)) and confidence > 0:
+
+        if isinstance(confidence, (int, float)):
             confidence_values.append(confidence)
 
+
+
+        # OCR
+        if (
+            analysis
+            .get("ocr", {})
+            .get("used")
+            is True
+        ):
+            ocr_uploads += 1
+
+
+
+    # Average confidence
+
     if confidence_values:
-        avg = round(
-            sum(confidence_values) /
+
+        avg_confidence = round(
+            sum(confidence_values)
+            /
             len(confidence_values),
             2
         )
-    else:
-        avg = 0
 
-    # -----------------------------
-    # Weekly Analysis
-    # -----------------------------
+    else:
+
+        avg_confidence = 0
+
+
+
+    # Reports
+
+    reports = reports_collection.count_documents(
+        user_filter
+    )
+
+
+
+    # Weekly analysis
+
     today = datetime.utcnow()
 
-    start_of_week = today - timedelta(days=today.weekday())
+    start_of_week = (
+        today -
+        timedelta(days=today.weekday())
+    )
 
-    week_days = [
+
+    days = [
         "Mon",
         "Tue",
         "Wed",
@@ -103,11 +184,17 @@ def get_dashboard_stats(
         "Sun"
     ]
 
+
     weekly_analysis = []
+
 
     for i in range(7):
 
-        current_day = start_of_week + timedelta(days=i)
+        current_day = (
+            start_of_week +
+            timedelta(days=i)
+        )
+
 
         start = current_day.replace(
             hour=0,
@@ -116,54 +203,83 @@ def get_dashboard_stats(
             microsecond=0
         )
 
+
         end = start + timedelta(days=1)
 
-        count = analysis_collection.count_documents({
-            **user_filter,
-            "analysis_time": {
-                "$gte": start.isoformat(),
-                "$lt": end.isoformat()
+
+
+        count = analysis_collection.count_documents(
+            {
+                **user_filter,
+                "analysis_time": {
+                    "$gte": start.isoformat(),
+                    "$lt": end.isoformat()
+                }
             }
-        })
+        )
 
-        weekly_analysis.append({
-            "day": week_days[i],
-            "count": count
-        })
 
-    # ---------------- DEBUG ----------------
-    print("Total Analyses      :", total)
-    print("Verified False      :", fake)
-    print("Verified True       :", real)
-    print("OCR Uploads         :", ocr)
-    print("Reports             :", reports)
-    print("Average Confidence  :", avg)
-    print("=====================================\n")
-    # ---------------------------------------
+        weekly_analysis.append(
+            {
+                "day": days[i],
+                "count": count
+            }
+        )
+
+
+
+    print("Total:", total)
+    print("Verified True:", verified_true)
+    print("Verified False:", verified_false)
+    print("OCR:", ocr_uploads)
+    print("Confidence:", avg_confidence)
+    print("====================================\n")
+
+
 
     return {
+
         "totalAnalyses": total,
-        "verifiedTrue": real,
-        "verifiedFalse": fake,
-        "ocrUploads": ocr,
+
+        "verifiedTrue": verified_true,
+
+        "verifiedFalse": verified_false,
+
+        "ocrUploads": ocr_uploads,
+
         "reports": reports,
-        "avgConfidence": avg,
+
+        "avgConfidence": avg_confidence,
+
         "weeklyAnalysis": weekly_analysis
+
     }
 
+
+
+
+# =====================================================
+# RECENT ACTIVITY
+# =====================================================
 
 @router.get("/recent")
 def get_recent_activity(
     current_user=Depends(get_current_user)
 ):
 
+
     user_filter = {
         "email": current_user["email"]
     }
 
+
+
     analyses = list(
+
         analysis_collection.find(
+
             user_filter,
+
             {
                 "_id": 0,
                 "text": 1,
@@ -171,25 +287,95 @@ def get_recent_activity(
                 "fact_verification.verdict": 1,
                 "detection.confidence": 1
             }
+
         )
-        .sort("analysis_time", -1)
+
+        .sort(
+            "analysis_time",
+            -1
+        )
+
         .limit(5)
+
     )
+
+
 
     recent = []
 
+
+
     for analysis in analyses:
 
-        text = analysis.get("text", "")
+
+        text = analysis.get(
+            "text",
+            ""
+        )
+
 
         if len(text) > 60:
-            text = text[:60] + "..."
 
-        recent.append({
-            "text": text,
-            "verdict": analysis.get("fact_verification", {}).get("verdict", "Unknown"),
-            "confidence": analysis.get("detection", {}).get("confidence", 0),
-            "analysis_time": analysis.get("analysis_time")
-        })
+            text = (
+                text[:60]
+                +
+                "..."
+            )
+
+
+
+        raw_verdict = (
+
+            analysis
+            .get("fact_verification", {})
+            .get("verdict", "")
+
+        )
+
+
+
+        verdict = normalize_verdict(
+            raw_verdict
+        )
+
+
+
+        print(
+            "RECENT:",
+            text,
+            "=>",
+            raw_verdict,
+            "=>",
+            verdict
+        )
+
+
+
+        recent.append(
+
+            {
+
+                "text": text,
+
+                "verdict": verdict,
+
+                "confidence":
+                analysis
+                .get("detection", {})
+                .get(
+                    "confidence",
+                    0
+                ),
+
+                "analysis_time":
+                analysis.get(
+                    "analysis_time"
+                )
+
+            }
+
+        )
+
+
 
     return recent
