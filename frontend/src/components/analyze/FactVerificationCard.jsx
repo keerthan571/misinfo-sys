@@ -56,14 +56,17 @@ export default function FactVerificationCard({ data }) {
 
 
           <span
-            className={`px-3 py-1 rounded-full font-semibold ${
-              verdict.toLowerCase() === "true"
-              ? "bg-green-500/20 text-green-400"
-              :
-              verdict.toLowerCase() === "false"
-              ? "bg-red-500/20 text-red-400"
-              :
-              "bg-yellow-500/20 text-yellow-400"
+          className={`px-3 py-1 rounded-full font-semibold ${
+            verdict === "Verified Information"
+            ? "bg-green-500/20 text-green-400"
+            :
+            verdict === "False Information"
+            ? "bg-red-500/20 text-red-400"
+            :
+            verdict === "Misleading Information"
+            ? "bg-orange-500/20 text-orange-400"
+            :
+            "bg-yellow-500/20 text-yellow-400"
             }`}
           >
 

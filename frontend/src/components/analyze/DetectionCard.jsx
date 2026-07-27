@@ -3,9 +3,9 @@ export default function DetectionCard({ data }) {
   if (!data) return null;
 
 
-  const getBadgeColor = (classification) => {
+  const getBadgeColor = (prediction) => {
 
-    switch(classification?.toLowerCase()) {
+    switch(prediction?.toLowerCase()) {
 
       case "potential misinformation":
         return "bg-red-500";
@@ -58,10 +58,10 @@ export default function DetectionCard({ data }) {
 
           <span
             className={`px-4 py-1 rounded-full text-white font-semibold ${getBadgeColor(
-              data.classification
+              data.prediction
             )}`}
           >
-            {data.classification || "Unknown"}
+            {data.prediction || "Unknown"}
           </span>
 
         </div>
@@ -116,7 +116,7 @@ export default function DetectionCard({ data }) {
 
 
           <p className="text-gray-300">
-            {data.claim || "No claim extracted"}
+            {data.claim || "Unknown"}
           </p>
 
 
@@ -173,7 +173,7 @@ export default function DetectionCard({ data }) {
 
 
             <span className="text-white font-semibold">
-              {data.time_context || "Unknown"}
+              {data.temporal_context || "Unknown"}
             </span>
 
           </div>

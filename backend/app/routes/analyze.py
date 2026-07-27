@@ -342,6 +342,30 @@ async def analyze(
 
 
         response["detection"] = {
+            
+            "language":
+            detection_result.get(
+                "language",
+                "Unknown"
+            ),
+
+            "keywords":
+            detection_result.get(
+                "keywords",
+                []
+            ),
+
+            "manipulation_signals":
+            detection_result.get(
+                "manipulation_signals",
+                []
+            ),
+
+            "similar_claim":
+            detection_result.get(
+                "similar_claim",
+                False
+            ),
 
 
             "status":
@@ -351,6 +375,11 @@ async def analyze(
                 "success"
             ),
 
+            "claim":
+            detection_result.get(
+                "claim",
+                final_text
+            ),
 
 
             "prediction":
@@ -795,6 +824,29 @@ async def analyze(
 
         "status": "success",
 
-        "analysis": response
+        "analysis": {
+
+            **response,
+
+            "verification_status":
+            response["fact_verification"].get(
+                "verdict",
+                "Insufficient Evidence"
+            ),
+
+            "spread_prediction":
+            response["prediction"],
+
+            "metadata": {
+
+                "analysis_id": analysis_id,
+
+                "timestamp": analysis_time,
+
+                "processing_status": "completed"
+
+        }
 
     }
+
+}

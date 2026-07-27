@@ -11,26 +11,38 @@ class EngagementService:
 
         data = {
 
-
             # Existing fields (keep compatibility)
 
-            "likes": None,
+            "likes": 0,
 
-            "shares": None,
+            "shares": 0,
 
-            "comments": None,
+            "comments": 0,
 
-            "views": None,
+            "views": 0,
 
-            "bookmarks": None,
+            "bookmarks": 0,
 
-            "followers": None,
-
+            "followers": 0,
 
 
             # New fields
 
-            "platform_metrics": {},
+            "platform_metrics": {
+
+                "likes": 0,
+
+                "comments": 0,
+
+                "shares_or_reposts": 0,
+
+                "views": 0,
+
+                "saves_or_bookmarks": 0,
+
+                "followers_or_subscribers": 0
+
+            },
 
             "detected_signals": []
 
@@ -343,7 +355,7 @@ class EngagementService:
 
 
 
-        return None
+        return 0
 
 
 
