@@ -1,142 +1,36 @@
-import numpy as np
-from sklearn.linear_model import LinearRegression
-
-
-
 class PredictionService:
 
 
-    def __init__(self):
+    def calculate_risk_level(self, probability):
 
-
-        # Training examples
-        # Features:
-        # likes, shares, comments, views, bookmarks, spread_score, risk_score
-
-
-        self.X = np.array([
-
-            [100,20,10,1000,5,10,20],
-
-            [500,100,50,5000,20,30,30],
-
-            [1000,250,100,15000,50,50,40],
-
-            [5000,1000,500,50000,200,75,60],
-
-            [10000,3000,1000,150000,500,95,80]
-
-        ])
-
-
-
-        # Expected reach
-
-        self.y = np.array([
-
-            2000,
-
-            8000,
-
-            20000,
-
-            70000,
-
-            200000
-
-        ])
-
-
-
-
-        self.model = LinearRegression()
-
-
-        self.model.fit(
-
-            self.X,
-
-            self.y
-
-        )
-
-
-
-
-
-
-    def calculate_risk_level(self, reach):
-
-
-        if reach >= 100000:
-
+        if probability >= 80:
             return "Very High"
 
-
-        elif reach >= 50000:
-
+        elif probability >= 60:
             return "High"
 
-
-        elif reach >= 10000:
-
+        elif probability >= 30:
             return "Medium"
 
-
         else:
-
             return "Low"
-
-
-
-
-
 
 
 
     def predict_spread(self, features):
 
 
-        likes = features.get(
-            "likes",
-            0
-        ) or 0
-
-
-
-        shares = features.get(
-            "shares",
-            0
-        ) or 0
-
-
-
-        comments = features.get(
-            "comments",
-            0
-        ) or 0
-
-
-
-        views = features.get(
-            "views",
-            0
-        ) or 0
-
-
-
-        bookmarks = features.get(
-            "bookmarks",
-            0
-        ) or 0
-
+        likes = features.get("likes",0) or 0
+        shares = features.get("shares",0) or 0
+        comments = features.get("comments",0) or 0
+        views = features.get("views",0) or 0
+        bookmarks = features.get("bookmarks",0) or 0
 
 
         spread_score = features.get(
             "spread_score",
             0
         ) or 0
-
 
 
         risk_score = features.get(
@@ -146,138 +40,124 @@ class PredictionService:
 
 
 
-
-
-        input_data = np.array([[
-
-
-            likes,
-
-            shares,
-
-            comments,
-
-            views,
-
-            bookmarks,
-
-            spread_score,
-
-            risk_score
-
-
-        ]])
-
-
-
-
-
-
-
-        predicted_reach = self.model.predict(
-
-            input_data
-
-        )[0]
-
-
-
-        predicted_reach = max(
-
-            predicted_reach,
-
+        emotion_score = features.get(
+            "emotion_score",
             0
-
-        )
-
+        ) or 0
 
 
 
-
-
-        risk = self.calculate_risk_level(
-
-            predicted_reach
-
-        )
+        manipulation_score = features.get(
+            "manipulation_score",
+            0
+        ) or 0
 
 
 
+        # Engagement calculation
+
+        engagement_score = 0
 
 
+        if views > 0:
 
-        virality_score = min(
-
-            round(
+            engagement_score = (
 
                 (
+                    likes +
+                    shares +
+                    comments +
+                    bookmarks
+                )
+                /
+                views
 
-                    predicted_reach /
+            ) * 100
 
-                    200000
 
-                ) * 100,
 
-                2
-
-            ),
-
+        engagement_score = min(
+            engagement_score,
             100
-
         )
 
 
 
+        # Final spread probability
 
+        spread_probability = (
+
+            (risk_score * 0.40)
+            +
+            (spread_score * 0.30)
+            +
+            (emotion_score * 0.10)
+            +
+            (manipulation_score * 0.10)
+            +
+            (engagement_score * 0.10)
+
+        )
+
+
+        spread_probability = round(
+            min(
+                spread_probability,
+                100
+            ),
+            2
+        )
+
+
+
+        risk_level = self.calculate_risk_level(
+            spread_probability
+        )
+
+
+
+        # Estimated reach
+
+        predicted_reach = round(
+
+            spread_probability
+            *
+            1500,
+
+            2
+
+        )
 
 
 
         if shares > likes:
 
-
             reason = (
-
-                "High redistribution activity detected. "
-                "Shares/reposts indicate strong propagation potential."
-
-            )
-
-
-        elif spread_score >= 50:
-
-
-            reason = (
-
-                "Multiple engagement signals indicate "
-                "moderate to high spread probability."
-
+                "High redistribution potential detected "
+                "because sharing activity is dominant."
             )
 
 
         elif risk_score >= 70:
 
+            reason = (
+                "High misinformation risk signals "
+                "indicate possible rapid spread."
+            )
+
+
+        elif spread_score >= 50:
 
             reason = (
-
-                "Content has high-risk language patterns "
-                "that may increase viral behaviour."
-
+                "Content shows multiple spread indicators."
             )
 
 
         else:
 
-
             reason = (
-
-                "Limited spread indicators detected "
-                "from available engagement data."
-
+                "Low spread indicators detected."
             )
-
-
-
-
 
 
 
@@ -290,60 +170,45 @@ class PredictionService:
             "module":"Spread Prediction",
 
 
-
-
             "data":{
+
+
+                "predicted_reach":
+                    predicted_reach,
+
+
+                "spread_probability":
+                    spread_probability,
+
+
+                "risk_level":
+                    risk_level,
+
+
+                "virality_score":
+                    spread_probability,
 
 
                 "features_used":{
 
-
                     "likes":likes,
-
                     "shares":shares,
-
                     "comments":comments,
-
                     "views":views,
-
                     "bookmarks":bookmarks,
-
                     "spread_score":spread_score,
+                    "risk_score":risk_score,
+                    "emotion_score":emotion_score,
+                    "manipulation_score":manipulation_score
 
-                    "risk_score":risk_score
-
-
-                },
-
-
-
-                "predicted_reach":round(
-
-                    predicted_reach,
-
-                    2
-
-                ),
-
-
-
-                "risk_level":risk,
-
-
-
-                "virality_score":virality_score
-
+                }
 
             },
 
 
-
             "analysis_summary":reason
 
-
         }
-
-
 
 
 

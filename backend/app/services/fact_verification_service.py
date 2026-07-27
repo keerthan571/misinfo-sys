@@ -382,6 +382,7 @@ Format:
 
     except Exception as e:
 
+        print("FACT VERIFICATION ERROR:", e)
 
         return {
 
@@ -391,7 +392,8 @@ Format:
 
             "verdict": "Insufficient Evidence",
 
-            "reason": str(e),
+            "reason":
+            "Unable to verify this claim because the external verification service is temporarily unavailable.",
 
             "confidence": "0%",
 

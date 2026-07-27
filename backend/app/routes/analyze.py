@@ -618,9 +618,7 @@ async def analyze(
                 "spread_score":
 
                 response["spread_analysis"]
-
                 .get("metrics", {})
-
                 .get("spread_score", 0),
 
 
@@ -628,8 +626,31 @@ async def analyze(
                 "risk_score":
 
                 response["detection"]
+                .get("risk_score", 0),
 
-                .get("risk_score", 0)
+
+
+                "emotion_score":
+
+                max(
+                    response["detection"]
+                    .get("emotion_analysis", {})
+                    .get("scores", {})
+                    .values(),
+                    default=0
+                ),
+
+
+
+                "manipulation_score":
+
+                len(
+                    response["detection"]
+                    .get(
+                        "manipulation_signals",
+                        []
+                    )
+                ) * 20
 
             }
 
@@ -648,39 +669,40 @@ async def analyze(
 
     response["prediction"] = {
 
-
         "status":
-
         prediction_result.get(
             "status",
             "success"
         ),
 
-
-
         "predicted_reach":
-
         prediction_data.get(
             "predicted_reach",
             0
         ),
 
-
-
         "risk_level":
-
         prediction_data.get(
             "risk_level",
             ""
         ),
 
-
-
-        "virality_score":
-
+        "spread_probability":
         prediction_data.get(
             "virality_score",
             0
+        ),
+
+        "factors":
+        response["spread_analysis"].get(
+            "factors",
+            []
+        ),
+
+        "summary":
+        response["spread_analysis"].get(
+            "summary",
+            ""
         )
 
     }
