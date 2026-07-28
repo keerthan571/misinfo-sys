@@ -20,11 +20,11 @@ class PredictionService:
     def predict_spread(self, features):
 
 
-        likes = features.get("likes",0) or 0
-        shares = features.get("shares",0) or 0
-        comments = features.get("comments",0) or 0
-        views = features.get("views",0) or 0
-        bookmarks = features.get("bookmarks",0) or 0
+        likes = features.get("likes", 0) or 0
+        shares = features.get("shares", 0) or 0
+        comments = features.get("comments", 0) or 0
+        views = features.get("views", 0) or 0
+        bookmarks = features.get("bookmarks", 0) or 0
 
 
         spread_score = features.get(
@@ -39,12 +39,10 @@ class PredictionService:
         ) or 0
 
 
-
         emotion_score = features.get(
             "emotion_score",
             0
         ) or 0
-
 
 
         manipulation_score = features.get(
@@ -54,7 +52,9 @@ class PredictionService:
 
 
 
+        # -----------------------------
         # Engagement calculation
+        # -----------------------------
 
         engagement_score = 0
 
@@ -83,7 +83,9 @@ class PredictionService:
 
 
 
-        # Final spread probability
+        # -----------------------------
+        # Spread Probability
+        # -----------------------------
 
         spread_probability = (
 
@@ -116,13 +118,28 @@ class PredictionService:
 
 
 
-        # Estimated reach
+        # -----------------------------
+        # Estimated Reach Prediction
+        # -----------------------------
+
+        # If social media views exist,
+        # use them as the base.
+        # For text-only input,
+        # use a default baseline.
+
+        base_views = views if views > 0 else 1000
+
+
+        growth_multiplier = (
+            1 +
+            (spread_probability / 100)
+        )
+
 
         predicted_reach = round(
 
-            spread_probability
-            *
-            1500,
+            base_views *
+            growth_multiplier,
 
             2
 
@@ -130,33 +147,45 @@ class PredictionService:
 
 
 
+        # -----------------------------
+        # Explanation
+        # -----------------------------
+
         if shares > likes:
 
             reason = (
+
                 "High redistribution potential detected "
                 "because sharing activity is dominant."
+
             )
 
 
         elif risk_score >= 70:
 
             reason = (
+
                 "High misinformation risk signals "
                 "indicate possible rapid spread."
+
             )
 
 
         elif spread_score >= 50:
 
             reason = (
+
                 "Content shows multiple spread indicators."
+
             )
 
 
         else:
 
             reason = (
+
                 "Low spread indicators detected."
+
             )
 
 
@@ -164,13 +193,13 @@ class PredictionService:
         return {
 
 
-            "status":"success",
+            "status": "success",
 
 
-            "module":"Spread Prediction",
+            "module": "Spread Prediction",
 
 
-            "data":{
+            "data": {
 
 
                 "predicted_reach":
@@ -186,27 +215,43 @@ class PredictionService:
 
 
                 "virality_score":
-                    spread_probability,
+                    round(
+                        (
+                            spread_score * 0.6
+                            +
+                            spread_probability * 0.4
+                        ),
+                        2
+                    ),
 
 
-                "features_used":{
+                "features_used": {
 
-                    "likes":likes,
-                    "shares":shares,
-                    "comments":comments,
-                    "views":views,
-                    "bookmarks":bookmarks,
-                    "spread_score":spread_score,
-                    "risk_score":risk_score,
-                    "emotion_score":emotion_score,
-                    "manipulation_score":manipulation_score
+
+                    "likes": likes,
+
+                    "shares": shares,
+
+                    "comments": comments,
+
+                    "views": views,
+
+                    "bookmarks": bookmarks,
+
+                    "spread_score": spread_score,
+
+                    "risk_score": risk_score,
+
+                    "emotion_score": emotion_score,
+
+                    "manipulation_score": manipulation_score
 
                 }
 
             },
 
 
-            "analysis_summary":reason
+            "analysis_summary": reason
 
         }
 

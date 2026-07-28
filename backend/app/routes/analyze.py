@@ -667,45 +667,7 @@ async def analyze(
 
 
 
-    response["prediction"] = {
-
-        "status":
-        prediction_result.get(
-            "status",
-            "success"
-        ),
-
-        "predicted_reach":
-        prediction_data.get(
-            "predicted_reach",
-            0
-        ),
-
-        "risk_level":
-        prediction_data.get(
-            "risk_level",
-            ""
-        ),
-
-        "spread_probability":
-        prediction_data.get(
-            "virality_score",
-            0
-        ),
-
-        "factors":
-        response["spread_analysis"].get(
-            "factors",
-            []
-        ),
-
-        "summary":
-        response["spread_analysis"].get(
-            "summary",
-            ""
-        )
-
-    }
+    response["prediction"] = prediction_result
 
 
 
