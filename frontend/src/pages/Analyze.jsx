@@ -334,9 +334,12 @@ export default function Analyze() {
 
               <SpreadPredictionCard
 
-                data={
-                  result.analysis.prediction
-                }
+                data={{
+                  ...result.analysis.prediction?.data,
+
+                  analysis_summary:
+                    result.analysis.prediction?.analysis_summary
+                }}
 
               />
 
@@ -349,9 +352,9 @@ export default function Analyze() {
               <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
 
 
-                <h2 className="text-2xl font-bold mb-5">
+                <h2 className="text-2xl font-bold mb-5 text-white">
 
-                  📊 Engagement Analysis
+                  📊 Social Engagement Signals
 
                 </h2>
 
@@ -401,9 +404,9 @@ export default function Analyze() {
               <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
 
 
-                <h2 className="text-2xl font-bold mb-5">
+                <h2 className="text-2xl font-bold mb-5 text-white">
 
-                  🚀 Spread Analysis
+                  📈 Spread Factor Analysis
 
                 </h2>
 
