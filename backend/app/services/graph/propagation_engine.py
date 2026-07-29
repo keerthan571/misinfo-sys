@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import random
 from math import log10
 from typing import Any
 
@@ -32,22 +32,42 @@ class PropagationEngine:
         self.influencer_count = self._influencer_count()
         self.followers = self._followers()
 
+        self._create_claim()
         self._create_source()
+        self._create_fact_check()
+
         self._create_influencers()
         self._create_users()
+
         self._assign_leaders()
         self._assign_bots()
+        
+
         self._build_propagation()
+
         self._validate_graph()
 
         return self.graph
-
-    def _create_source(self):
+    
+    def _create_claim(self):
+        self.graph.add_node(
+            "claim",
+            node_type="claim",
+            label="Claim",
+            level=0,
+            text=self.analysis.get("text", "Unknown Claim"),
+            claim_type=self.analysis.get("claim_type"),
+            language=self.analysis.get("language"),
+            sentiment=self.analysis.get("sentiment"),
+            confidence=self.confidence,
+            risk_level=self.analysis.get("risk_level"),
+        )
+    def _create_source(self) -> None:
         self.graph.add_node(
             "source",
             node_type=self.config.SOURCE_NODE,
             label="Source",
-            level=0,
+            level=1,
             prediction=self.analysis.get("prediction"),
             confidence=self.confidence,
             risk_level=self.analysis.get("risk_level"),
@@ -59,7 +79,28 @@ class PropagationEngine:
             spread_probability=self.prediction.get("spread_probability", 0),
             predicted_reach=self.prediction.get("predicted_reach", 0),
         )
-
+        self.graph.add_edge(
+            "claim",
+            "source",
+            interaction="originates",
+            weight=1.0,
+        )
+    def _create_fact_check(self):
+        self.graph.add_node(
+            "fact_check",
+            node_type="fact_check",
+            label="Fact Check",
+            level=1,
+            prediction=self.analysis.get("prediction"),
+            confidence=self.confidence,
+            risk_level=self.analysis.get("risk_level"),
+        )
+        self.graph.add_edge(
+            "claim",
+            "fact_check",
+            interaction="verified_by",
+            weight=1.0,
+        )
     def _create_influencers(self):
         for i in range(self.influencer_count):
             self.graph.add_node(
@@ -73,6 +114,7 @@ class PropagationEngine:
                 level=1,
                 is_leader=False,
                 is_bot=False,
+                is_viral=False,
             )
 
     def _create_users(self):
@@ -99,6 +141,7 @@ class PropagationEngine:
                     level=2,
                     is_leader=False,
                     is_bot=False,
+                    is_viral=False,
                 )
                 index += 1
 
@@ -189,27 +232,88 @@ class PropagationEngine:
                 key=lambda node: self.graph.nodes[node]["followers"],
             )
             self.graph.nodes[leader]["is_leader"] = True
+    def _bot_count(self) -> int:
+    
+        risk = self.analysis.get("risk_level", "Low").lower()
+        virality = float(
+            self.prediction.get("virality_score", 0)
+        )
+        spread = float(
+            self.prediction.get("spread_probability", 0)
+        ) / 100
 
-    def _assign_bots(self):
-        interval = self.config.bot_interval(
-            self.analysis.get("risk_level", "Low")
+        base = {
+            "low": 0.03,
+            "medium": 0.07,
+            "high": 0.12,
+        }.get(risk, 0.05)
+
+        multiplier = (
+            1
+            + virality / 200
+            + spread / 2
+            + self.engagement_score
         )
 
-        users = sorted(
+        percentage = min(0.35, base * multiplier)
+
+        return max(
+            1,
+            int(
+                percentage
+                * (
+                    self.total_nodes
+                    - self.influencer_count
+                )
+            ),
+        )
+    def _assign_bots(self):
+        
+        required = self._bot_count()
+
+        users = [
             node
             for node, data in self.graph.nodes(data=True)
             if data["node_type"] == self.config.USER_NODE
+        ]
+
+        users.sort(
+            key=lambda node: (
+                self.graph.nodes[node]["followers"],
+                self.graph.nodes[node]["engagement_score"],
+            ),
+            reverse=True,
         )
 
-        for index, node in enumerate(users, start=1):
-            if index % interval == 0:
-                self.graph.nodes[node]["is_bot"] = True
-                
-    def _build_propagation(self):
+        for node in users[:required]:
+            self.graph.nodes[node]["is_bot"] = True
+    def _build_default_graph(self):
         self._connect_source()
         self._connect_leaders()
         self._build_cascades()
-        self._connect_bridges()
+        self._connect_bridges()    
+           
+    def _build_propagation(self):
+        platform = (
+            self.analysis.get("platform", "generic")
+            .strip()
+            .lower()
+        )
+
+        if platform in ["twitter", "x"]:
+            self._build_twitter_graph()
+
+        elif platform == "facebook":
+            self._build_facebook_graph()
+
+        elif platform == "instagram":
+            self._build_instagram_graph()
+
+        elif platform == "whatsapp":
+            self._build_whatsapp_graph()
+
+        else:
+            self._build_default_graph()
 
 
     def _connect_source(self):
@@ -242,12 +346,12 @@ class PropagationEngine:
         )
 
         leaders = sorted(
-            [
+            (
                 node
                 for node, data in self.graph.nodes(data=True)
                 if data["node_type"] == self.config.USER_NODE
                 and data["is_leader"]
-            ],
+            ),
             key=lambda node: self.graph.nodes[node]["community"],
         )
 
@@ -259,7 +363,26 @@ class PropagationEngine:
                 interaction=self.config.SHARE_EDGE,
             )
 
-
+    def _build_twitter_graph(self):
+        self._connect_source()
+        self._connect_leaders()
+        self._build_cascades()
+        self._connect_bridges()
+        self._random_cross_links(3)
+        
+    def _build_facebook_graph(self):
+        self._connect_source()
+        self._connect_leaders()
+        self._build_cascades()
+        
+    def _build_instagram_graph(self):
+        self._connect_source()
+        self._connect_leaders()
+        
+    def _build_whatsapp_graph(self):
+        self._connect_source()
+        self._build_cascades()
+    
     def _build_cascades(self):
         weight = self._edge_weight()
 
@@ -330,7 +453,37 @@ class PropagationEngine:
                 weight=weight,
                 interaction=self.config.BRIDGE_EDGE,
             ) 
+    def _random_cross_links(self, per_community: int):
+        
+        users = [
+            node
+            for node, data in self.graph.nodes(data=True)
+            if data["node_type"] == self.config.USER_NODE
+        ]
 
+        if len(users) < 2:
+            return
+
+        for node in users:
+
+            community = self.graph.nodes[node]["community"]
+
+            others = [
+                u
+                for u in users
+                if self.graph.nodes[u]["community"] != community
+            ]
+
+            random.shuffle(others)
+
+            for neighbour in others[:per_community]:
+
+                self.graph.add_edge(
+                    node,
+                    neighbour,
+                    weight=round(self._edge_weight()*0.7,3),
+                    interaction="cross_share",
+                )
     def _edge_weight(self) -> float:
         confidence = self.confidence
         engagement = self.engagement_score
@@ -435,4 +588,7 @@ class PropagationEngine:
         self._ensure_connectivity()
         self._amplify_bots()
 
-        nx.is_directed_acyclic_graph(self.graph)
+        if not nx.is_directed_acyclic_graph(self.graph):
+            raise ValueError(
+                "Propagation graph contains cycles."
+            )

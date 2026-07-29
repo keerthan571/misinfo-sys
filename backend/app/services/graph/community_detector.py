@@ -10,15 +10,12 @@ class CommunityDetector:
     community-level analytics.
     """
 
+    INFLUENCER_NODE = "influencer"
+
     def __init__(self, graph: nx.DiGraph):
         self.graph = graph
 
-    # ======================================================================
-    # Public API
-    # ======================================================================
-
-    def analyze(self):
-
+    def analyze(self) -> dict:
         communities = self._detect_communities()
 
         return {
@@ -26,11 +23,9 @@ class CommunityDetector:
             "summary": self._summary(communities),
         }
 
-    # ======================================================================
-    # Community Detection
-    # ======================================================================
-
-    def _detect_communities(self):
+    def _detect_communities(self) -> list[dict]:
+        if self.graph.number_of_nodes() == 0:
+            return []
 
         graph = self.graph.to_undirected()
 
@@ -41,12 +36,9 @@ class CommunityDetector:
         result = []
 
         for community_id, community in enumerate(detected):
-
             nodes = []
 
             for node in community:
-
-                # Store community id in graph
                 self.graph.nodes[node]["community"] = community_id
 
                 data = self.graph.nodes[node]
@@ -59,6 +51,7 @@ class CommunityDetector:
                         "followers": data.get("followers", 0),
                         "leader": data.get("is_leader", False),
                         "bot": data.get("is_bot", False),
+                        "is_viral": data.get("is_viral", False),
                         "community": community_id,
                     }
                 )
@@ -73,23 +66,19 @@ class CommunityDetector:
 
         return result
 
-    # ======================================================================
-    # Community Summary
-    # ======================================================================
-
-    def _summary(self, communities):
-
+    def _summary(
+        self,
+        communities: list[dict],
+    ) -> list[dict]:
         summary = []
 
         for community in communities:
-
             followers = []
             bots = 0
             leaders = 0
             influencers = 0
 
             for node in community["nodes"]:
-
                 data = self.graph.nodes[node["id"]]
 
                 followers.append(
@@ -102,7 +91,7 @@ class CommunityDetector:
                 if data.get("is_leader"):
                     leaders += 1
 
-                if data.get("node_type") == "influencer":
+                if data.get("node_type") == self.INFLUENCER_NODE:
                     influencers += 1
 
             average_followers = (
@@ -137,24 +126,19 @@ class CommunityDetector:
             )
 
         summary.sort(
-            key=lambda x: x["risk_score"],
+            key=lambda community: community["risk_score"],
             reverse=True,
         )
 
         return summary
 
-    # ======================================================================
-    # Risk Score
-    # ======================================================================
-
     def _risk_score(
         self,
-        bots,
-        influencers,
-        average_followers,
-        size,
-    ):
-
+        bots: int,
+        influencers: int,
+        average_followers: float,
+        size: int,
+    ) -> float:
         score = (
             bots * 3
             + influencers * 5

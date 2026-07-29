@@ -1,25 +1,32 @@
+from typing import Any
 from app.services.graph.graph_generator import GraphGenerator
 
+_generator = GraphGenerator()
 
-def build_graph(analysis_data: dict):
+def build_graph(analysis_data: dict[str, Any]) -> dict[str, Any]:
     """
-    Main coordinator for the Graph Module.
+    Build the misinformation propagation graph.
 
-    Future flow:
+    Pipeline
 
-    GraphGenerator
-            ↓
-    InfluenceDetector
-            ↓
-    CommunityDetector
-            ↓
-    GraphStatistics
-            ↓
-    GraphSerializer
+        Analysis Result
+               │
+               ▼
+        GraphGenerator
+               │
+               ▼
+      PropagationEngine
+               │
+               ▼
+     InfluenceDetection
+               │
+               ▼
+      CommunityDetector
+               │
+               ▼
+       GraphSerializer
+               │
+               ▼
+          Graph JSON
     """
-
-    generator = GraphGenerator()
-
-    graph = generator.generate(analysis_data)
-
-    return graph
+    return _generator.generate(analysis_data)

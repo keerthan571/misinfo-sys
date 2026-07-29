@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import networkx as nx
 
 
@@ -11,15 +13,11 @@ class GraphSerializer:
     def __init__(self, graph: nx.DiGraph):
         self.graph = graph
 
-    # ======================================================================
-    # Public API
-    # ======================================================================
-
     def serialize(
         self,
-        influence=None,
-        communities=None,
-    ):
+        influence: dict[str, Any] | None = None,
+        communities: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         return {
             "nodes": self._nodes(),
             "edges": self._edges(),
@@ -28,16 +26,10 @@ class GraphSerializer:
             "communities": communities or {},
         }
 
-    # ======================================================================
-    # Nodes
-    # ======================================================================
-
-    def _nodes(self):
-
+    def _nodes(self) -> list[dict[str, Any]]:
         nodes = []
 
         for node_id, data in self.graph.nodes(data=True):
-
             nodes.append(
                 {
                     "id": node_id,
@@ -53,41 +45,36 @@ class GraphSerializer:
 
         return nodes
 
-    # ======================================================================
-    # Edges
-    # ======================================================================
-
-    def _edges(self):
-
+    def _edges(self) -> list[dict[str, Any]]:
         edges = []
 
         for source, target, data in self.graph.edges(data=True):
-
             edges.append(
                 {
                     "source": source,
                     "target": target,
-                    "weight": round(data.get("weight", 1.0), 3),
+                    "weight": round(
+                        data.get("weight", 1.0),
+                        3,
+                    ),
+                    "interaction": data.get("interaction"),
                 }
             )
 
         return edges
 
-    # ======================================================================
-    # Statistics
-    # ======================================================================
-
-    def _statistics(self):
-
-        node_types = {}
+    def _statistics(self) -> dict[str, Any]:
+        node_types: dict[str, int] = {}
 
         leaders = 0
         bots = 0
         viral = 0
 
         for _, data in self.graph.nodes(data=True):
-
-            node_type = data.get("node_type", "unknown")
+            node_type = data.get(
+                "node_type",
+                "unknown",
+            )
 
             node_types[node_type] = (
                 node_types.get(node_type, 0) + 1
@@ -102,10 +89,16 @@ class GraphSerializer:
             if data.get("is_viral"):
                 viral += 1
 
+        density = (
+            round(nx.density(self.graph), 4)
+            if self.graph.number_of_nodes() > 1
+            else 0.0
+        )
+
         return {
             "node_count": self.graph.number_of_nodes(),
             "edge_count": self.graph.number_of_edges(),
-            "density": round(nx.density(self.graph), 4),
+            "density": density,
             "connected_components": nx.number_weakly_connected_components(
                 self.graph
             ),
