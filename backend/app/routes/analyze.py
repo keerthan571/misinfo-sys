@@ -7,10 +7,7 @@ from fastapi import (
 )
 
 from app.auth.dependencies import get_current_user
-
-from app.services.analysis_pipeline import (
-    analysis_pipeline,
-)
+from app.services.analysis_pipeline import analysis_pipeline
 
 router = APIRouter()
 
@@ -24,7 +21,6 @@ async def analyze(
     """
     Complete AI Analysis Pipeline
     """
-
     return await analysis_pipeline.run(
         text=text,
         image=image,

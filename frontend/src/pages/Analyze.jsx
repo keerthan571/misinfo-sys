@@ -158,7 +158,146 @@ export default function Analyze() {
                 📊 Engagement Analysis
               </h2>
 
+<<<<<<< HEAD
               <div className="space-y-3">
+=======
+
+
+              <p className="text-xl">
+
+                Prediction:
+
+                <span className="ml-3 font-bold text-red-400">
+
+                  {
+                    result.analysis.final_result?.label
+                  }
+
+                </span>
+
+              </p>
+
+
+
+              <p className="text-xl mt-3">
+
+                Confidence:
+
+                <span className="ml-3 font-bold text-green-400">
+
+                  {
+                    result.analysis.final_result?.confidence
+                  }%
+
+                </span>
+
+              </p>
+
+
+
+              <p className="text-xl mt-3">
+
+                Risk Level:
+
+                <span className="ml-3 font-bold text-yellow-400">
+
+                  {
+                    result.analysis.final_result?.risk_level
+                  }
+
+                </span>
+
+              </p>
+
+
+
+              <p className="text-gray-300 mt-5">
+
+                {
+                  result.analysis.final_result?.summary
+                }
+
+              </p>
+
+
+            </div>
+
+
+
+
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+
+
+              <OCRCard
+
+                data={
+                  result.analysis.ocr
+                }
+
+              />
+
+
+
+              <PlatformCard
+
+                data={
+                  result.analysis.platform
+                }
+
+              />
+
+
+
+              <DetectionCard
+
+                data={
+                  result.analysis.detection
+                }
+
+              />
+
+
+
+              <FactVerificationCard
+
+                data={
+                  result.analysis.fact_verification
+                }
+
+              />
+
+
+
+              <SpreadPredictionCard
+
+                data={{
+                  ...result.analysis.prediction?.data,
+
+                  analysis_summary:
+                    result.analysis.prediction?.analysis_summary
+                }}
+
+              />
+
+
+
+
+
+              {/* ENGAGEMENT */}
+
+              <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
+
+
+                <h2 className="text-2xl font-bold mb-5 text-white">
+
+                  📊 Social Engagement Signals
+
+                </h2>
+
+
+>>>>>>> a9650e9e37040ddef77e5b515f791d735811ca8c
                 <p>
                   ❤️ Likes:
                   <span className="ml-2 font-semibold">
@@ -182,8 +321,48 @@ export default function Analyze() {
 
                 <p>
                   🔖 Bookmarks:
+<<<<<<< HEAD
                   <span className="ml-2 font-semibold">
                     {result.analysis.engagement?.bookmarks ?? 0}
+=======
+                  {
+                    result.analysis.engagement?.bookmarks ?? 0
+                  }
+                </p>
+
+
+              </div>
+
+
+
+
+
+
+
+              {/* SPREAD ANALYSIS */}
+
+              <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
+
+
+                <h2 className="text-2xl font-bold mb-5 text-white">
+
+                  📈 Spread Factor Analysis
+
+                </h2>
+
+
+
+                <p>
+
+                  Spread Score:
+
+                  <span className="ml-2 font-bold text-green-400">
+
+                    {
+                      result.analysis.spread_analysis?.metrics?.spread_score ?? 0
+                    }
+
+>>>>>>> a9650e9e37040ddef77e5b515f791d735811ca8c
                   </span>
                 </p>
               </div>
