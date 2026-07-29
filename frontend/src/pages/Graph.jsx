@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation, Navigate } from "react-router-dom";
 import ReactFlow, {
   Background,
   Controls,
@@ -6,8 +7,7 @@ import ReactFlow, {
 } from "reactflow";
 import dagre from "dagre";
 import "reactflow/dist/style.css";
-
-import apiClient from "../api/apiClient";
+import GraphNode from "../components/graph/GraphNode";
 
 const dagreGraph = new dagre.graphlib.Graph();
 dagreGraph.setDefaultEdgeLabel(() => ({}));
@@ -17,7 +17,7 @@ const nodeHeight = 70;
 
 const getLayoutedElements = (nodes, edges) => {
   dagreGraph.setGraph({
-    rankdir: "TB", // Top -> Bottom
+    rankdir: "TB",
     ranksep: 120,
     nodesep: 80,
   });
@@ -54,71 +54,65 @@ const getLayoutedElements = (nodes, edges) => {
 };
 
 export default function Graph() {
-  const [content, setContent] = useState("");
-  const [reposts, setReposts] = useState("");
+  const location = useLocation();
+
+  const graph = location.state?.graph;
+  const analysis = location.state?.analysis;
+
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
-  const [loading, setLoading] = useState(false);
 
-  const generateGraph = async () => {
-    if (!content || !reposts) {
-      alert("Please enter content and repost count.");
-      return;
-    }
+  useEffect(() => {
+    if (!graph) return;
 
-    try {
-      setLoading(true);
+    const flowNodes = graph.nodes.map((node) => ({
+      id: node.id,
 
-      const response = await apiClient.post("/graph/", {
-        content,
-        reposts: Number(reposts),
-      });
+      type: "custom",
 
-      const graph = response.data;
+      data: {
+        label: node.label,
 
-      const flowNodes = graph.nodes.map((node) => ({
-        id: node.id,
-        data: {
-          label: node.label,
-        },
-        style: {
-          background: node.color,
-          color: "#fff",
-          border: "2px solid white",
-          borderRadius: "12px",
-          width: 150,
-          padding: "10px",
-          textAlign: "center",
-          fontWeight: "bold",
-          fontSize: "14px",
-        },
-        position: { x: 0, y: 0 },
-      }));
+        type: node.type,
 
-      const flowEdges = graph.edges.map((edge, index) => ({
-        id: `edge-${index}`,
-        source: edge.source,
-        target: edge.target,
-        animated: true,
-        type: "smoothstep",
-        style: {
-          stroke: "#60a5fa",
-          strokeWidth: 2,
-        },
-      }));
+        followers: node.followers,
 
-      const layouted = getLayoutedElements(flowNodes, flowEdges);
+        influenceScore: node.influenceScore,
 
-      setNodes(layouted.nodes);
-      setEdges(layouted.edges);
+        shareProbability: node.shareProbability,
 
-    } catch (error) {
-      console.error(error);
-      alert("Failed to generate graph.");
-    } finally {
-      setLoading(false);
-    }
+        verified: node.verified,
+
+        cluster: node.cluster,
+      },
+
+      position: { x: 0, y: 0 },
+    }));
+    const flowEdges = graph.edges.map((edge, index) => ({
+      id: `edge-${index}`,
+      source: edge.source,
+      target: edge.target,
+      animated: true,
+      type: "smoothstep",
+      style: {
+        stroke: "#60a5fa",
+        strokeWidth: 2,
+      },
+    }));
+
+    const layouted = getLayoutedElements(flowNodes, flowEdges);
+
+    setNodes(layouted.nodes);
+    setEdges(layouted.edges);
+  }, [graph]);
+
+  const nodeTypes = {
+    custom: GraphNode,
   };
+  
+  if (!graph) {
+    return <Navigate to="/analyze" replace />;
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -127,33 +121,36 @@ export default function Graph() {
         🌐 Propagation Analytics
       </h1>
 
-      <div className="bg-slate-800 rounded-xl p-6 space-y-4 shadow-lg">
+      {/* Analysis Summary */}
+      <div className="bg-slate-800 rounded-xl p-6 shadow-lg text-white">
 
-        <textarea
-          rows={5}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          className="w-full p-4 rounded-lg bg-slate-900 text-white border border-slate-700"
-          placeholder="Enter news article..."
-        />
+        <h2 className="text-2xl font-bold mb-4">
+          Analysis Summary
+        </h2>
 
-        <input
-          type="number"
-          value={reposts}
-          onChange={(e) => setReposts(e.target.value)}
-          className="w-full p-4 rounded-lg bg-slate-900 text-white border border-slate-700"
-          placeholder="Number of reposts"
-        />
+        <p>
+          <strong>Prediction:</strong>{" "}
+          {analysis?.final_result?.label}
+        </p>
 
-        <button
-          onClick={generateGraph}
-          className="bg-blue-600 hover:bg-blue-700 transition-all px-8 py-3 rounded-lg font-semibold text-white"
-        >
-          {loading ? "Generating..." : "Generate Propagation Graph"}
-        </button>
+        <p className="mt-2">
+          <strong>Confidence:</strong>{" "}
+          {analysis?.final_result?.confidence}%
+        </p>
+
+        <p className="mt-2">
+          <strong>Risk Level:</strong>{" "}
+          {analysis?.final_result?.risk_level}
+        </p>
+
+        <p className="mt-2">
+          <strong>Summary:</strong>{" "}
+          {analysis?.final_result?.summary}
+        </p>
 
       </div>
 
+      {/* Graph */}
       <div
         className="bg-slate-800 rounded-xl shadow-lg"
         style={{ height: "700px" }}
@@ -161,14 +158,16 @@ export default function Graph() {
         <ReactFlow
           nodes={nodes}
           edges={edges}
+          nodeTypes={nodeTypes}
           fitView
         >
           <MiniMap zoomable pannable />
-          <Controls showInteractive={true} />
+          <Controls showInteractive />
           <Background gap={20} size={1} />
         </ReactFlow>
       </div>
 
+      {/* Legend */}
       <div className="bg-slate-800 rounded-xl p-5 text-white">
 
         <h2 className="text-xl font-semibold mb-3">

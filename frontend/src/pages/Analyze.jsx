@@ -55,7 +55,7 @@ export default function Analyze() {
         }
       );
       setResult(response.data);
-      
+      console.log(response.data.analysis.graph.nodes[0]);
       if (
         response.data?.analysis?.ocr?.extracted_text
         &&
@@ -77,6 +77,19 @@ export default function Analyze() {
     finally{
       setLoading(false);
     }
+  };
+  const handleViewGraph = () => {
+    if (!result?.analysis?.graph) {
+      alert("Graph data is not available.");
+      return;
+    }
+
+    navigate("/graph", {
+      state: {
+        graph: result.analysis.graph,
+        analysis: result.analysis,
+      },
+    });
   };
   return (
     <div className="space-y-8">
@@ -116,161 +129,121 @@ export default function Analyze() {
         result?.analysis && (
           <div className="space-y-6">
             {/* FINAL RESULT */}
-            <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
-              <h2 className="text-3xl font-bold mb-5">
-                🧠 Final Analysis Result
-              </h2>
-              <p className="text-xl">
-                Prediction:
-                <span className="ml-3 font-bold text-red-400">
-
-                  {
-                    result.analysis.final_result?.label
-                  }
-                </span>
-              </p>
-              <p className="text-xl mt-3">
-
-                Confidence:
-
-                <span className="ml-3 font-bold text-green-400">
-
-                  {
-                    result.analysis.final_result?.confidence
-                  }%
-
-                </span>
-
-              </p>
-              <p className="text-xl mt-3">
-
-                Risk Level:
-
-                <span className="ml-3 font-bold text-yellow-400">
-
-                  {
-                    result.analysis.final_result?.risk_level
-                  }
-
-                </span>
-
-              </p>
-              <p className="text-gray-300 mt-5">
-
-                {
-                  result.analysis.final_result?.summary
-                }
-
-              </p>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <OCRCard
-
-                data={
-                  result.analysis.ocr
-                }
-
-              />
-              <PlatformCard
-                data={
-                  result.analysis.platform
-                }
-              />
-              <DetectionCard
-
-                data={
-                  result.analysis.detection
-                }
-
-              />
-              <FactVerificationCard
-
-                data={
-                  result.analysis.fact_verification
-                }
-
-              />
-              <SpreadPredictionCard
-
-                data={{
-                  ...result.analysis.prediction?.data,
-
-                  analysis_summary:
-                    result.analysis.prediction?.analysis_summary
-                }}
-
-              />
-              {/* ENGAGEMENT */}
-
               <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
-
-
-                <h2 className="text-2xl font-bold mb-5 text-white">
-
-                  📊 Social Engagement Signals
-
-                </h2>
-                <p>
-                  ❤️ Likes:
-                  {
-                    result.analysis.engagement?.likes ?? 0
-                  }
-                </p>
-                <p>
-                  🔁 Shares:
-                  {
-                    result.analysis.engagement?.shares ?? 0
-                  }
-                </p>
-                <p>
-                  👀 Views:
-                  {
-                    result.analysis.engagement?.views ?? 0
-                  }
-                </p>
-                <p>
-                  🔖 Bookmarks:
-                  {
-                    result.analysis.engagement?.bookmarks ?? 0
-                  }
-                </p>
-              </div>
-              {/* SPREAD ANALYSIS */}
-
-              <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
-
-
-                <h2 className="text-2xl font-bold mb-5 text-white">
-
-                  📈 Spread Factor Analysis
-
+                <h2 className="text-3xl font-bold mb-5">
+                  🧠 Final Analysis Result
                 </h2>
 
-                <p>
-
-                  Spread Score:
-
-                  <span className="ml-2 font-bold text-green-400">
-
-                    {
-                      result.analysis.spread_analysis?.metrics?.spread_score ?? 0
-                    }
-
+                <p className="text-xl">
+                  Prediction:
+                  <span className="ml-3 font-bold text-red-400">
+                    {result.analysis.final_result?.label}
                   </span>
-
                 </p>
-                <p className="mt-4 text-gray-300">
 
-                  {
-                    result.analysis.spread_analysis?.summary ||
+                <p className="text-xl mt-3">
+                  Confidence:
+                  <span className="ml-3 font-bold text-green-400">
+                    {result.analysis.final_result?.confidence}%
+                  </span>
+                </p>
 
-                    "No spread analysis available."
-                  }
+                <p className="text-xl mt-3">
+                  Risk Level:
+                  <span className="ml-3 font-bold text-yellow-400">
+                    {result.analysis.final_result?.risk_level}
+                  </span>
+                </p>
+
+                <p className="text-gray-300 mt-5">
+                  {result.analysis.final_result?.summary}
                 </p>
               </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                <OCRCard
+                  data={result.analysis.ocr}
+                />
+
+                <PlatformCard
+                  data={result.analysis.platform}
+                />
+
+                <DetectionCard
+                  data={result.analysis.detection}
+                />
+
+                <FactVerificationCard
+                  data={result.analysis.fact_verification}
+                />
+
+                <SpreadPredictionCard
+                  data={{
+                    ...result.analysis.prediction?.data,
+                    analysis_summary:
+                      result.analysis.prediction?.analysis_summary,
+                  }}
+                />
+
+                {/* ENGAGEMENT */}
+                <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
+                  <h2 className="text-2xl font-bold mb-5 text-white">
+                    📊 Social Engagement Signals
+                  </h2>
+
+                  <p>
+                    ❤️ Likes: {result.analysis.engagement?.likes ?? 0}
+                  </p>
+
+                  <p>
+                    🔁 Shares: {result.analysis.engagement?.shares ?? 0}
+                  </p>
+
+                  <p>
+                    👀 Views: {result.analysis.engagement?.views ?? 0}
+                  </p>
+
+                  <p>
+                    🔖 Bookmarks: {result.analysis.engagement?.bookmarks ?? 0}
+                  </p>
+                </div>
+
+                {/* SPREAD ANALYSIS */}
+                <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
+                  <h2 className="text-2xl font-bold mb-5 text-white">
+                    📈 Spread Factor Analysis
+                  </h2>
+
+                  <p>
+                    Spread Score:
+                    <span className="ml-2 font-bold text-green-400">
+                      {result.analysis.spread_analysis?.metrics?.spread_score ?? 0}
+                    </span>
+                  </p>
+
+                  <p className="mt-4 text-gray-300">
+                    {result.analysis.spread_analysis?.summary ||
+                      "No spread analysis available."}
+                  </p>
+                </div>
+
+              </div>
+
+              {/* VIEW GRAPH BUTTON (Only for OCR/Image Analysis) */}
+              {image && result?.analysis?.graph?.nodes?.length > 0 && (
+                <div className="flex justify-center">
+                  <button
+                    onClick={handleViewGraph}
+                    className="bg-indigo-600 hover:bg-indigo-700 transition-all duration-200 text-white font-semibold px-8 py-3 rounded-xl shadow-lg"
+                  >
+                    🌐 View Propagation Graph
+                  </button>
+                </div>
+              )}
+
             </div>
-          </div>
-        )
+          )
       }
     </div>
   );
