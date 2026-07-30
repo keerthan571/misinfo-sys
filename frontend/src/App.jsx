@@ -8,6 +8,7 @@ import Analyze from "./pages/Analyze";
 import Graph from "./pages/Graph";
 import Prediction from "./pages/Prediction";
 import History from "./pages/History";
+import HistoryDetails from "./pages/HistoryDetails";
 import Settings from "./pages/Settings";
 
 import Login from "./pages/Login";
@@ -102,6 +103,18 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <History />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+
+        <Route
+          path="/history/:id"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <HistoryDetails />
               </Layout>
             </ProtectedRoute>
           }

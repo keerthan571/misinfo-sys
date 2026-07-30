@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 import time
 import uuid
+import os
+import shutil
 from ..database.mongodb import analyses_collection
 from .engagement_service import engagement_service
 from .fact_verification_service import verify_claim
@@ -14,6 +16,42 @@ from .spread_factor_service import spread_factor_service
 class AnalysisPipeline:
     def __init__(self):
         pass
+    async def _save_uploaded_image(self, image, analysis_id):
+
+        if not image:
+            return None
+
+        upload_dir = "uploads"
+
+        os.makedirs(
+            upload_dir,
+            exist_ok=True
+        )
+
+        extension = os.path.splitext(
+            image.filename
+        )[1]
+
+        filename = f"{analysis_id}{extension}"
+
+        file_path = os.path.join(
+            upload_dir,
+            filename
+        )
+
+        image.file.seek(0)
+
+        with open(
+            file_path,
+            "wb"
+        ) as buffer:
+
+            shutil.copyfileobj(
+                image.file,
+                buffer
+            )
+
+        return file_path
     @staticmethod
     def safe_confidence(value):
         try:
@@ -128,6 +166,14 @@ class AnalysisPipeline:
     async def run(self,text,image,current_user):
         start_time=time.time()
         response,analysis_id,analysis_time=self._initialize_response()
+        image_path = await self._save_uploaded_image(
+            image,
+            analysis_id
+        )
+        response["image"] = {
+            "uploaded": bool(image_path),
+            "path": image_path
+        }
         final_text=text or ""
         final_text,extracted_text=await self._run_ocr(image,final_text,response)
         self._detect_platform(final_text,extracted_text,response)
@@ -156,8 +202,11 @@ class AnalysisPipeline:
         response["prediction"]={
             "status":prediction_result.get("status","success"),
             "predicted_reach":prediction_data.get("predicted_reach",0),
+            "spread_probability":prediction_data.get("spread_probability",None),
             "risk_level":prediction_data.get("risk_level",""),
-            "virality_score":prediction_data.get("virality_score",0)
+            "virality_score":prediction_data.get("virality_score",0),
+            "features_used":prediction_data.get("features_used",{}),
+            "analysis_summary":prediction_result.get("analysis_summary","")
         }
         response["final_result"]=self.generate_final_result(response)
     def _generate_graph(self,final_text,response):
@@ -191,6 +240,7 @@ class AnalysisPipeline:
             "detection":response["detection"],
             "fact_verification":response["fact_verification"],
             "ocr":response["ocr"],
+            "image":response.get("image",{}),
             "engagement":response["engagement"],
             "spread_analysis":response["spread_analysis"],
             "prediction":response["prediction"],

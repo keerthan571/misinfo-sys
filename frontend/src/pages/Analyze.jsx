@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../api/apiClient";
 
+import { useAnalysis } from "../context/AnalysisContext";
+
 import AnalyzeInput from "../components/analyze/AnalyzeInput";
 import DetectionCard from "../components/analyze/DetectionCard";
 import FactVerificationCard from "../components/analyze/FactVerificationCard";
@@ -11,20 +13,49 @@ import PlatformCard from "../components/analyze/PlatformCard";
 
 export default function Analyze() {
 
-  const [news, setNews] = useState("");
+
+  const {
+    analysisData,
+    setAnalysisData
+  } = useAnalysis();
+
+
+
+  const [news, setNews] = useState(
+    analysisData?.news || ""
+  );
+
+
   const [image, setImage] = useState(null);
 
-  const [result, setResult] = useState(null);
+
+
+  const [imagePreview, setImagePreview] = useState(
+    analysisData?.imagePreview || null
+  );
+
+
+  const [result, setResult] = useState(
+    analysisData?.result || null
+  );
+
+
 
   const [loading, setLoading] = useState(false);
 
+
   const [error, setError] = useState("");
+
+
 
   const navigate = useNavigate();
 
 
 
+
+
   const handleAnalyze = async () => {
+
 
     if (!news.trim() && !image) {
 
@@ -37,17 +68,23 @@ export default function Analyze() {
     }
 
 
+
     try {
 
+
       setLoading(true);
+
       setError("");
+
       setResult(null);
+
 
 
       const formData = new FormData();
 
 
-      if (news.trim()) {
+
+      if(news.trim()){
 
         formData.append(
           "text",
@@ -57,7 +94,9 @@ export default function Analyze() {
       }
 
 
-      if (image) {
+
+
+      if(image){
 
         formData.append(
           "image",
@@ -65,6 +104,9 @@ export default function Analyze() {
         );
 
       }
+
+
+
 
 
       const response = await apiClient.post(
@@ -75,18 +117,66 @@ export default function Analyze() {
 
         {
           headers:{
-            "Content-Type":"multipart/form-data"
+            "Content-Type":
+            "multipart/form-data"
           }
         }
 
       );
 
 
-      setResult(response.data);
+
+
+      setResult(
+        response.data
+      );
 
 
 
-      if (
+
+      let preview = null;
+
+
+
+      const savedImage =
+        response.data?.analysis?.image?.path;
+
+
+
+      if(savedImage){
+
+
+        preview =
+        `http://127.0.0.1:8000/${savedImage.replace("\\","/")}`;
+
+
+        setImagePreview(
+          preview
+        );
+
+
+      }
+
+
+
+
+
+      setAnalysisData({
+
+        result: response.data,
+
+        imagePreview: preview,
+
+        news: news
+
+      });
+
+
+
+
+
+
+      if(
 
         response.data?.analysis?.ocr?.extracted_text
 
@@ -103,11 +193,15 @@ export default function Analyze() {
       }
 
 
+
+
     }
 
     catch(err){
 
+
       console.error(err);
+
 
       setError(
 
@@ -119,32 +213,42 @@ export default function Analyze() {
 
       );
 
+
     }
 
 
     finally{
 
+
       setLoading(false);
 
+
     }
+
 
   };
 
 
 
 
+
+
   return (
+
 
     <div className="space-y-8">
 
 
+
       <div>
+
 
         <h1 className="text-4xl font-bold text-white">
 
           Analyze News
 
         </h1>
+
 
 
         <p className="text-gray-400 mt-2">
@@ -161,21 +265,28 @@ export default function Analyze() {
 
 
 
+
       <AnalyzeInput
+
 
         news={news}
 
         setNews={setNews}
 
+
         image={image}
 
         setImage={setImage}
 
+
         loading={loading}
+
 
         onAnalyze={handleAnalyze}
 
+
       />
+
 
 
 
@@ -191,7 +302,47 @@ export default function Analyze() {
           </div>
 
         )
+      }
 
+
+
+
+
+
+      {
+        imagePreview && (
+
+
+          <div className="bg-slate-800 rounded-2xl p-6">
+
+
+            <h2 className="text-2xl font-bold text-white mb-4">
+
+              🖼 Uploaded Image
+
+            </h2>
+
+
+
+            <img
+
+              src={imagePreview}
+
+              alt="Uploaded"
+
+              className="
+              rounded-xl
+              max-h-96
+              mx-auto
+              "
+
+            />
+
+
+          </div>
+
+
+        )
       }
 
 
@@ -203,7 +354,10 @@ export default function Analyze() {
       {
         result?.analysis && (
 
+
           <div className="space-y-6">
+
+
 
 
 
@@ -215,6 +369,7 @@ export default function Analyze() {
                 🧠 Final Analysis Result
 
               </h2>
+
 
 
 
@@ -230,11 +385,15 @@ export default function Analyze() {
 
                 </span>
 
+
               </p>
 
 
 
+
+
               <p className="text-xl mt-3">
+
 
                 Confidence:
 
@@ -246,12 +405,16 @@ export default function Analyze() {
 
                 </span>
 
+
               </p>
 
 
 
 
+
+
               <p className="text-xl mt-3">
+
 
                 Risk Level:
 
@@ -263,7 +426,10 @@ export default function Analyze() {
 
                 </span>
 
+
               </p>
+
+
 
 
 
@@ -277,7 +443,9 @@ export default function Analyze() {
               </p>
 
 
+
             </div>
+
 
 
 
@@ -290,9 +458,7 @@ export default function Analyze() {
 
               <OCRCard
 
-                data={
-                  result.analysis.ocr
-                }
+                data={result.analysis.ocr}
 
               />
 
@@ -300,9 +466,7 @@ export default function Analyze() {
 
               <PlatformCard
 
-                data={
-                  result.analysis.platform
-                }
+                data={result.analysis.platform}
 
               />
 
@@ -310,9 +474,7 @@ export default function Analyze() {
 
               <DetectionCard
 
-                data={
-                  result.analysis.detection
-                }
+                data={result.analysis.detection}
 
               />
 
@@ -320,15 +482,14 @@ export default function Analyze() {
 
               <FactVerificationCard
 
-                data={
-                  result.analysis.fact_verification
-                }
+                data={result.analysis.fact_verification}
 
               />
 
 
 
             </div>
+
 
 
 
@@ -341,43 +502,56 @@ export default function Analyze() {
 
               <button
 
+
                 className="
-                  bg-blue-600
-                  hover:bg-blue-700
-                  text-white
-                  font-bold
-                  px-8
-                  py-4
-                  rounded-xl
-                  shadow-lg
+                bg-blue-600
+                hover:bg-blue-700
+                text-white
+                font-bold
+                px-8
+                py-4
+                rounded-xl
+                shadow-lg
                 "
+
+
 
                 onClick={() =>
 
                   navigate(
+
                     "/prediction",
+
                     {
-                      state: {
+
+                      state:{
+
 
                         prediction:
-                          result.analysis.prediction,
+                        result.analysis.prediction,
+
 
                         spread:
-                          result.analysis.spread_analysis,
+                        result.analysis.spread_analysis,
+
 
                         engagement:
-                          result.analysis.engagement
+                        result.analysis.engagement
+
 
                       }
+
                     }
 
                   )
 
                 }
 
+
               >
 
                 🚀 View Spread Prediction
+
 
               </button>
 
@@ -386,7 +560,9 @@ export default function Analyze() {
 
 
 
+
           </div>
+
 
         )
 
@@ -395,6 +571,7 @@ export default function Analyze() {
 
 
     </div>
+
 
   );
 

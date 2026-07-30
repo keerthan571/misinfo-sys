@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.database import client
@@ -8,6 +9,7 @@ try:
     print("✅ Connected to MongoDB Atlas")
 except Exception as e:
     print("❌ MongoDB Connection Failed:", e)
+
 
 # Import modular routers
 from .routes import (
@@ -19,13 +21,26 @@ from .routes import (
     ocr,
     analyze,
     auth,
-    dashboard
+    dashboard,
+    history
 )
+
+
 app = FastAPI(
     title="Misinformation Analysis System API",
     description="Backend API for the VTU final year project.",
     version="1.0.0"
 )
+
+
+# Serve uploaded images
+app.mount(
+    "/uploads",
+    StaticFiles(directory="uploads"),
+    name="uploads"
+)
+
+
 
 # CORS setup
 app.add_middleware(
@@ -36,23 +51,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+
 # -----------------------------
 # Register API Routes
 # -----------------------------
 
+
 app.include_router(
-    auth.router              # <-- NEW
+    auth.router
 )
+
+
 app.include_router(
     dashboard.router,
     prefix="/api/dashboard",
     tags=["Dashboard"]
 )
+
+
 app.include_router(
     analyze.router,
     prefix="/api/analyze",
     tags=["Complete Analysis"]
 )
+
 
 app.include_router(
     detect.router,
@@ -60,11 +83,13 @@ app.include_router(
     tags=["Detection"]
 )
 
+
 app.include_router(
     fact_verify.router,
     prefix="/api/fact-verify",
     tags=["Fact Verification"]
 )
+
 
 app.include_router(
     ocr.router,
@@ -72,11 +97,13 @@ app.include_router(
     tags=["OCR"]
 )
 
+
 app.include_router(
     predict.router,
     prefix="/api/predict",
     tags=["Spread Prediction"]
 )
+
 
 app.include_router(
     graph.router,
@@ -84,11 +111,21 @@ app.include_router(
     tags=["Graph & Propagation"]
 )
 
+
 app.include_router(
     influence.router,
     prefix="/api/influence",
     tags=["Influence Detection"]
 )
+
+
+app.include_router(
+    history.router,
+    prefix="/api/history",
+    tags=["History"]
+)
+
+
 
 # -----------------------------
 # Root Endpoint
@@ -96,6 +133,7 @@ app.include_router(
 
 @app.get("/")
 def root():
+
     return {
         "message": "Welcome to the Misinformation Analysis System API. Go to /docs for Swagger UI."
     }
