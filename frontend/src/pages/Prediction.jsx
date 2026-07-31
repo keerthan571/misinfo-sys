@@ -35,6 +35,11 @@ export default function Prediction() {
 
     {};
 
+  const platform =
+    engagement.platform && engagement.platform !== "Unknown"
+      ? engagement.platform
+      : "Platform Not Detected";
+
 
 
 
@@ -43,8 +48,8 @@ export default function Prediction() {
     prediction.predicted_reach
 
       ? Math.round(
-          prediction.predicted_reach
-        ).toLocaleString()
+        prediction.predicted_reach
+      ).toLocaleString()
 
       : "Not Available";
 
@@ -55,7 +60,7 @@ export default function Prediction() {
 
     prediction.spread_probability !== undefined &&
 
-    prediction.spread_probability !== null
+      prediction.spread_probability !== null
 
       ? `${prediction.spread_probability}%`
 
@@ -68,7 +73,7 @@ export default function Prediction() {
 
     prediction.virality_score !== undefined &&
 
-    prediction.virality_score !== null
+      prediction.virality_score !== null
 
       ? `${prediction.virality_score}%`
 
@@ -107,10 +112,8 @@ export default function Prediction() {
       <div className="bg-slate-800 rounded-2xl p-8 text-white">
 
 
-        <h2 className="text-3xl font-bold mb-6">
-
+        <h2 className="text-3xl font-bold mb-6 text-white">
           🚀 Future Spread Prediction
-
         </h2>
 
 
@@ -199,72 +202,65 @@ export default function Prediction() {
 
       <div className="bg-slate-800 rounded-2xl p-8 text-white">
 
+        <div className="flex justify-between items-center mb-6">
 
-        <h2 className="text-3xl font-bold mb-6">
+          <h2 className="text-3xl font-bold mb-6 text-white">
+            📊 Social Engagement Signals
+          </h2>
 
-          📊 Social Engagement Signals
+          <span className="bg-slate-900 px-4 py-2 rounded-xl text-gray-300">
+            {platform}
+          </span>
 
-        </h2>
-
-
-
-        <div className="grid md:grid-cols-4 gap-6">
-
-
-          <div className="bg-slate-900 rounded-xl p-5">
-
-            ❤️ Likes
-
-            <h3 className="text-2xl font-bold mt-2">
-
-              {engagement.likes ?? "Not Available"}
-
-            </h3>
-
-          </div>
+        </div>
 
 
+        <div className="grid md:grid-cols-4 sm:grid-cols-2 gap-6">
 
-          <div className="bg-slate-900 rounded-xl p-5">
+          {
+            engagement.metrics &&
+              engagement.metrics.length > 0 ? (
 
-            🔁 Shares
+              engagement.metrics.map((metric, index) => (
 
-            <h3 className="text-2xl font-bold mt-2">
+                <div
+                  key={index}
+                  className="bg-slate-900 rounded-xl p-5"
+                >
 
-              {engagement.shares ?? "Not Available"}
-
-            </h3>
-
-          </div>
-
-
-
-          <div className="bg-slate-900 rounded-xl p-5">
-
-            👀 Views
-
-            <h3 className="text-2xl font-bold mt-2">
-
-              {engagement.views ?? "Not Available"}
-
-            </h3>
-
-          </div>
+                  <p className="text-gray-400">
+                    📊 {metric.label}
+                  </p>
 
 
+                  <h3 className="text-3xl font-bold mt-3 text-blue-400">
 
-          <div className="bg-slate-900 rounded-xl p-5">
+                    {metric.value.toLocaleString()}
 
-            🔖 Bookmarks
+                  </h3>
 
-            <h3 className="text-2xl font-bold mt-2">
 
-              {engagement.bookmarks ?? "Not Available"}
+                </div>
 
-            </h3>
+              ))
 
-          </div>
+            ) : (
 
+              <div className="col-span-full bg-slate-900 rounded-xl p-6">
+
+                <p className="text-gray-300 text-lg">
+                  No visible engagement data detected.
+                </p>
+
+                <p className="text-gray-500 mt-2">
+                  This post does not contain likes, comments,
+                  shares, views, or saves.
+                </p>
+
+              </div>
+
+            )
+          }
 
         </div>
 
@@ -278,10 +274,8 @@ export default function Prediction() {
       <div className="bg-slate-800 rounded-2xl p-8 text-white">
 
 
-        <h2 className="text-3xl font-bold mb-6">
-
+        <h2 className="text-3xl font-bold mb-6 text-white">
           📈 Spread Factor Analysis
-
         </h2>
 
 
@@ -330,10 +324,8 @@ export default function Prediction() {
           <div className="bg-slate-800 rounded-2xl p-8 text-white">
 
 
-            <h2 className="text-3xl font-bold mb-4">
-
+            <h2 className="text-3xl font-bold mb-4 text-white">
               🤖 Prediction Explanation
-
             </h2>
 
 

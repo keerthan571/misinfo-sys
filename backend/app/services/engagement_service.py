@@ -1,358 +1,212 @@
 import re
 
 
-
 class EngagementService:
 
+    def __init__(self):
 
+        self.platform_keywords = {
 
-    def extract_engagement(self, text):
-
-
-        data = {
-
-            # Existing fields (keep compatibility)
-
-            "likes": 0,
-
-            "shares": 0,
-
-            "comments": 0,
-
-            "views": 0,
-
-            "bookmarks": 0,
-
-            "followers": 0,
-
-
-            # New fields
-
-            "platform_metrics": {
-
-                "likes": 0,
-
-                "comments": 0,
-
-                "shares_or_reposts": 0,
-
-                "views": 0,
-
-                "saves_or_bookmarks": 0,
-
-                "followers_or_subscribers": 0
-
+            "Instagram": {
+                "likes": ["likes", "liked by"],
+                "comments": ["comments", "comment"],
+                "shares": ["shares", "share"],
+                "saves": ["saves", "saved", "bookmark"]
             },
 
-            "detected_signals": []
+            "Twitter/X": {
+                "likes": ["likes", "like"],
+                "comments": ["replies", "reply", "comments"],
+                "shares": ["reposts", "retweets", "repost", "retweet"],
+                "views": ["views", "view"],
+                "bookmarks": ["bookmarks", "bookmark"]
+            },
 
+            "YouTube": {
+                "likes": ["likes", "like"],
+                "comments": ["comments", "comment"],
+                "views": ["views", "view"],
+                "followers": ["subscribers", "subscriber"]
+            },
+
+            "Facebook": {
+                "likes": ["likes", "reactions", "reaction"],
+                "comments": ["comments", "comment"],
+                "shares": ["shares", "share"]
+            },
+
+            "TikTok": {
+                "likes": ["likes", "like"],
+                "comments": ["comments", "comment"],
+                "shares": ["shares", "share"],
+                "views": ["views", "view"],
+                "saves": ["favorites", "favorite", "saved"]
+            }
         }
 
 
 
+    def extract_engagement(self, text, platform="Unknown"):
+
+        result = {
+
+            "likes": 0,
+            "shares": 0,
+            "comments": 0,
+            "views": 0,
+            "bookmarks": 0,
+            "followers": 0,
+
+            "platform": platform,
+            "metrics": []
+
+        }
+
 
         if not text:
-
-            return data
-
-
-
+            return result
 
 
         text = text.lower()
 
-
         text = re.sub(
-
             r"\s+",
-
             " ",
-
             text
+        ).strip()
+
+
+
+        detected_platform = (
+
+            platform
+            if platform in self.platform_keywords
+            else self.detect_platform(text)
 
         )
 
 
+        result["platform"] = detected_platform
 
 
 
-        # Likes
-
-        data["likes"] = self.find_value(
-
-            text,
-
-            [
-
-                r'(\d+(?:\.\d+)?)\s*(k|m)?\s*likes?',
-
-                r'likes?\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*(k|m)?'
-
-            ]
-
+        supported = self.platform_keywords.get(
+            detected_platform,
+            self.platform_keywords["Instagram"]
         )
 
 
 
-
-
-        # Shares / reposts / retweets
-
-        data["shares"] = self.find_value(
-
-            text,
-
-            [
-
-                r'(\d+(?:\.\d+)?)\s*(k|m)?\s*(shares?|reposts?|retweets?|reshares?)',
-
-                r'(?:shares?|reposts?|retweets?|reshares?)\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*(k|m)?'
-
-            ]
-
-        )
-
-
-
-
-
-        # Comments / replies
-
-        data["comments"] = self.find_value(
-
-            text,
-
-            [
-
-                r'(\d+(?:\.\d+)?)\s*(k|m)?\s*(comments?|replies?)',
-
-                r'(?:comments?|replies?)\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*(k|m)?'
-
-            ]
-
-        )
-
-
-
-
-
-
-
-        # Views
-
-        data["views"] = self.find_value(
-
-            text,
-
-            [
-
-                r'(\d+(?:\.\d+)?)\s*(k|m)?\s*views?',
-
-                r'views?\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*(k|m)?'
-
-            ]
-
-        )
-
-
-
-
-
-
-
-        # Saves / bookmarks
-
-        data["bookmarks"] = self.find_value(
-
-            text,
-
-            [
-
-                r'(\d+(?:\.\d+)?)\s*(k|m)?\s*(bookmarks?|saves?|favorites?)',
-
-                r'(?:bookmarks?|saves?|favorites?)\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*(k|m)?'
-
-            ]
-
-        )
-
-
-
-
-
-
-
-        # Followers / subscribers
-
-        data["followers"] = self.find_value(
-
-            text,
-
-            [
-
-                r'(\d+(?:\.\d+)?)\s*(k|m)?\s*(followers?|subscribers?)',
-
-                r'(?:followers?|subscribers?)\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*(k|m)?'
-
-            ]
-
-        )
-
-
-
-
-
-
-
-        # Platform specific signals
-
-
-        if re.search(r"repost|retweet|quote tweet", text):
-
-            data["detected_signals"].append(
-
-                "X/Twitter repost activity"
-
+        for metric, keywords in supported.items():
+
+            value = self.find_metric(
+                text,
+                keywords
             )
 
 
+            if value > 0:
 
-        if re.search(r"save|saved|bookmark", text):
+                result["metrics"].append(
+                    {
+                        "label": metric.title(),
+                        "value": value
+                    }
+                )
 
-            data["detected_signals"].append(
 
-                "Save/bookmark activity"
+                if metric == "likes":
+                    result["likes"] = value
 
-            )
+                elif metric == "comments":
+                    result["comments"] = value
 
+                elif metric == "shares":
+                    result["shares"] = value
 
+                elif metric == "views":
+                    result["views"] = value
 
-        if re.search(r"subscriber|channel", text):
+                elif metric == "bookmarks":
+                    result["bookmarks"] = value
 
-            data["detected_signals"].append(
+                elif metric == "followers":
+                    result["followers"] = value
 
-                "YouTube audience signal"
 
-            )
 
+        return result
 
 
-        if re.search(r"forwarded|forwarded many times", text):
 
-            data["detected_signals"].append(
 
-                "WhatsApp forwarding signal"
 
-            )
+    def find_metric(self, text, keywords):
 
+        for keyword in keywords:
 
 
+            patterns = [
 
+                # 12K likes
+                r'(\d+(?:\.\d+)?)\s*(k|m)?\s*' + keyword,
 
 
+                # likes: 12K
+                keyword +
+                r'\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*(k|m)?',
 
-        # Store extra metrics
 
-        data["platform_metrics"] = {
+                # liked by 12K
+                r'liked\s*by\s*(\d+(?:\.\d+)?)\s*(k|m)?'
 
+            ]
 
-            "likes": data["likes"],
 
-            "comments": data["comments"],
 
-            "shares_or_reposts": data["shares"],
+            for pattern in patterns:
 
-            "views": data["views"],
 
-            "saves_or_bookmarks": data["bookmarks"],
+                match = re.search(
+                    pattern,
+                    text,
+                    re.IGNORECASE
+                )
 
-            "followers_or_subscribers": data["followers"]
 
+                if match:
 
-        }
 
+                    number = None
+                    suffix = None
 
 
+                    for group in match.groups():
 
-        return data
 
+                        if group and re.match(
+                            r"^\d+(\.\d+)?$",
+                            group
+                        ):
 
+                            number = group
 
 
+                        elif group and group.lower() in [
+                            "k",
+                            "m"
+                        ]:
 
+                            suffix = group
 
 
 
-    def find_value(self, text, patterns):
+                    if number:
 
-
-        for pattern in patterns:
-
-
-            match = re.search(
-
-                pattern,
-
-                text
-
-            )
-
-
-
-            if match:
-
-
-                groups = match.groups()
-
-
-
-                number = None
-
-                suffix = None
-
-
-
-                for group in groups:
-
-
-                    if group and re.match(
-
-                        r"^\d+(\.\d+)?$",
-
-                        group
-
-                    ):
-
-                        number = group
-
-
-
-                    elif group and group.lower() in [
-
-                        "k",
-
-                        "m"
-
-                    ]:
-
-                        suffix = group
-
-
-
-
-
-                if number:
-
-
-                    return self.convert_number(
-
-                        number,
-
-                        suffix
-
-                    )
-
-
+                        return self.convert_number(
+                            number,
+                            suffix
+                        )
 
 
         return 0
@@ -361,26 +215,19 @@ class EngagementService:
 
 
 
-
-
-    def convert_number(self, number, suffix):
-
+    def convert_number(self, number, suffix=None):
 
         value = float(number)
 
 
-
         if suffix:
 
-
             suffix = suffix.lower()
-
 
 
             if suffix == "k":
 
                 value *= 1000
-
 
 
             elif suffix == "m":
@@ -389,11 +236,65 @@ class EngagementService:
 
 
 
-
         return int(value)
 
 
 
+
+
+    def detect_platform(self, text):
+
+        text = text.lower()
+
+
+        if (
+            "instagram" in text
+            or "insta" in text
+            or "reels" in text
+        ):
+
+            return "Instagram"
+
+
+
+        if (
+            "twitter" in text
+            or "tweet" in text
+            or "x.com" in text
+            or "repost" in text
+            or "retweet" in text
+        ):
+
+            return "Twitter/X"
+
+
+
+        if (
+            "youtube" in text
+            or "subscribe" in text
+            or "channel" in text
+        ):
+
+            return "YouTube"
+
+
+
+        if "facebook" in text:
+
+            return "Facebook"
+
+
+
+        if (
+            "tiktok" in text
+            or "fyp" in text
+        ):
+
+            return "TikTok"
+
+
+
+        return "Unknown"
 
 
 

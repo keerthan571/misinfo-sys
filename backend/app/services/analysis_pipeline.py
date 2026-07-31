@@ -109,21 +109,58 @@ class AnalysisPipeline:
             "prediction":{},
             "graph":{}
         },analysis_id,analysis_time
-    async def _run_ocr(self,image,final_text,response):
-        extracted_text=""
-        if not final_text.strip() and image:
-            image_bytes=await image.read()
-            ocr_result=ocr_service.extract_text_from_image(image_bytes)
-            if ocr_result.get("status")=="success":
-                extracted_text=ocr_result.get("extracted_text","")
-                response["ocr"]={
-                    "used":True,
-                    "extracted_text":extracted_text,
-                    "confidence":ocr_result.get("confidence",0),
-                    "word_count":len(extracted_text.split())
+    async def _run_ocr(self, image, final_text, response):
+        extracted_text = ""
+    # Image uploaded -> OCR should run
+        if image:
+            image_bytes = await image.read()
+            ocr_result = ocr_service.extract_text_from_image(
+                image_bytes
+            )
+            if ocr_result.get("status") == "success":
+                extracted_text = ocr_result.get(
+                "extracted_text",
+                ""
+                )
+                response["ocr"] = {
+                    "used": True,
+                    "input_type": "Image",
+                    "status": "OCR Completed",
+                    "extracted_text": extracted_text,
+                    "confidence": ocr_result.get(
+                        "confidence",
+                        0
+                    ),
+
+                    "word_count": len(
+                        extracted_text.split()
+                    )
                 }
-                final_text=extracted_text
-        return final_text,extracted_text
+                # OCR text becomes analysis text
+                if extracted_text.strip():
+                    final_text = extracted_text
+                # Text only input
+        elif final_text.strip():
+
+            response["ocr"] = {
+
+                "used": False,
+
+                "input_type": "Direct Text",
+
+                "status": "Not Required",
+
+                "extracted_text":
+                    "User entered text directly. OCR was not required.",
+                "confidence": 0,
+
+                "word_count": len(
+                    final_text.split()
+                )
+            }
+
+
+        return final_text, extracted_text
     def _detect_platform(self,final_text,extracted_text,response):
         platform_text=final_text
         if extracted_text:

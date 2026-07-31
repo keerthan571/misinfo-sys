@@ -10,15 +10,12 @@ import {
 
 import Charts from "../components/dashboard/Charts";
 import StatCard from "../components/dashboard/StatCard";
-import RecentActivity from "../components/dashboard/RecentActivity";
 import QuickActions from "../components/dashboard/QuickActions";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 
 import { getCurrentUser } from "../api/authApi";
-import {
-  getDashboardStats,
-  getRecentActivity,
-} from "../api/dashboardApi";
+import { getDashboardStats } from "../api/dashboardApi";
+
 export default function Dashboard() {
   const [dashboard, setDashboard] = useState({
     totalAnalyses: 0,
@@ -27,7 +24,6 @@ export default function Dashboard() {
     ocrUploads: 0,
     reports: 0,
     avgConfidence: 0,
-    recentActivity: [],
     weeklyAnalysis: [
       { day: "Mon", count: 0 },
       { day: "Tue", count: 0 },
@@ -42,20 +38,16 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [userName, setUserName] = useState("User");
+
   useEffect(() => {
     fetchDashboard();
   }, []);
 
   const fetchDashboard = async () => {
     try {
-      const [
-        dashboardData,
-        userData,
-        recentActivity,
-      ] = await Promise.all([
+      const [dashboardData, userData] = await Promise.all([
         getDashboardStats(),
         getCurrentUser(),
-        getRecentActivity(),
       ]);
 
       setDashboard((prev) => ({
@@ -67,11 +59,9 @@ export default function Dashboard() {
         reports: dashboardData.reports,
         avgConfidence: dashboardData.avgConfidence,
         weeklyAnalysis: dashboardData.weeklyAnalysis,
-        recentActivity: recentActivity,
       }));
 
       setUserName(userData.name);
-
     } catch (err) {
       console.error(err);
       setError("Failed to load dashboard.");
@@ -79,6 +69,7 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
+
   const stats = [
     {
       title: "Total Analyses",
@@ -146,9 +137,11 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
+
+      {/* Header */}
       <DashboardHeader userName={userName} />
 
-      {/* Statistics Cards */}
+      {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {stats.map((stat) => (
           <StatCard
@@ -162,6 +155,9 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* Quick Actions */}
+      <QuickActions />
+
       {/* Charts */}
       <Charts
         fakeNews={dashboard.verifiedFalse}
@@ -169,11 +165,6 @@ export default function Dashboard() {
         weeklyAnalysis={dashboard.weeklyAnalysis}
       />
 
-      {/* Recent Activity */}
-      <RecentActivity activities={dashboard.recentActivity} />
-
-      {/* Quick Actions */}
-      <QuickActions />
     </div>
   );
 }
