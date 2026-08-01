@@ -1,229 +1,411 @@
 export default class InfluenceDetector {
-  constructor(nodes, edges) {
-    this.nodes = nodes;
-    this.edges = edges;
+    constructor(nodes, edges, blueprint) {
+        this.nodes = nodes;
+        this.edges = edges;
+        this.blueprint = blueprint;
 
-    this.nodeMap = new Map();
-    this.adjacency = new Map();
-  }
+        this.nodeMap = new Map();
+        this.adjacency = new Map();
+        this.inDegree = new Map();
+    }
 
-  /**
-   * Public API
-   */
-  detect() {
-    this.initialize();
+    detect() {
+        this.initialize();
+        this.calculateDegree();
+        this.calculateReach();
+        this.calculatePageRank();
+        this.calculateInfluence();
 
-    this.calculateDegree();
+        return this.rankNodes();
+    }
 
-    this.calculateReach();
-
-    this.calculateInfluenceScore();
-
-    return this.getTopInfluencers();
-  }
-
-  /**
-   * Build lookup structures.
-   */
-  initialize() {
-    this.nodes.forEach((node) => {
-      this.nodeMap.set(node.id, node);
-
-      this.adjacency.set(node.id, []);
-    });
-
-    this.edges.forEach((edge) => {
-      if (this.adjacency.has(edge.source)) {
-        this.adjacency
-          .get(edge.source)
-          .push(edge.target);
-      }
-    });
-  }
-
-  /**
-   * Degree centrality.
-   */
-  calculateDegree() {
-    this.nodes.forEach((node) => {
-      node.data.degree = 0;
-    });
-
-    this.edges.forEach((edge) => {
-      const source = this.nodeMap.get(edge.source);
-      const target = this.nodeMap.get(edge.target);
-
-      if (source) source.data.degree++;
-
-      if (target) target.data.degree++;
-    });
-  }
-
-  /**
-   * Reach score using outgoing edges.
-   */
-  calculateReach() {
-    this.nodes.forEach((node) => {
-      node.data.reach =
-        this.adjacency.get(node.id).length;
-    });
-  }
-
-  /**
-   * Weighted influence score.
-   */
-  /**
- * Calculates influence using a PageRank-inspired algorithm.
- */
-calculateInfluenceScore() {
-    const damping = 0.85;
-    const iterations = 20;
-    const n = this.nodes.length;
-
-    // Initial rank
-    this.nodes.forEach((node) => {
-        node.data.pageRank = 1 / n;
-    });
-
-    for (let iter = 0; iter < iterations; iter++) {
-        const newRanks = new Map();
-
-        this.nodes.forEach((node) => {
-        newRanks.set(node.id, (1 - damping) / n);
+    initialize() {
+        this.nodes.forEach(node => {
+            this.nodeMap.set(node.id, node);
+            this.adjacency.set(node.id, []);
+            this.inDegree.set(node.id, 0);
         });
 
-        this.nodes.forEach((node) => {
-        const outgoing = this.adjacency.get(node.id);
+        this.edges.forEach(edge => {
+            this.adjacency
+                .get(edge.source)
+                .push(edge.target);
 
-        if (!outgoing || outgoing.length === 0) return;
-
-        const contribution =
-            (node.data.pageRank * damping) /
-            outgoing.length;
-
-        outgoing.forEach((targetId) => {
-            newRanks.set(
-            targetId,
-            newRanks.get(targetId) + contribution
+            this.inDegree.set(
+                edge.target,
+                this.inDegree.get(edge.target) + 1
             );
         });
-        });
+    }
 
-        this.nodes.forEach((node) => {
-        node.data.pageRank = newRanks.get(node.id);
+    calculateDegree() {
+        this.nodes.forEach(node => {
+            node.data.outDegree =
+                this.adjacency.get(node.id).length;
+
+            node.data.inDegree =
+                this.inDegree.get(node.id);
+
+            node.data.degree =
+                node.data.outDegree +
+                node.data.inDegree;
         });
     }
 
-    // Normalize PageRank to 0–100
-    const maxRank = Math.max(
-        ...this.nodes.map((n) => n.data.pageRank)
-    );
+    calculateReach() {
+        this.nodes.forEach(node => {
+            const visited = new Set();
 
-    this.nodes.forEach((node) => {
-        node.data.pageRankScore =
-        (node.data.pageRank / maxRank) * 100;
-    });
+            this.dfs(node.id, visited);
 
-    // Final influence score
-    this.nodes.forEach((node) => {
-        const degree = node.data.degree || 0;
+            node.data.reach =
+            Math.max(
+                0,
+                visited.size - 1
+            );
 
-        const followers = node.data.followers || 0;
-
-        const engagement =
-        (node.data.engagement?.likes || 0) +
-        (node.data.engagement?.shares || 0) +
-        (node.data.engagement?.comments || 0);
-
-        const pageRank = node.data.pageRankScore;
-
-        const score =
-        pageRank * 0.45 +
-        degree * 2.0 +
-        followers * 0.0008 +
-        engagement * 0.02;
-
-        node.data.influenceScore = Math.round(score);
-    });
+            node.data.weightedReach =
+            node.data.reach *
+            (
+                node.data.shareProbability ??
+                1
+            );
+        });
     }
-    /**
-   * Returns the top influencers after ranking
-   * every node by its influence score.
-   */
-getTopInfluencers() {
-    const ranked = [...this.nodes]
-        .filter((node) => node.data.level > 0)
-        .sort(
-        (a, b) =>
-            b.data.influenceScore -
-            a.data.influenceScore
+
+    dfs(nodeId, visited) {
+        if (visited.has(nodeId))
+            return;
+
+        visited.add(nodeId);
+
+        const neighbours =
+            this.adjacency.get(nodeId) || [];
+
+        neighbours.forEach(next =>
+            this.dfs(next, visited)
         );
+    }
 
-    ranked.forEach((node, index) => {
-        node.data.rank = index + 1;
-        node.data.isInfluencer = index < 10;
+    calculatePageRank() {
 
-        if (index < 10) {
-        node.style = {
-            ...node.style,
-            border: "3px solid #FFD700",
-            borderRadius: "50%",
-        };
+        const damping =
+            this.blueprint?.analysis?.dampingFactor ??
+            0.85;
+
+        const iterations =
+            this.blueprint?.analysis?.pageRankIterations ??
+            20;
+
+        const total =
+            this.nodes.length;
+
+        if (total === 0)
+            return;
+
+        // Initialize PageRank
+        this.nodes.forEach(node => {
+            node.data.pageRank =
+                1 / total;
+        });
+
+        // Iterative PageRank
+        for (let i = 0; i < iterations; i++) {
+
+            const next =
+                new Map();
+
+            this.nodes.forEach(node => {
+                next.set(
+                    node.id,
+                    (1 - damping) / total
+                );
+            });
+
+            this.nodes.forEach(node => {
+
+                const outgoing =
+                    this.adjacency.get(node.id);
+
+                if (!outgoing.length)
+                    return;
+
+                const contribution =
+                    (node.data.pageRank * damping) /
+                    outgoing.length;
+
+                outgoing.forEach(target => {
+
+                    next.set(
+                        target,
+                        next.get(target) + contribution
+                    );
+
+                });
+
+            });
+
+            this.nodes.forEach(node => {
+
+                node.data.pageRank =
+                    next.get(node.id);
+
+            });
         }
-    });
-
-    return ranked.slice(0, 10);
     }
-  /**
-   * Returns useful analytics for dashboard.
-   */
-  getAnalytics() {
-    const totalNodes = this.nodes.length;
 
-    const totalEdges = this.edges.length;
+    calculateInfluence() {
 
-    const averageInfluence =
-        Math.round(
-        this.nodes.reduce(
-            (sum, node) =>
-            sum + node.data.influenceScore,
-            0
-        ) / totalNodes
+        let maxRank = 0;
+
+        this.nodes.forEach(node => {
+
+            if (node.data.pageRank > maxRank) {
+                maxRank = node.data.pageRank;
+            }
+
+        });
+
+        this.nodes.forEach(node => {
+
+            const pageRank =
+                maxRank === 0
+                    ? 0
+                    : (node.data.pageRank / maxRank) * 100;
+
+            node.data.pageRankScore =
+                Number(
+                    pageRank.toFixed(2)
+                );
+
+            const baseInfluence =
+                node.data.influenceScore;
+
+            const followers =
+                Math.min(
+                    node.data.followers,
+                    100000
+                ) / 1000;
+
+            const finalScore =
+                baseInfluence * 0.25 +
+                node.data.pageRankScore * 0.35 +
+                node.data.degree * 1.20 +
+                node.data.weightedReach * 0.35 +
+                followers * 0.08;
+
+            node.data.networkInfluence =
+                Number(
+                    finalScore.toFixed(2)
+                );
+
+        });
+
+        const maxInfluence =
+            Math.max(
+                ...this.nodes.map(
+                    node =>
+                        node.data.networkInfluence
+                )
+            );
+
+        this.nodes.forEach(node => {
+
+            node.data.networkInfluencePercent =
+                maxInfluence === 0
+                    ? 0
+                    : Number(
+                        (
+                            node.data.networkInfluence /
+                            maxInfluence *
+                            100
+                        ).toFixed(2)
+                    );
+
+        });
+
+    }
+
+    rankNodes() {
+        const ranked =
+            [...this.nodes]
+                .filter(node => node.data.level > 0)
+                .sort(
+                    (a, b) =>
+                        b.data.networkInfluence -
+                        a.data.networkInfluence
+                );
+
+        ranked.forEach((node, index) => {
+            node.data.rank = index + 1;
+            node.data.isTopInfluencer =
+                index < 10;
+        });
+
+        this.rankedNodes = ranked;
+
+        return ranked;
+    }
+
+    getTopInfluencers(limit = 10) {
+        if (!this.rankedNodes) {
+            return [];
+        }
+
+        return this.rankedNodes.slice(0, limit);
+    }
+
+    getAnalytics() {
+        const totalNodes =
+            this.nodes.length;
+
+        const totalEdges =
+            this.edges.length;
+
+        const averageInfluence =
+          totalNodes === 0
+              ? 0
+              : Number(
+                    (
+                        this.nodes.reduce(
+                            (sum, node) =>
+                                sum +
+                                node.data.networkInfluence,
+                            0
+                        ) / totalNodes
+                    ).toFixed(2)
+                );
+
+        const highestInfluence =
+            totalNodes === 0
+                ? 0
+                : Math.max(
+                    ...this.nodes.map(
+                        node =>
+                            node.data.networkInfluence
+                    )
+                );
+
+        const averageReach =
+          totalNodes === 0
+              ? 0
+              : Number(
+                    (
+                        this.nodes.reduce(
+                            (sum, node) =>
+                                sum + node.data.reach,
+                            0
+                        ) / totalNodes
+                    ).toFixed(2)
+                );
+        const averageDegree =
+            totalNodes === 0
+                ? 0
+                : Number(
+                    (
+                        this.nodes.reduce(
+                            (sum, node) =>
+                                sum +
+                                node.data.degree,
+                            0
+                        ) / totalNodes
+                    ).toFixed(2)
+                );
+
+        const spreadEfficiency =
+            Number(
+                (
+                    averageReach /
+                    Math.max(
+                        averageDegree,
+                        1
+                    )
+                ).toFixed(2)
+            );
+
+        return {
+
+            totalNodes,
+
+            totalEdges,
+
+            averageInfluence,
+
+            highestInfluence,
+
+            averageReach,
+
+            averageDegree,
+
+            density:
+                totalNodes > 1
+                    ? Number(
+                        (
+                            totalEdges /
+                            (
+                                totalNodes *
+                                (totalNodes - 1)
+                            )
+                        ).toFixed(4)
+                    )
+                    : 0,
+
+            spreadEfficiency,
+
+            largestCommunity:
+                this.findLargestCommunity(),
+
+            topInfluencers:
+                this.getTopInfluencers(5)
+
+        };
+    }
+    
+    findLargestCommunity() {
+
+        const communities =
+            new Map();
+
+        this.nodes.forEach(node => {
+
+            const community =
+                node.data.community;
+
+            communities.set(
+                community,
+                (communities.get(community) || 0) + 1
+            );
+
+        });
+
+        let largest = {
+            community: "",
+            size: 0
+        };
+
+        communities.forEach(
+            (size, community) => {
+
+                if (size > largest.size) {
+
+                    largest = {
+                        community,
+                        size
+                    };
+
+                }
+
+            }
         );
 
-    const highestInfluence =
-        Math.max(
-        ...this.nodes.map(
-            (n) => n.data.influenceScore
-        )
-        );
+        return `${largest.community} (${largest.size} nodes)`;
+    }
 
-    const averagePageRank =
-        this.nodes.reduce(
-        (sum, node) =>
-            sum + node.data.pageRank,
-        0
-        ) / totalNodes;
+    getNodes() {
+        return this.nodes;
+    }
 
-    return {
-        totalNodes,
-        totalEdges,
-        averageInfluence,
-        highestInfluence,
-        averagePageRank,
-    };
-  } 
-  /**
-   * Getter.
-   */
-  getNodes() {
-    return this.nodes;
-  }
-
-  /**
-   * Getter.
-   */
-  getEdges() {
-    return this.edges;
-  }
+    getEdges() {
+        return this.edges;
+    }
 }

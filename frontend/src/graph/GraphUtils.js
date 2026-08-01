@@ -69,19 +69,27 @@ export function shuffle(random, array) {
 export function generatePosition(
     random,
     level,
-    levelGap = 180,
-    horizontalSpread = 250
+    community,
+    layout
 ) {
+    const levelGap =
+        layout?.levelGap ?? 180;
+
+    const nodeGap =
+        layout?.nodeGap ?? 250;
+
+    const communityGap =
+        layout?.communityGap ?? 450;
+
     return {
-        x: Math.round(
+        x:
+            (community - 1) *
+                communityGap +
             (random() - 0.5) *
-                horizontalSpread *
-                level *
-                2
-        ),
+                nodeGap,
         y:
             level * levelGap +
-            Math.round(random() * 40),
+            (random() - 0.5) * 40
     };
 }
 

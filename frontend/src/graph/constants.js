@@ -88,3 +88,46 @@ export const DEBUG = {
     PARAMETERS: false,
     GENERATION_TIME: false
 };
+
+export const PROPAGATION_RULES = {
+    SCORE_WEIGHTS: {
+        reach: 0.35,
+        views: 0.20,
+        shares: 0.15,
+        virality: 0.15,
+        probability: 0.15
+    },
+
+    NODE_RANGES: [
+        { maxScore: 20, nodes: 12 },
+        { maxScore: 40, nodes: 20 },
+        { maxScore: 60, nodes: 30 },
+        { maxScore: 80, nodes: 40 },
+        { maxScore: 100, nodes: 50 }
+    ],
+
+    FOLLOWER_TIERS: [
+        { max: 10000, influencers: 1 },
+        { max: 100000, influencers: 2 },
+        { max: 500000, influencers: 4 },
+        { max: 1000000, influencers: 6 },
+        { max: Infinity, influencers: 8 }
+    ],
+
+    BOT_PERCENTAGE: {
+        low: 0.00,
+        medium: 0.05,
+        high: 0.10
+    },
+
+    BRANCHING: {
+        BASE: 2,
+        MAX: 6
+    },
+
+    COMMUNITIES: {
+        low: 2,
+        medium: 3,
+        high: 4
+    }
+};

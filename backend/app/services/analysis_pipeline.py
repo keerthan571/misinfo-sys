@@ -4,7 +4,7 @@ import uuid
 from ..database.mongodb import analyses_collection
 from .engagement_service import engagement_service
 from .fact_verification_service import verify_claim
-from .graph_service import build_graph
+
 from .nlp_service import nlp_service
 from .ocr_service import ocr_service
 from .platform_detector import platform_detector
@@ -160,25 +160,20 @@ class AnalysisPipeline:
             "virality_score":prediction_data.get("virality_score",0)
         }
         response["final_result"]=self.generate_final_result(response)
-    def _generate_graph(self,final_text,response):
-        graph_input={
-            "text":final_text,
-            "platform":response["platform"],
-            "detection":response["detection"],
-            "fact_verification":response["fact_verification"],
-            "engagement":response["engagement"],
-            "spread_analysis":response["spread_analysis"],
-            "prediction":response["prediction"],
-            "final_result":response["final_result"]
+    
+    def _generate_graph(self, final_text, response):
+        ai_result = {
+            "text": final_text,
+            "platform": response["platform"],
+            "detection": response["detection"],
+            "fact_verification": response["fact_verification"],
+            "engagement": response["engagement"],
+            "spread_analysis": response["spread_analysis"],
+            "prediction": response["prediction"],
+            "final_result": response["final_result"],
         }
-        try:
-            response["graph"]=build_graph(graph_input)
-        except Exception as e:
-            response["graph"]={
-                "nodes":[],
-                "edges":[],
-                "error":str(e)
-            }
+
+        
     def _save_analysis(self,current_user,analysis_id,analysis_time,final_text,response,processing_time):
         analysis_document={
             "analysis_id":analysis_id,

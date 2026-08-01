@@ -55,7 +55,7 @@ export default function Analyze() {
         }
       );
       setResult(response.data);
-      console.log(response.data.analysis.graph.nodes[0]);
+      console.log(response);
       if (
         response.data?.analysis?.ocr?.extracted_text
         &&
@@ -78,19 +78,26 @@ export default function Analyze() {
       setLoading(false);
     }
   };
+  
   const handleViewGraph = () => {
-    if (!result?.analysis?.graph) {
-      alert("Graph data is not available.");
-      return;
+
+    if (!result?.analysis) {
+        alert("Analysis data is not available.");
+        return;
     }
 
+    localStorage.setItem(
+        "latestAnalysis",
+        JSON.stringify(result.analysis)
+    );
+
     navigate("/graph", {
-      state: {
-        graph: result.analysis.graph,
-        analysis: result.analysis,
-      },
+        state: {
+            analysis: result.analysis
+        }
     });
   };
+
   return (
     <div className="space-y-8">
       <div>
@@ -231,7 +238,7 @@ export default function Analyze() {
               </div>
 
               {/* VIEW GRAPH BUTTON (Only for OCR/Image Analysis) */}
-              {image && result?.analysis?.graph?.nodes?.length > 0 && (
+              {image && result?.analysis && (
                 <div className="flex justify-center">
                   <button
                     onClick={handleViewGraph}

@@ -1,234 +1,266 @@
-import { uuid, createSeededRandom } from "./GraphUtils";
-import { EDGE_CONFIG } from "./constants";
+import { EDGE_STYLE } from "./constants";
+import {
+    uuid,
+    createSeededRandom,
+    randomFloat,
+    randomInt
+} from "./GraphUtils";
 
 export default class EdgeGenerator {
-    constructor(nodes, parameters) {
+    constructor(nodes, blueprint) {
         this.nodes = nodes;
-        this.params = parameters;
+        this.blueprint = blueprint;
 
         this.edges = [];
-
         this.edgeSet = new Set();
+
+        this.random = createSeededRandom(
+            blueprint.metadata.seed + "_edges"
+        );
+
+        this.nodeMap = new Map(
+            nodes.map(node => [node.id, node])
+        );
 
         this.levelMap = this.groupNodesByLevel();
 
-        // Deterministic random generator
-        this.random = createSeededRandom(
-            parameters.simulationSeed + "_edges"
-        );
-
-        // Values from backend
-        this.virality =
-            parameters.viralityScore ?? 50;
-
-        this.spreadProbability =
-            parameters.spreadProbability ?? 0.5;
-
-        this.predictedReach =
-            parameters.predictedReach ?? 5000;
+        this.communityMap =this.groupNodesByCommunity();
     }
 
-  /**
-   * Public API
-   */
-  generate() {
+    generate() {
+        this.buildTreeEdges();
 
-    this.buildPropagationTree();
+        if (this.blueprint.graph.density > 0.35)
+            this.buildCrossEdges();
 
-    this.buildCrossLevelConnections();
+        if (this.blueprint.composition.communities > 1)
+            this.buildCommunityEdges();
 
-    this.buildCommunityConnections();
+        if (
+            this.blueprint.propagation
+                .spreadProbability > 0.55
+        )
+            this.buildReshareEdges();
 
-    this.addSecondaryPropagation();
+        return this.edges;
+    }
 
-    return this.edges;
+    groupNodesByLevel() {
+        const map = new Map();
 
-   }
+        this.nodes.forEach(node => {
+            const level = node.data.level;
 
-  /**
-   * Group nodes by propagation level.
-   */
-  groupNodesByLevel() {
-    const map = new Map();
+            if (!map.has(level)) {
+                map.set(level, []);
+            }
 
-    this.nodes.forEach((node) => {
-      const level = node.data.level;
-
-      if (!map.has(level)) {
-        map.set(level, []);
-      }
-
-      map.get(level).push(node);
-    });
-
-    return map;
-  }
-
-  /**
-   * Main propagation tree.
-   *
-   * Every node (except origin)
-   * has exactly one parent.
-   */
-  buildPropagationTree() {
-    const maxLevel = Math.max(...this.levelMap.keys());
-
-    for (let level = 1; level <= maxLevel; level++) {
-        const parents = this.levelMap.get(level - 1) || [];
-        const children = this.levelMap.get(level) || [];
-
-        if (!parents.length || !children.length) continue;
-
-        // Higher influence parents get more children
-        const parentPool = [];
-
-        parents.forEach((parent) => {
-        const capacity = Math.max(
-            1,
-            Math.round(
-            parent.data.shareProbability * 5 +
-            parent.data.influenceScore / 20
-            )
-        );
-
-        for (let i = 0; i < capacity; i++) {
-            parentPool.push(parent);
-        }
+            map.get(level).push(node);
         });
 
-        children.forEach((child) => {
-        const parent =
-            parentPool[
-            Math.floor(this.random() * parentPool.length)
-            ];
+        return map;
+    }
 
-        this.addEdge(parent, child, "tree");
+    groupNodesByCommunity() {
+
+        const map = new Map();
+
+        this.nodes.forEach(node => {
+
+            const community =
+                node.data.community;
+
+            if (!map.has(community)) {
+                map.set(community, []);
+            }
+
+            map.get(community).push(node);
+        });
+
+        return map;
+    }
+
+    buildTreeEdges() {
+        this.nodes.forEach(node => {
+            if (!node.data.parentId) return;
+
+            const parent =
+                this.nodeMap.get(node.data.parentId);
+
+            if (!parent) return;
+
+            this.createEdge(
+                parent,
+                node,
+                "tree"
+            );
         });
     }
-    }
 
-  /**
-   * Additional sharing between nearby levels.
-   */
-   buildCrossLevelConnections() {
+    buildCrossEdges() {
 
         const probability =
             Math.min(
-                0.95,
-                this.spreadProbability *
-                (this.virality / 100)
+                0.30,
+                0.10 +
+                this.blueprint.propagation
+                    .spreadProbability * 0.25
             );
 
-        const maxLevel = Math.max(
-            ...Array.from(this.levelMap.keys())
-        );
+        this.nodes.forEach(target => {
 
-        for (let level = 1; level <= maxLevel; level++) {
+            if (
+                target.data.level <= 1 ||
+                this.random() > probability
+            )
+                return;
 
-            const previous =
-                this.levelMap.get(level - 1) || [];
+            const candidates =
+                this.nodes.filter(source =>
+                    source.data.level >= target.data.level - 1 &&
+                    source.data.level <= target.data.level &&
+                    source.data.community === target.data.community &&
+                    source.id !== target.id &&
+                    source.id !== target.data.parentId
+                );
 
-            const current =
-                this.levelMap.get(level) || [];
+            if (!candidates.length)
+                return;
 
-            previous.forEach(source => {
+            candidates.sort(
+                (a, b) =>
+                    b.data.networkInfluence -
+                    a.data.networkInfluence
+            );
 
-                current.forEach(target => {
+            const source =
+                candidates[
+                    randomInt(
+                        this.random,
+                        0,
+                        Math.min(
+                            2,
+                            candidates.length - 1
+                        )
+                    )
+                ];
 
-                    if (this.random() > probability)
-                        return;
+            this.createEdge(
+                source,
+                target,
+                "cross"
+            );
 
-                    this.addEdge(
-                        source,
-                        target,
-                        "cross"
-                    );
-
-                });
-
-            });
-
-        }
+        });
 
     }
-        /**
-     * Creates community connections inside the
-     * same propagation level to simulate
-     * interactions between users.
-     */
-    buildCommunityConnections() {
-        const probability = 0.15;
 
-        this.levelMap.forEach((nodes, level) => {
-        if (level === 0) return;
+    buildCommunityEdges() {
 
-        for (let i = 0; i < nodes.length; i++) {
-            for (let j = i + 1; j < nodes.length; j++) {
-            if (this.random() > probability) continue;
+        const groups = {};
 
-            const source = nodes[i];
-            const target = nodes[j];
+        this.nodes.forEach(node => {
 
-            this.addEdge(source, target);
+            const community = node.data.community;
 
-            source.data.degree++;
-            target.data.degree++;
+            if (!groups[community])
+                groups[community] = [];
+
+            groups[community].push(node);
+
+        });
+
+        Object.values(groups).forEach(nodes => {
+
+            nodes.sort(
+                (a, b) =>
+                    b.data.influenceScore -
+                    a.data.influenceScore
+            );
+
+            for (let i = 1; i < nodes.length; i++) {
+
+                if (this.random() > 0.35)
+                    continue;
+
+                const hub =
+                    nodes[
+                        randomInt(
+                            this.random,
+                            0,
+                            Math.min(2, i - 1)
+                        )
+                    ];
+
+                this.createEdge(
+                    hub,
+                    nodes[i],
+                    "community"
+                );
+
             }
-        }
+
+        });
+
+    }
+
+    buildReshareEdges() {
+        this.nodes.forEach(source => {
+            if (source.data.level === 0)
+                return;
+
+            if (
+                this.random() >
+                source.data.shareProbability
+            )
+                return;
+
+            const communityNodes =
+                this.communityMap.get(
+                    target.data.community
+                ) || [];
+
+            const candidates =
+                communityNodes.filter(source =>
+                    source.data.level >= target.data.level - 1 &&
+                    source.data.level <= target.data.level &&
+                    source.id !== target.id &&
+                    source.id !== target.data.parentId
+                );
+
+            if (!candidates.length)
+                return;
+
+            candidates.sort(
+                (a, b) =>
+                    b.data.influenceScore -
+                    a.data.influenceScore
+            );
+
+            const limit =
+                Math.min(
+                    3,
+                    candidates.length
+                );
+
+            const target =
+                candidates[
+                    randomInt(
+                        this.random,
+                        0,
+                        limit - 1
+                    )
+                ];
+
+            this.createEdge(
+                source,
+                target,
+                "reshare"
+            );
         });
     }
-    addSecondaryPropagation() {
 
-    const nodes =
-        this.nodes.filter(
-            n=>n.data.level>0
-        );
-
-    nodes.forEach(source=>{
-
-        if(
-            this.random()>
-            source.data.shareProbability
-        )
-            return;
-
-        const candidates=
-            nodes.filter(n=>
-
-                n.id!==source.id &&
-
-                Math.abs(
-                    n.data.level-
-                    source.data.level
-                )<=1
-
-            );
-
-        if(!candidates.length)
-            return;
-
-        const target=
-            candidates[
-                Math.floor(
-                    this.random()*
-                    candidates.length
-                )
-            ];
-
-        this.addEdge(
-            source,
-            target,
-            "reshare"
-        );
-
-    });
-
-}
-
-  /**
-   * Safely adds an edge.
-   */
-  addEdge(source, target, propagationType = "tree") {
+   createEdge(source, target, type) {
 
         if (!source || !target)
             return;
@@ -237,37 +269,35 @@ export default class EdgeGenerator {
             return;
 
         const key =
-            `${source.id}-${target.id}`;
+            [source.id, target.id]
+                .sort()
+                .join("-");
 
         if (this.edgeSet.has(key))
             return;
 
         this.edgeSet.add(key);
 
-        const influenceFactor =
-            (
-                source.data.influenceScore +
-                target.data.influenceScore
-            ) / 200;
+        const weight =
+            this.calculateWeight(
+                source,
+                target
+            );
 
-        const probability =
-            this.spreadProbability *
-            influenceFactor;
+        const delay =
+            this.calculateDelay(source);
 
-        const engagement =
-            (source.data.engagement.likes||0)+
-            (source.data.engagement.shares||0);
+        const colors = {
 
-            const weight=
+            tree: "#3b82f6",
 
-            (
-            probability*5+
+            cross: "#10b981",
 
-            source.data.influenceScore/25+
+            community: "#8b5cf6",
 
-            engagement/200
+            reshare: "#f59e0b"
 
-            ).toFixed(2);
+        };
 
         this.edges.push({
 
@@ -277,73 +307,94 @@ export default class EdgeGenerator {
 
             target: target.id,
 
-            type: EDGE_CONFIG.TYPE,
+            type: "smoothstep",
 
             animated:
-                propagationType !== "community",
-
-            style: {
-
-                strokeWidth: weight,
-
-                opacity:
-
-                Math.min(
-
-                1,
-
-                0.25+
-
-                weight/10
-
-                )
-
-            },
+                type === "tree" ||
+                type === "reshare",
 
             data: {
 
-                propagationType,
-
-                probability,
+                interaction: type,
 
                 weight,
 
-                delay:
-                Math.max(
-                5,
-                Math.round(
-                120-
-                source.data.influenceScore+
-                this.random()*20
-                )
+                delay
 
-                )
+            },
+
+            style: {
+
+                stroke:
+                    colors[type] ||
+                    "#94a3b8",
+
+                strokeWidth:
+                    weight,
+
+                opacity:
+                    type === "tree"
+                        ? 0.95
+                        : 0.70
 
             }
 
         });
 
+    } 
+
+    calculateWeight(source, target) {
+        const probability =
+            (
+                source.data.shareProbability +
+                target.data.shareProbability
+            ) / 2;
+
+        const influence =
+            (
+                source.data.influenceScore +
+                target.data.influenceScore
+            ) / 2;
+
+        const followers =
+            Math.min(
+                source.data.followers,
+                100000
+            ) / 100000;
+
+        return Number(
+            (
+                probability * 4 +
+                influence / 30 +
+                followers * 1.2
+            ).toFixed(2)
+        );
     }
 
-  /**
-   * Graph statistics.
-   */
-  getStatistics() {
-    return {
-      totalEdges: this.edges.length,
+    calculateDelay(source) {
+        const base =
+            randomFloat(
+                this.random,
+                15,
+                60
+            );
 
-      averageDegree:
-        this.nodes.reduce(
-          (sum, node) => sum + node.data.degree,
-          0
-        ) / this.nodes.length,
-    };
-  }
+        return Math.max(
+            5,
+            Math.round(
+                (
+                    base +
+                    source.data.level * 10
+                ) /
+                Math.max(
+                    source.data.shareProbability,
+                    0.1
+                )
+            )
+        );
+    }
 
-  /**
-   * Getter.
-   */
-  getEdges() {
-    return this.edges;
-  }
+    getEdges() {
+        return this.edges;
+    }
 }

@@ -2,336 +2,295 @@ import {
     NODE_TYPES,
     NODE_COLORS,
     DEFAULT_NODE_DATA,
-    GRAPH_LAYOUT,
     PLATFORMS
 } from "./constants";
 
 import {
-    uuid,
     createSeededRandom,
-    randomInt,
-    randomFloat,
-    randomChoice,
     generatePosition
 } from "./GraphUtils";
 
 export default class NodeGenerator {
-    constructor(blueprint) {
+    constructor(events, blueprint) {
+        this.events = events;
         this.blueprint = blueprint;
         this.nodes = [];
+
         this.random = createSeededRandom(
-            blueprint.metadata.seed || "misinfo"
+            blueprint.metadata.seed
         );
-        this.nodeIndex = 1;
     }
-
+    usernames = [
+        "news_today",
+        "viral_feed",
+        "world_report",
+        "daily_update",
+        "fact_watch",
+        "city_alert",
+        "breaking_news",
+        "citizen_voice",
+        "global_media",
+        "trend_now",
+        "headline_live",
+        "media_watch",
+        "public_voice",
+        "buzz_daily",
+        "truth_check",
+        "social_news",
+        "flash_report",
+        "local_updates",
+        "world_update",
+        "news_network"
+    ];
+    communityNames = [
+        "News Media",
+        "Public Discussion",
+        "Regional Community",
+        "Politics",
+        "Technology",
+        "Healthcare",
+        "Entertainment",
+        "Education"
+    ];
     generate() {
-        const claimNode = this.createClaimNode();
-
-        this.nodes.push(claimNode);
-
-        this.buildPropagationTree(
-            claimNode.id,
-            1,
-            this.blueprint.graph.depth
+        this.nodes = this.events.map(event =>
+            this.createNode(event)
         );
-
         return this.nodes;
     }
 
-    createClaimNode() {
+    createNode(event) {
         return {
-            id: uuid("claim"),
-            type: NODE_TYPES.CLAIM,
-            position: {
-                x: 0,
-                y: 0
-            },
+            id: event.id,
+            type: event.type,
+            position: this.calculatePosition(event),
             data: {
-                ...DEFAULT_NODE_DATA,
-                id: this.nodeIndex++,
-                label: "Original Claim",
-                nodeType: NODE_TYPES.CLAIM,
-                color: NODE_COLORS.claim,
-                followers: 0,
-                influenceScore: 100,
-                shareProbability: 1,
-                verified: false,
-                viral: true,
-                community: 0,
-                platform:
-                    this.blueprint.metadata.platform ||
-                    PLATFORMS.UNKNOWN,
-                parentId: null,
-                level: 0,
-                createdAt: this.generateTimestamp(0)
+                    ...DEFAULT_NODE_DATA,
+
+                    id: event.id,
+
+                    label: this.generateLabel(event),
+
+                    displayName:
+                        this.generateUsername(event.id),
+
+                    nodeType: event.type,
+
+                    color:
+                        this.resolveColor(event.type),
+
+                    followers:
+                        event.followers,
+
+                    formattedFollowers:
+                        this.formatFollowers(event.followers),
+
+                    influenceScore:
+                        event.influence,
+
+                    influencePercent:
+                        event.influence,
+
+                    shareProbability:
+                        this.calculateShareProbability(event),
+
+                    verified:
+                        this.isVerified(event),
+
+                    viral:
+                        event.type === NODE_TYPES.CLAIM,
+
+                    publisher:
+                        event.type === NODE_TYPES.CLAIM,
+
+                    community:
+                        this.communityNames[
+                            event.community %
+                            this.communityNames.length
+                        ],
+
+                    reach: 0,
+
+                    networkInfluence: 0,
+
+                    networkInfluencePercent: 0,
+
+                    pageRank: 0,
+
+                    pageRankScore: 0,
+
+                    inDegree: 0,
+
+                    outDegree: 0,
+
+                    degree: 0,
+
+                    weightedReach: 0,
+
+                    platform:
+                        this.blueprint.metadata.platform ||
+                        PLATFORMS.UNKNOWN,
+
+                    parentId:
+                        event.parentId,
+
+                    level:
+                        event.level,
+
+                    createdAt:
+                        this.generateTimestamp(event.level),
+
+                    isBot:
+                        event.isBot
             }
         };
     }
 
-    buildPropagationTree(parentId, level, maxDepth) {
-        if (
-            this.nodes.length >=
-            this.blueprint.graph.totalNodes
-        ) {
-            return;
-        }
-        if (level > maxDepth) return;
+    calculateTrust(event) {
 
-        const remaining =
-            this.blueprint.graph.totalNodes -
-            this.nodes.length;
+        if (event.isBot)
+            return 20;
 
-        const childCount = Math.min(
-            remaining,
-            this.calculateChildren(level)
+        if (event.type === NODE_TYPES.CLAIM)
+            return 70;
+
+        if (event.type === NODE_TYPES.INFLUENCER)
+            return 90;
+
+        return Math.min(
+            85,
+            40 +
+            Math.round(
+                event.influence / 2
+            )
         );
-
-        for (let i = 0; i < childCount; i++) {
-            const nodeType = this.resolveNodeType(level);
-
-            const node = this.createNode(
-                nodeType,
-                parentId,
-                level
-            );
-
-            this.nodes.push(node);
-
-            this.buildPropagationTree(
-                node.id,
-                level + 1,
-                maxDepth
-            );
-        }
     }
 
-    calculateChildren(level) {
-        const probability =
-            this.blueprint.propagation.spreadProbability;
-
-        const decay = Math.max(
-            1,
-            this.blueprint.graph.depth - level + 1
-        );
-
-        const maxChildren = Math.max(
-            1,
-            Math.round(probability * decay)
-        );
-
-        return randomInt(
+    calculatePosition(event) {
+        return generatePosition(
             this.random,
-            1,
-            maxChildren
+            event.level,
+            event.community,
+            this.blueprint.layout
         );
     }
 
-    resolveNodeType(level) {
-        if (level === 1) {
-            return NODE_TYPES.INFLUENCER;
+    generateLabel(event) {
+
+        switch (event.type) {
+
+            case NODE_TYPES.CLAIM:
+                return "Original Publisher";
+
+            case NODE_TYPES.INFLUENCER:
+                return "Verified Influencer";
+
+            case NODE_TYPES.BOT:
+                return "Bot Account";
+
+            default:
+                return "Social User";
         }
-
-        const botRatio =
-            this.blueprint.composition.botRatio;
-
-        if (
-            randomFloat(this.random, 0, 1) < botRatio
-        ) {
-            return NODE_TYPES.BOT;
-        }
-
-        return NODE_TYPES.USER;
     }
 
-    createNode(type, parentId, level) {
-        const position = generatePosition(
-            this.random,
-            level,
-            GRAPH_LAYOUT.LEVEL_GAP,
-            GRAPH_LAYOUT.NODE_GAP
+    calculateShareProbability(event) {
+
+        let probability =
+            this.blueprint.propagation
+                .spreadProbability;
+
+        probability +=
+            event.influence / 500;
+
+        probability +=
+            Math.min(
+                event.followers,
+                100000
+            ) / 500000;
+
+        if (event.isBot)
+            probability += 0.08;
+
+        return Number(
+            Math.min(
+                1,
+                probability
+            ).toFixed(2)
         );
-
-        return {
-            id: uuid(type),
-            type,
-            position,
-            data: {
-                ...DEFAULT_NODE_DATA,
-                id: this.nodeIndex++,
-                label: this.generateLabel(type),
-                nodeType: type,
-                color: this.resolveColor(type),
-                parentId,
-                level,
-                followers: this.generateFollowers(type),
-                influenceScore:
-                    this.generateInfluence(type),
-                shareProbability:
-                    this.generateShareProbability(type),
-                verified: this.isVerified(type),
-                viral: false,
-                community: this.generateCommunity(),
-                platform: randomChoice(
-                    this.random,
-                    this.platforms
-                ),
-                createdAt: this.generateTimestamp(level)
-            }
-        };
-    }
-    generateLabel(type) {
-      switch (type) {
-        case NODE_TYPES.INFLUENCER:
-          return `Influencer ${this.nodeIndex}`;
-
-        case NODE_TYPES.BOT:
-          return `Bot ${this.nodeIndex}`;
-
-        case NODE_TYPES.USER:
-          return `User ${this.nodeIndex}`;
-
-        default:
-          return `Node ${this.nodeIndex}`;
-      }
-    }
-
-    generateFollowers(type) {
-        switch (type) {
-            case NODE_TYPES.INFLUENCER:
-                return randomInt(
-                    this.random,
-                    50000,
-                    500000
-                );
-
-            case NODE_TYPES.BOT:
-                return randomInt(
-                    this.random,
-                    50,
-                    1000
-                );
-
-            default:
-                return randomInt(
-                    this.random,
-                    100,
-                    10000
-                );
-        }
-    }
-
-    generateInfluence(type) {
-        switch (type) {
-            case NODE_TYPES.INFLUENCER:
-                return Number(
-                  randomFloat(
-                        this.random,
-                        75,
-                        100
-                    ).toFixed(1)
-                );
-
-            case NODE_TYPES.BOT:
-              return Number(
-                  randomFloat(
-                      this.random,
-                      40,
-                      80
-                  ).toFixed(1)
-              );
-
-            default:
-                return Number(
-                    randomFloat(
-                        this.random,
-                        20,
-                        70
-                    ).toFixed(1)
-                );
-        }
-    }
-
-    generateShareProbability(type) {
-        const base =
-            this.blueprint.propagation.spreadProbability;
-        let value;
-
-        switch (type) {
-            case NODE_TYPES.INFLUENCER:
-                return Number(
-                    Math.min(
-                        1,
-                        value
-                    ).toFixed(2)
-                );
-
-            case NODE_TYPES.BOT:
-                return Number(
-                    Math.min(
-                        1,
-                        value
-                    ).toFixed(2)
-                );
-
-            default:
-                return Number(
-                    Math.min(
-                        1,
-                        value
-                    ).toFixed(2)
-                );
-        }
     }
 
     resolveColor(type) {
         switch (type) {
             case NODE_TYPES.CLAIM:
                 return NODE_COLORS.claim;
-
             case NODE_TYPES.INFLUENCER:
                 return NODE_COLORS.influencer;
-
             case NODE_TYPES.BOT:
                 return NODE_COLORS.bot;
-
             default:
                 return NODE_COLORS.user;
         }
     }
 
-    isVerified(type) {
-        if (type !== NODE_TYPES.INFLUENCER)
-            return false;
-
+    isVerified(event) {
         return (
-            randomFloat(this.random, 0, 1) < 0.35
-        );
-    }
-
-    generateCommunity() {
-        return randomInt(
-            this.random,
-            1,
-            6
+            event.type === NODE_TYPES.INFLUENCER &&
+            event.followers >= 100000 &&
+            event.influence >= 70
         );
     }
 
     generateTimestamp(level) {
-        const start = Date.now();
-
-        const delay =
-            level *
-            randomInt(
-                this.random,
-                10,
-                120
-            ) *
-            1000;
-
         return new Date(
-            start + delay
+            Date.now() + level * 60000
         ).toISOString();
+    }
+
+    generateUsername(id) {
+
+        const base =
+            this.usernames[
+                Number(
+                    id.split("-")[1]
+                ) % this.usernames.length
+            ];
+
+        const suffixes = [
+            "",
+            "_official",
+            "_news",
+            "_live",
+            "_tv",
+            "_media",
+            "_network",
+            "_24",
+            "_global",
+            "_india"
+        ];
+
+        const suffix =
+            suffixes[
+                Number(
+                    id.split("-")[1]
+                ) % suffixes.length
+            ];
+
+        return `@${base}${suffix}`;
+    }
+
+    formatFollowers(value) {
+
+        if (value >= 1000000)
+            return (
+                value / 1000000
+            ).toFixed(1) + "M";
+
+        if (value >= 1000)
+            return (
+                value / 1000
+            ).toFixed(1) + "K";
+
+        return value.toString();
     }
 
     getNodes() {

@@ -1,114 +1,117 @@
 .graph-node {
-  min-width: 210px;
-  border-radius: 14px;
-  padding: 12px;
-  border: 2px solid transparent;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
-  transition: all 0.25s ease;
-  font-family: "Inter", sans-serif;
+    width: 250px;
+    background: #ffffff;
+    border-radius: 14px;
+    border-left: 6px solid #6366f1;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    transition: all 0.25s ease;
+    overflow: hidden;
+    font-family: Inter, sans-serif;
 }
 
 .graph-node:hover {
-  transform: translateY(-4px) scale(1.03);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+    transform: translateY(-4px);
+    box-shadow: 0 14px 34px rgba(0,0,0,0.28);
+}
+
+.graph-node.claim,
+.graph-node.origin {
+    border-left-color: #dc2626;
+}
+
+.graph-node.influencer {
+    border-left-color: #eab308;
+}
+
+.graph-node.user {
+    border-left-color: #2563eb;
+}
+
+.graph-node.bot {
+    border-left-color: #7f1d1d;
 }
 
 .graph-node-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 14px 16px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.graph-title {
+    display: flex;
+    gap: 10px;
+    align-items: center;
 }
 
 .graph-node-icon {
-  font-size: 20px;
+    font-size: 22px;
 }
 
 .graph-node-title {
-  flex: 1;
-  margin-left: 8px;
-  font-weight: 700;
-  font-size: 14px;
-  color: #1f2937;
+    font-size: 15px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.graph-node-subtitle {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 2px;
 }
 
 .verified {
-  color: #2563eb;
-  font-size: 15px;
+    color: #2563eb;
+    font-size: 16px;
+    font-weight: bold;
 }
 
 .graph-node-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+    padding: 14px 16px;
 }
 
-.graph-node-body div {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.metric {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 13px;
 }
 
-.graph-node-body strong {
-  color: #6b7280;
-  font-size: 11px;
-  font-weight: 600;
+.metric:last-child {
+    margin-bottom: 0;
 }
 
-.graph-node-body span {
-  color: #111827;
-  font-size: 12px;
-  font-weight: 600;
+.metric span {
+    color: #6b7280;
 }
 
-/* Origin */
-.graph-node.origin {
-  border-color: #ef4444;
-  background: linear-gradient(
-    135deg,
-    #fee2e2,
-    #ffffff
-  );
+.metric strong {
+    color: #111827;
+    font-weight: 700;
 }
 
-/* Influencer */
-.graph-node.influencer {
-  border-color: #f59e0b;
-  background: linear-gradient(
-    135deg,
-    #fef3c7,
-    #ffffff
-  );
+.verified-node {
+    box-shadow: 0 0 0 2px rgba(37,99,235,.15),
+                0 10px 24px rgba(37,99,235,.18);
 }
 
-/* User */
-.graph-node.user {
-  border-color: #2563eb;
-  background: linear-gradient(
-    135deg,
-    #dbeafe,
-    #ffffff
-  );
+.bot-node {
+    opacity: .92;
+}
+.graph-node-heading{
+    display:flex;
+    flex-direction:column;
 }
 
-/* Bot */
-.graph-node.bot {
-  border-color: #6b7280;
-  background: linear-gradient(
-    135deg,
-    #e5e7eb,
-    #ffffff
-  );
+.graph-node-title{
+    font-size:13px;
+    font-weight:700;
+    color:#111827;
 }
 
-/* Media */
-.graph-node.media {
-  border-color: #10b981;
-  background: linear-gradient(
-    135deg,
-    #d1fae5,
-    #ffffff
-  );
+.graph-node-subtitle{
+    font-size:11px;
+    color:#6b7280;
+    margin-top:2px;
 }
