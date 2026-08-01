@@ -11,7 +11,6 @@ import {
 import Charts from "../components/dashboard/Charts";
 import StatCard from "../components/dashboard/StatCard";
 import RecentActivity from "../components/dashboard/RecentActivity";
-import QuickActions from "../components/dashboard/QuickActions";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 
 import { getCurrentUser } from "../api/authApi";
@@ -171,9 +170,6 @@ export default function Dashboard() {
 
       {/* Recent Activity */}
       <RecentActivity activities={dashboard.recentActivity} />
-
-      {/* Quick Actions */}
-      <QuickActions />
     </div>
   );
 }

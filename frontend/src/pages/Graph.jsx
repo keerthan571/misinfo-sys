@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState ,useMemo} from "react";
 import { useLocation, Navigate } from "react-router-dom";
 import ReactFlow, {
   Background,
@@ -86,9 +86,12 @@ export default function Graph() {
 
 }, [analysis]);
 
-  const nodeTypes = {
-    custom: GraphNode,
-  };
+  const nodeTypes = useMemo(
+    () => ({
+        custom: GraphNode,
+    }),
+    []
+  );
   
   if (!analysis) {
     return <Navigate to="/analyze" replace />;
@@ -191,6 +194,7 @@ export default function Graph() {
           nodeTypes={nodeTypes}
           fitView
           onNodeClick={(_, node) => {
+              console.log("CLICKED", node);
               setSelectedNode(node.data);
           }}
         >
