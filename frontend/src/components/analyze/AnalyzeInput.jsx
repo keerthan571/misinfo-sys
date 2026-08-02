@@ -8,13 +8,15 @@ export default function AnalyzeInput({
   setImage,
   loading,
   onAnalyze,
+  platform,
+  setPlatform,
 }) {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrConfidence, setOcrConfidence] = useState(null);
   const [ocrError, setOcrError] = useState("");
   const [ocrSuccess, setOcrSuccess] = useState("");
 
-  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+  const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
   const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
@@ -25,13 +27,11 @@ export default function AnalyzeInput({
     setOcrSuccess("");
     setOcrConfidence(null);
 
-    // Validate image
     if (!file.type.startsWith("image/")) {
       setOcrError("Please upload a valid image.");
       return;
     }
 
-    // Validate size
     if (file.size > MAX_FILE_SIZE) {
       setOcrError("Image size must be less than 5 MB.");
       return;
@@ -55,10 +55,7 @@ export default function AnalyzeInput({
         }
       );
 
-      if (
-        data.status === "success" &&
-        data.extracted_text
-      ) {
+      if (data.status === "success" && data.extracted_text) {
         setNews(data.extracted_text);
         setOcrConfidence(data.confidence ?? 0);
         setOcrSuccess("OCR completed successfully.");
@@ -66,8 +63,6 @@ export default function AnalyzeInput({
         setOcrError("No readable text found in the image.");
       }
     } catch (err) {
-      console.error(err);
-
       setOcrError(
         err.response?.data?.detail ||
         err.response?.data?.message ||
@@ -77,13 +72,14 @@ export default function AnalyzeInput({
       setOcrLoading(false);
     }
   };
-    return (
+
+  return (
     <div className="bg-slate-800 rounded-2xl p-6 shadow-lg">
+
       <h2 className="text-2xl font-bold text-white mb-6">
         Analyze News
       </h2>
 
-      {/* OCR Editable Text */}
       <div>
         <label className="text-white font-semibold">
           News Text / OCR Edited Text
@@ -92,24 +88,18 @@ export default function AnalyzeInput({
         <textarea
           rows={10}
           value={news}
-          onChange={(e) => setNews(e.target.value)}
+          onChange={(e)=>setNews(e.target.value)}
           placeholder="OCR text will appear here. You can edit it before analysis..."
           className="w-full mt-3 bg-slate-900 rounded-xl p-4 text-white outline-none resize-none"
         />
       </div>
 
-      {/* Divider */}
       <div className="flex items-center my-6">
         <div className="flex-1 border-t border-slate-600"></div>
-
-        <span className="px-4 text-gray-400 text-sm">
-          OR
-        </span>
-
+        <span className="px-4 text-gray-400 text-sm">OR</span>
         <div className="flex-1 border-t border-slate-600"></div>
       </div>
 
-      {/* Image Upload */}
       <div>
         <label className="text-white font-semibold">
           Upload News Screenshot
@@ -138,7 +128,7 @@ export default function AnalyzeInput({
 
         {ocrLoading && (
           <div className="mt-4 bg-yellow-900/30 border border-yellow-500 rounded-lg p-3">
-            <p className="text-yellow-300 font-medium">
+            <p className="text-yellow-300">
               ⏳ Extracting text from image...
             </p>
           </div>
@@ -149,7 +139,6 @@ export default function AnalyzeInput({
             <p className="text-green-400 font-semibold">
               ✅ {ocrSuccess}
             </p>
-
             <p className="text-green-300 text-sm mt-1">
               OCR Confidence: {ocrConfidence}%
             </p>
@@ -165,13 +154,46 @@ export default function AnalyzeInput({
         )}
       </div>
 
+      <div className="mt-6">
+        <label className="text-white font-semibold">
+          Select Platform
+        </label>
+
+        <select
+          value={platform}
+          onChange={(e)=>setPlatform(e.target.value)}
+          className="w-full mt-3 bg-slate-900 text-white rounded-xl p-3 outline-none border border-slate-600"
+        >
+          <option value="">
+            Select Platform
+          </option>
+
+          <option value="Instagram">
+            Instagram
+          </option>
+
+          <option value="Facebook">
+            Facebook
+          </option>
+
+          <option value="Twitter">
+            Twitter / X
+          </option>
+
+          <option value="YouTube">
+            YouTube
+          </option>
+        </select>
+      </div>
+
       <button
         onClick={onAnalyze}
         disabled={loading || ocrLoading}
-        className="mt-8 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed py-3 rounded-xl font-bold text-white transition-colors duration-200"
+        className="mt-8 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed py-3 rounded-xl font-bold text-white"
       >
         {loading ? "Analyzing..." : "Analyze"}
       </button>
+
     </div>
   );
 }

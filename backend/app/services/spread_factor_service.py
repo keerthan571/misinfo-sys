@@ -447,47 +447,69 @@ class SpreadFactorService:
 
         # Spread score
 
-
         spread_score = 0
 
 
+        platform_name = str(platform).lower()
 
+
+        # When views are available
+        if views > 0:
+
+            spread_score += min(
+                share_ratio * 5,
+                40
+            )
+
+            spread_score += min(
+                engagement_rate * 2,
+                30
+            )
+
+            spread_score += min(
+                comment_ratio * 5,
+                15
+            )
+
+
+        # When views are NOT available
+        else:
+
+            total_engagement = (
+                likes +
+                comments +
+                shares +
+                bookmarks
+            )
+
+
+            # Instagram / Facebook / TikTok
+            if (
+                "instagram" in platform_name
+                or "facebook" in platform_name
+                or "tiktok" in platform_name
+            ):
+
+                spread_score += min(
+                    total_engagement / 100,
+                    50
+                )
+
+
+            # Twitter/X
+            elif "twitter" in platform_name or "x" in platform_name:
+
+                spread_score += min(
+                    (likes + shares + comments) / 100,
+                    50
+                )
+
+
+
+        # Saves / bookmarks increase spread
         spread_score += min(
-
-            share_ratio * 5,
-
-            40
-
-        )
-
-
-
-        spread_score += min(
-
-            engagement_rate * 2,
-
-            30
-
-        )
-
-
-
-        spread_score += min(
-
-            comment_ratio * 5,
-
-            15
-
-        )
-
-
-
-        spread_score += min(
-
             bookmarks / 10,
-
             15
-
         )
 
 

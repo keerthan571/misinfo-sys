@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../api/apiClient";
-
 import { useAnalysis } from "../context/AnalysisContext";
 
 import AnalyzeInput from "../components/analyze/AnalyzeInput";
@@ -10,36 +9,40 @@ import FactVerificationCard from "../components/analyze/FactVerificationCard";
 import PlatformCard from "../components/analyze/PlatformCard";
 
 export default function Analyze() {
+
   const { analysisData, setAnalysisData } = useAnalysis();
 
   const [news, setNews] = useState(analysisData?.news || "");
   const [image, setImage] = useState(null);
-
-  const [imagePreview, setImagePreview] = useState(
-    analysisData?.imagePreview || null
-  );
-
-  const [result, setResult] = useState(
-    analysisData?.result || null
-  );
-
+  const [platform, setPlatform] = useState("");
+  const [imagePreview, setImagePreview] = useState(analysisData?.imagePreview || null);
+  const [result, setResult] = useState(analysisData?.result || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
 
   const handleAnalyze = async () => {
+
     if (!news.trim() && !image) {
       setError("Please enter news text or upload an image.");
       return;
     }
 
+    if (!platform) {
+      setError("Please select the platform.");
+      return;
+    }
+
     try {
+
       setLoading(true);
       setError("");
       setResult(null);
 
       const formData = new FormData();
+
+      formData.append("platform", platform);
 
       if (news.trim()) {
         formData.append("text", news);
@@ -63,8 +66,7 @@ export default function Analyze() {
 
       let preview = null;
 
-      const savedImage =
-        response.data?.analysis?.image?.path;
+      const savedImage = response.data?.analysis?.image?.path;
 
       if (savedImage) {
         preview = `http://127.0.0.1:8000/${savedImage.replace("\\", "/")}`;
@@ -74,7 +76,8 @@ export default function Analyze() {
       setAnalysisData({
         result: response.data,
         imagePreview: preview,
-        news: news,
+        news,
+        platform,
       });
 
       if (
@@ -85,7 +88,9 @@ export default function Analyze() {
           response.data.analysis.ocr.extracted_text
         );
       }
+
     } catch (err) {
+
       console.error(err);
 
       setError(
@@ -93,14 +98,21 @@ export default function Analyze() {
         err.response?.data?.message ||
         "Analysis failed."
       );
+
     } finally {
+
       setLoading(false);
+
     }
   };
+
+
   const prediction =
     result?.analysis?.final_result?.label || "";
 
+
   const predictionColor = () => {
+
     const label = prediction.toLowerCase();
 
     if (
@@ -127,19 +139,24 @@ export default function Analyze() {
     return "text-blue-400";
   };
 
+
   return (
+
     <div className="space-y-8">
+
       <div>
+
         <h1 className="text-4xl font-bold text-white">
           Analyze News
         </h1>
 
         <p className="text-gray-400 mt-2">
           Upload news images or enter text. OCR extraction,
-          misinformation detection and verification happen
-          automatically.
+          misinformation detection and verification happen automatically.
         </p>
+
       </div>
+
 
       <AnalyzeInput
         news={news}
@@ -148,16 +165,24 @@ export default function Analyze() {
         setImage={setImage}
         loading={loading}
         onAnalyze={handleAnalyze}
+        platform={platform}
+        setPlatform={setPlatform}
       />
 
+
       {error && (
+
         <div className="bg-red-500 p-4 rounded-xl text-white">
           {error}
         </div>
+
       )}
 
+
       {imagePreview && (
+
         <div className="bg-slate-800 rounded-2xl p-6">
+
           <h2 className="text-2xl font-bold text-white mb-4">
             🖼 Uploaded Image
           </h2>
@@ -167,19 +192,26 @@ export default function Analyze() {
             alt="Uploaded"
             className="rounded-xl max-h-96 mx-auto"
           />
+
         </div>
+
       )}
 
+
       {result?.analysis && (
+
         <div className="space-y-6">
-          {/* Final Analysis */}
+
           <div className="bg-slate-800 rounded-2xl shadow-lg p-6">
+
             <h2 className="text-3xl font-bold text-white mb-6">
               🧠 Final Analysis Result
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
               <div className="bg-slate-900 rounded-xl p-5">
+
                 <p className="text-gray-400 text-sm mb-2">
                   Prediction
                 </p>
@@ -187,9 +219,12 @@ export default function Analyze() {
                 <p className={`text-lg font-bold ${predictionColor()}`}>
                   {result.analysis.final_result?.label}
                 </p>
+
               </div>
 
+
               <div className="bg-slate-900 rounded-xl p-5">
+
                 <p className="text-gray-400 text-sm mb-2">
                   Confidence
                 </p>
@@ -197,9 +232,12 @@ export default function Analyze() {
                 <p className="text-lg font-bold text-green-400">
                   {result.analysis.final_result?.confidence}%
                 </p>
+
               </div>
 
+
               <div className="bg-slate-900 rounded-xl p-5">
+
                 <p className="text-gray-400 text-sm mb-2">
                   Risk Level
                 </p>
@@ -207,10 +245,14 @@ export default function Analyze() {
                 <p className="text-lg font-bold text-yellow-400">
                   {result.analysis.final_result?.risk_level}
                 </p>
+
               </div>
+
             </div>
 
+
             <div className="border-t border-slate-700 pt-5">
+
               <h3 className="text-lg font-semibold text-white mb-2">
                 Summary
               </h3>
@@ -218,11 +260,14 @@ export default function Analyze() {
               <p className="text-gray-300 leading-7">
                 {result.analysis.final_result?.summary}
               </p>
+
             </div>
+
           </div>
 
-          {/* NLP + Fact Verification */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
             <DetectionCard
               data={result.analysis.detection}
             />
@@ -230,17 +275,16 @@ export default function Analyze() {
             <FactVerificationCard
               data={result.analysis.fact_verification}
             />
-          </div>
 
-          {/* Platform Detection */}
-          <div className="mt-6">
             <PlatformCard
               data={result.analysis.platform}
             />
+
           </div>
 
-          {/* Prediction Button */}
+
           <div className="flex justify-center">
+
             <button
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-xl shadow-lg"
               onClick={() =>
@@ -248,19 +292,31 @@ export default function Analyze() {
                   state: {
                     prediction:
                       result.analysis.prediction,
+
                     spread:
                       result.analysis.spread_analysis,
-                    engagement:
-                      result.analysis.engagement,
+
+                    engagement: {
+                      ...result.analysis.engagement,
+                      platform:
+                        result.analysis.platform?.platform ||
+                        platform,
+                    },
                   },
                 })
               }
             >
               🚀 View Spread Prediction
             </button>
+
           </div>
+
+
         </div>
+
       )}
+
     </div>
+
   );
 }

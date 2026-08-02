@@ -15,6 +15,7 @@ router = APIRouter()
 @router.post("/")
 async def analyze(
     text: str = Form(None),
+    platform: str = Form(None),
     image: UploadFile = File(None),
     current_user=Depends(get_current_user),
 ):
@@ -24,5 +25,6 @@ async def analyze(
     return await analysis_pipeline.run(
         text=text,
         image=image,
+        platform=platform,
         current_user=current_user,
-    )
+)

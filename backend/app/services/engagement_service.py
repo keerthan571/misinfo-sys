@@ -8,7 +8,7 @@ class EngagementService:
         self.platform_keywords = {
 
             "Instagram": {
-                "likes": ["likes", "liked by"],
+                "likes": ["likes"],
                 "comments": ["comments", "comment"],
                 "shares": ["shares", "share"],
                 "saves": ["saves", "saved", "bookmark"]
@@ -145,27 +145,22 @@ class EngagementService:
 
         for keyword in keywords:
 
-
             patterns = [
 
-                # 12K likes
-                r'(\d+(?:\.\d+)?)\s*(k|m)?\s*' + keyword,
-
+                # 12K likes / 1,245 likes / 123 likes
+                r'(\d+(?:,\d+)*(?:\.\d+)?)\s*(k|m)?\s*' + keyword,
 
                 # likes: 12K
                 keyword +
-                r'\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*(k|m)?',
-
+                r'\s*[:\-]?\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(k|m)?',
 
                 # liked by 12K
-                r'liked\s*by\s*(\d+(?:\.\d+)?)\s*(k|m)?'
+                r'liked\s*by\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(k|m)?'
 
             ]
 
 
-
             for pattern in patterns:
-
 
                 match = re.search(
                     pattern,
@@ -173,41 +168,31 @@ class EngagementService:
                     re.IGNORECASE
                 )
 
-
                 if match:
-
 
                     number = None
                     suffix = None
 
-
                     for group in match.groups():
 
-
                         if group and re.match(
-                            r"^\d+(\.\d+)?$",
+                            r"^[\d,]+(\.\d+)?$",
                             group
                         ):
-
-                            number = group
-
+                            number = group.replace(",", "")
 
                         elif group and group.lower() in [
                             "k",
                             "m"
                         ]:
-
                             suffix = group
 
 
-
                     if number:
-
                         return self.convert_number(
                             number,
                             suffix
                         )
-
 
         return 0
 

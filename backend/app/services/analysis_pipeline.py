@@ -161,11 +161,20 @@ class AnalysisPipeline:
 
 
         return final_text, extracted_text
-    def _detect_platform(self,final_text,extracted_text,response):
+    def _detect_platform(self,final_text,extracted_text,response,selected_platform=None):
         platform_text=final_text
         if extracted_text:
             platform_text+=" "+extracted_text
-        response["platform"]=platform_detector.detect_platform(platform_text)
+        if selected_platform:
+            response["platform"] = {
+                "platform": selected_platform,
+                "confidence": 100,
+                "matched_signals": ["User Selected Platform"],
+                "engagement_supported": [],
+                "all_scores": {}
+            }
+        else:
+            response["platform"] = platform_detector.detect_platform(platform_text)
     def _run_nlp(self,final_text,response):
         if not final_text.strip():
             return
@@ -200,7 +209,7 @@ class AnalysisPipeline:
             "confidence":self.safe_confidence(fact_result.get("confidence",0)),
             "sources":fact_result.get("sources",[])
         }
-    async def run(self,text,image,current_user):
+    async def run(self,text,image,platform,current_user):
         start_time=time.time()
         response,analysis_id,analysis_time=self._initialize_response()
         image_path = await self._save_uploaded_image(
@@ -213,7 +222,7 @@ class AnalysisPipeline:
         }
         final_text=text or ""
         final_text,extracted_text=await self._run_ocr(image,final_text,response)
-        self._detect_platform(final_text,extracted_text,response)
+        self._detect_platform(final_text,extracted_text,response,platform)
         self._run_nlp(final_text,response)
         self._verify_fact(final_text,response)
         self._analyze_engagement(final_text,response)
@@ -223,7 +232,10 @@ class AnalysisPipeline:
         return self._build_response(response,analysis_id,analysis_time,processing_time)
         
     def _analyze_engagement(self,final_text,response):
-        engagement_data=engagement_service.extract_engagement(final_text)
+        engagement_data = engagement_service.extract_engagement(
+            final_text,
+            response["platform"].get("platform")
+        )
         response["engagement"]=engagement_data
         response["spread_analysis"]=spread_factor_service.analyze(
             engagement_data,
