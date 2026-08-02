@@ -13,6 +13,7 @@ export default function Analyze() {
   const [news, setNews] = useState(analysisData?.news || "");
   const [image, setImage] = useState(null);
   const [platform, setPlatform] = useState("");
+  const [followers, setFollowers] = useState("");
   const [imagePreview, setImagePreview] = useState(analysisData?.imagePreview || null);
   const [result, setResult] = useState(analysisData?.result || null);
   const [loading, setLoading] = useState(false);
@@ -39,7 +40,12 @@ export default function Analyze() {
       const formData = new FormData();
 
       formData.append("platform", platform);
-
+      if (platform === "Instagram" && followers) {
+        formData.append(
+          "followers",
+          followers
+        );
+      }
       if (news.trim()) {
         formData.append("text", news);
       }
@@ -74,6 +80,7 @@ export default function Analyze() {
         imagePreview: preview,
         news,
         platform,
+        followers,
       });
 
       if (
@@ -146,6 +153,8 @@ export default function Analyze() {
         onAnalyze={handleAnalyze}
         platform={platform}
         setPlatform={setPlatform}
+        followers={followers}
+        setFollowers={setFollowers}
       />
 
       {error && (

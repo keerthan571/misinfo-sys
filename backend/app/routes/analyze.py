@@ -16,6 +16,7 @@ router = APIRouter()
 async def analyze(
     text: str = Form(None),
     platform: str = Form(None),
+    followers: int = Form(0),
     image: UploadFile = File(None),
     current_user=Depends(get_current_user),
 ):
@@ -27,4 +28,5 @@ async def analyze(
         image=image,
         platform=platform,
         current_user=current_user,
-)
+        followers=followers,
+    )

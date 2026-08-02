@@ -4,37 +4,11 @@ class EngagementService:
 
     def __init__(self):
         self.keywords={
-            "likes":[
-                "likes",
-                "like",
-                "reactions",
-                "reaction"
-            ],
-            "comments":[
-                "comments",
-                "comment",
-                "replies",
-                "reply"
-            ],
-            "shares":[
-                "shares",
-                "share",
-                "reposts",
-                "repost",
-                "retweets",
-                "retweet"
-            ],
-            "views":[
-                "views",
-                "view"
-            ],
-            "bookmarks":[
-                "saves",
-                "save",
-                "saved",
-                "bookmarks",
-                "bookmark"
-            ]
+            "likes":["likes","like","reactions","reaction"],
+            "comments":["comments","comment","replies","reply"],
+            "shares":["shares","share","sent","send","retweets","retweet"],
+            "views":["views","view"],
+            "bookmarks":["saves","save","saved","bookmarks","bookmark"]
         }
 
     def extract_engagement(self,text,platform="Unknown"):
@@ -42,10 +16,11 @@ class EngagementService:
         result={
             "likes":0,
             "shares":0,
+            "reposts":0,
             "comments":0,
             "views":0,
             "bookmarks":0,
-            "followers":0,
+            "followers":None,
             "platform":platform,
             "metrics":[]
         }
@@ -61,36 +36,46 @@ class EngagementService:
 
         result["platform"]=platform
 
-        for metric,words in self.keywords.items():
+        if platform=="Instagram":
 
-            value=self.find_metric(
-                text,
-                words
-            )
-
-            if value>0:
-
-                result[metric]=value
-
-        if all(
-            result[x]==0
-            for x in [
-                "likes",
-                "shares",
-                "comments",
-                "views",
-                "bookmarks"
-            ]
-        ):
             self.extract_numbers(
                 text,
                 result,
                 platform
             )
 
+        else:
+
+            for metric,words in self.keywords.items():
+
+                value=self.find_metric(
+                    text,
+                    words
+                )
+
+                if value>0:
+                    result[metric]=value
+
+            if all(
+                result[x]==0
+                for x in [
+                    "likes",
+                    "shares",
+                    "comments",
+                    "views",
+                    "bookmarks"
+                ]
+            ):
+                self.extract_numbers(
+                    text,
+                    result,
+                    platform
+                )
+
         for key in [
             "likes",
             "comments",
+            "reposts",
             "shares",
             "views",
             "bookmarks"
@@ -99,6 +84,9 @@ class EngagementService:
             if result[key]>0:
 
                 label=key.title()
+
+                if key=="reposts":
+                    label="Reposts"
 
                 if platform=="Twitter" and key=="shares":
                     label="Reposts"
@@ -124,32 +112,38 @@ class EngagementService:
 
         for number in numbers:
 
-            value=self.parse_number(number)
+            value=self.parse_number(
+                number
+            )
 
             if value>0:
                 values.append(value)
 
-
         if not values:
             return
 
-
         if platform=="Instagram":
 
-            values=values[-4:]
-
-            if len(values)>=4:
+            if len(values)>=5:
 
                 result["likes"]=values[0]
                 result["comments"]=values[1]
-                result["shares"]=values[2]
-                result["bookmarks"]=values[3]
+                result["reposts"]=values[2]
+                result["shares"]=values[3]
+                result["bookmarks"]=values[4]
 
-            elif len(values)>=3:
+            elif len(values)==4:
 
                 result["likes"]=values[0]
                 result["comments"]=values[1]
-                result["shares"]=values[2]
+                result["reposts"]=values[2]
+                result["shares"]=values[3]
+
+            elif len(values)==3:
+
+                result["likes"]=values[0]
+                result["comments"]=values[1]
+                result["reposts"]=values[2]
 
 
         elif platform=="Facebook":
@@ -207,7 +201,6 @@ class EngagementService:
                 )
 
                 if match:
-
                     return self.parse_number(
                         match.group(1)
                     )
@@ -229,7 +222,6 @@ class EngagementService:
             suffix=value[-1].lower()
             value=value[:-1]
 
-
         number=float(value)
 
         if suffix=="k":
@@ -237,7 +229,6 @@ class EngagementService:
 
         elif suffix=="m":
             number*=1000000
-
 
         return int(number)
 

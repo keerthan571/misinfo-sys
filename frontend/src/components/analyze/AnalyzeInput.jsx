@@ -10,6 +10,8 @@ export default function AnalyzeInput({
   onAnalyze,
   platform,
   setPlatform,
+  followers,
+  setFollowers,
 }) {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrConfidence, setOcrConfidence] = useState(null);
@@ -162,7 +164,14 @@ export default function AnalyzeInput({
 
         <select
           value={platform}
-          onChange={(e) => setPlatform(e.target.value)}
+          onChange={(e) => {
+            const value = e.target.value;
+            setPlatform(value);
+
+            if (value !== "Instagram") {
+              setFollowers("");
+            }
+          }}
           className="w-full mt-3 bg-slate-900 text-white rounded-xl p-3 outline-none border border-slate-600"
         >
           <option value="">
@@ -181,6 +190,25 @@ export default function AnalyzeInput({
             Twitter / X
           </option>
         </select>
+        {platform === "Instagram" && (
+          <div className="mt-5">
+            <label className="text-white font-semibold">
+              Instagram Account Followers (Optional)
+            </label>
+
+            <input
+              type="number"
+              value={followers}
+              onChange={(e) => setFollowers(e.target.value)}
+              placeholder="Enter account followers count"
+              className="w-full mt-3 bg-slate-900 text-white rounded-xl p-3 outline-none border border-slate-600"
+            />
+
+            <p className="text-gray-400 text-sm mt-2">
+              Used only for Instagram spread prediction.
+            </p>
+          </div>
+        )}
       </div>
 
       <button

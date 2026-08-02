@@ -12,7 +12,14 @@ from app.database.mongodb import analysis_collection
 
 class AnalysisPipeline:
 
-    async def run(self,text,image,platform,current_user):
+    async def run(
+    self,
+    text,
+    image,
+    platform,
+    current_user,
+    followers=0
+):
 
         start=time.time()
 
@@ -74,6 +81,9 @@ class AnalysisPipeline:
             engagement_text,
             platform
         )
+        
+        if platform=="Instagram":
+            engagement["followers"]=followers
 
         print("========== FINAL ENGAGEMENT ==========")
         print(engagement)

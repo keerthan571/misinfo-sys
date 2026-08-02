@@ -5,13 +5,16 @@ from PIL import Image,ImageEnhance,ImageFilter
 
 pytesseract.pytesseract.tesseract_cmd=r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
+
 class OCRService:
 
     def __init__(self):
+
         self.metric_patterns=[
             r"(\d+(?:\.\d+)?[kKmM]?)\s*(likes?|reactions?|comments?|replies?|shares?|reposts?|retweets?|views?|saves?|bookmarks?)",
             r"(likes?|reactions?|comments?|replies?|shares?|reposts?|retweets?|views?|saves?|bookmarks?)\s*[:\-]?\s*(\d+(?:\.\d+)?[kKmM]?)"
         ]
+
 
     def clean_text(self,text):
 
@@ -51,6 +54,7 @@ class OCRService:
 
         return "\n".join(lines).strip()
 
+
     def preprocess_image(self,image):
 
         image=image.convert("L")
@@ -72,12 +76,61 @@ class OCRService:
 
         return image
 
-    def extract_numbers(self,text):
 
-        return re.findall(
-            r"\d+(?:,\d+)*(?:\.\d+)?\s*[kKmM]?",
-            text
+    def crop_engagement_area(self,image):
+
+        width,height=image.size
+
+        return image.crop(
+            (
+                0,
+                int(height*0.85),
+                width,
+                height
+            )
         )
+
+
+    def extract_engagement_order(self,image):
+
+        data=pytesseract.image_to_data(
+            image,
+            config="--psm 6",
+            output_type=pytesseract.Output.DICT
+        )
+
+        numbers=[]
+
+        for i,text in enumerate(data["text"]):
+
+            value=re.sub(
+                r"[^\d.kKmM]",
+                "",
+                text
+            )
+
+            if value and re.search(r"\d",value):
+
+                numbers.append(
+                    {
+                        "x":data["left"][i],
+                        "value":value
+                    }
+                )
+
+        numbers.sort(
+            key=lambda x:x["x"]
+        )
+
+        values=[
+            item["value"]
+            for item in numbers
+        ]
+
+        print("ORDER VALUES:",values)
+
+        return values
+
 
     def extract_engagement_text(self,text):
 
@@ -97,6 +150,7 @@ class OCRService:
                     line,
                     re.IGNORECASE
                 ):
+
                     engagement.append(line)
                     found=True
                     break
@@ -104,18 +158,11 @@ class OCRService:
             if not found:
                 content.append(line)
 
-        numbers=self.extract_numbers(text)
-
-        if not engagement and len(numbers)>=3:
-
-            engagement.append(
-                " ".join(numbers[-5:])
-            )
-
         return (
             "\n".join(content).strip(),
             "\n".join(engagement).strip()
         )
+
 
     def calculate_confidence(self,image):
 
@@ -143,6 +190,7 @@ class OCRService:
 
             return 0
 
+
     def extract_text_from_image(self,image_bytes):
 
         if not image_bytes:
@@ -158,9 +206,23 @@ class OCRService:
                 io.BytesIO(image_bytes)
             )
 
+
+            engagement_image=self.crop_engagement_area(
+                image
+            )
+
+
             image=self.preprocess_image(
                 image
             )
+
+            engagement_image=self.preprocess_image(
+                engagement_image
+            )
+            engagement_image=ImageEnhance.Contrast(
+                engagement_image
+            ).enhance(3)
+
 
             outputs=[]
 
@@ -176,36 +238,46 @@ class OCRService:
                         config=config
                     )
                 )
-
             raw_text="\n".join(outputs)
 
+            engagement_raw=pytesseract.image_to_string(
+                engagement_image,
+                config="--psm 11"
+            )
+
+
             print("========== OCR NUMBERS ==========")
-            print(self.extract_numbers(raw_text))
+            print(self.extract_engagement_order(engagement_image))
             print("=================================")
+
 
             cleaned=self.clean_text(
                 raw_text
             )
 
-            post_text,engagement_text=self.extract_engagement_text(
+
+            post_text,_=self.extract_engagement_text(
                 cleaned
             )
+
 
             confidence=self.calculate_confidence(
                 image
             )
 
+
             return {
                 "status":"success",
                 "extracted_text":post_text,
                 "post_text":post_text,
-                "engagement_text":engagement_text,
+                "engagement_text":engagement_raw,
                 "raw_text":raw_text,
                 "confidence":confidence,
                 "word_count":len(post_text.split()),
                 "language":"Unknown",
                 "ready_for_analysis":bool(post_text)
             }
+
 
         except Exception as e:
 
@@ -214,5 +286,6 @@ class OCRService:
                 "message":"OCR processing failed.",
                 "error":str(e)
             }
+
 
 ocr_service=OCRService()
