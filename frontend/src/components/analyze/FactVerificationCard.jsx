@@ -46,7 +46,7 @@ export default function FactVerificationCard({ data }) {
           </span>
 
           <span className="text-white font-semibold">
-            {data.confidence ?? 0}%
+            {data.confidence ?? 0}
           </span>
         </div>
 

@@ -1,119 +1,218 @@
 import io
 import re
-
 import pytesseract
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image,ImageEnhance,ImageFilter
 
-
-pytesseract.pytesseract.tesseract_cmd = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
-
+pytesseract.pytesseract.tesseract_cmd=r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 class OCRService:
-    OCR_CONFIG = "--psm 6"
 
-    @staticmethod
-    def clean_text(text: str) -> str:
-        """Remove extra spaces and newlines."""
-        return re.sub(r"\s+", " ", text).strip()
+    def __init__(self):
+        self.metric_patterns=[
+            r"(\d+(?:\.\d+)?[kKmM]?)\s*(likes?|reactions?|comments?|replies?|shares?|reposts?|retweets?|views?|saves?|bookmarks?)",
+            r"(likes?|reactions?|comments?|replies?|shares?|reposts?|retweets?|views?|saves?|bookmarks?)\s*[:\-]?\s*(\d+(?:\.\d+)?[kKmM]?)"
+        ]
 
-    @staticmethod
-    def calculate_confidence(image: Image.Image) -> int:
-        """Calculate average OCR confidence."""
-        try:
-            data = pytesseract.image_to_data(
-                image,
-                output_type=pytesseract.Output.DICT,
-            )
+    def clean_text(self,text):
 
-            confidences = [
-                int(conf)
-                for conf in data["conf"]
-                if conf != "-1" and int(conf) > 0
-            ]
+        text=text.replace("\r","")
 
-            if not confidences:
-                return 0
-
-            return int(sum(confidences) / len(confidences))
-
-        except Exception:
-            return 0
-
-    def preprocess_image(self, image: Image.Image) -> Image.Image:
-        """Improve image quality before OCR."""
-
-        image = image.convert("L")
-
-        image = image.resize(
-            (image.width * 2, image.height * 2)
+        text=re.sub(
+            r"[^\w\s.,!?@#%$₹:/\-]",
+            " ",
+            text
         )
 
-        image = ImageEnhance.Contrast(image).enhance(2)
+        text=re.sub(
+            r"[ ]{2,}",
+            " ",
+            text
+        )
 
-        image = image.filter(ImageFilter.SHARPEN)
+        text=re.sub(
+            r"\n{3,}",
+            "\n\n",
+            text
+        )
+
+        lines=[]
+
+        for line in text.split("\n"):
+
+            line=line.strip()
+
+            if len(line)<2:
+                continue
+
+            if re.fullmatch(r"[\W\d_]+",line):
+                continue
+
+            lines.append(line)
+
+        return "\n".join(lines).strip()
+
+    def preprocess_image(self,image):
+
+        image=image.convert("L")
+
+        image=image.resize(
+            (
+                image.width*3,
+                image.height*3
+            )
+        )
+
+        image=ImageEnhance.Contrast(image).enhance(2)
+
+        image=ImageEnhance.Sharpness(image).enhance(3)
+
+        image=image.filter(
+            ImageFilter.SHARPEN
+        )
 
         return image
 
-    def extract_text_from_image(
-        self,
-        image_bytes: bytes,
-    ) -> dict:
+    def extract_numbers(self,text):
+
+        return re.findall(
+            r"\d+(?:,\d+)*(?:\.\d+)?\s*[kKmM]?",
+            text
+        )
+
+    def extract_engagement_text(self,text):
+
+        lines=text.split("\n")
+
+        engagement=[]
+        content=[]
+
+        for line in lines:
+
+            found=False
+
+            for pattern in self.metric_patterns:
+
+                if re.search(
+                    pattern,
+                    line,
+                    re.IGNORECASE
+                ):
+                    engagement.append(line)
+                    found=True
+                    break
+
+            if not found:
+                content.append(line)
+
+        numbers=self.extract_numbers(text)
+
+        if not engagement and len(numbers)>=3:
+
+            engagement.append(
+                " ".join(numbers[-5:])
+            )
+
+        return (
+            "\n".join(content).strip(),
+            "\n".join(engagement).strip()
+        )
+
+    def calculate_confidence(self,image):
+
+        try:
+
+            data=pytesseract.image_to_data(
+                image,
+                output_type=pytesseract.Output.DICT
+            )
+
+            values=[
+                int(x)
+                for x in data["conf"]
+                if x!="-1" and int(x)>0
+            ]
+
+            if not values:
+                return 0
+
+            return int(
+                sum(values)/len(values)
+            )
+
+        except:
+
+            return 0
+
+    def extract_text_from_image(self,image_bytes):
 
         if not image_bytes:
+
             return {
-                "status": "error",
-                "message": "No image provided.",
+                "status":"error",
+                "message":"No image provided."
             }
 
         try:
-            image = Image.open(
+
+            image=Image.open(
                 io.BytesIO(image_bytes)
             )
 
-            image = self.preprocess_image(image)
-
-            raw_text = pytesseract.image_to_string(
-                image,
-                config=self.OCR_CONFIG,
+            image=self.preprocess_image(
+                image
             )
 
-            # ================= DEBUG =================
-            print("=" * 60)
-            print("RAW OCR OUTPUT:")
-            print(repr(raw_text))
-            print("=" * 60)
+            outputs=[]
 
-            cleaned_text = self.clean_text(raw_text)
+            for config in [
+                "--psm 6",
+                "--psm 11",
+                "--psm 12"
+            ]:
 
-            print("CLEANED OCR OUTPUT:")
-            print(repr(cleaned_text))
-            print("=" * 60)
-            # =========================================
+                outputs.append(
+                    pytesseract.image_to_string(
+                        image,
+                        config=config
+                    )
+                )
 
-            confidence = self.calculate_confidence(image)
+            raw_text="\n".join(outputs)
+
+            print("========== OCR NUMBERS ==========")
+            print(self.extract_numbers(raw_text))
+            print("=================================")
+
+            cleaned=self.clean_text(
+                raw_text
+            )
+
+            post_text,engagement_text=self.extract_engagement_text(
+                cleaned
+            )
+
+            confidence=self.calculate_confidence(
+                image
+            )
 
             return {
-                "status": "success",
-                "extracted_text": cleaned_text,
-                "confidence": confidence,
-                "word_count": len(cleaned_text.split()),
-                "language": "Unknown",
-                "ready_for_analysis": bool(cleaned_text),
+                "status":"success",
+                "extracted_text":post_text,
+                "post_text":post_text,
+                "engagement_text":engagement_text,
+                "raw_text":raw_text,
+                "confidence":confidence,
+                "word_count":len(post_text.split()),
+                "language":"Unknown",
+                "ready_for_analysis":bool(post_text)
             }
 
         except Exception as e:
-            print("=" * 60)
-            print("OCR EXCEPTION:")
-            print(str(e))
-            print("=" * 60)
 
             return {
-                "status": "error",
-                "message": "OCR processing failed.",
-                "error": str(e),
+                "status":"error",
+                "message":"OCR processing failed.",
+                "error":str(e)
             }
 
-
-ocr_service = OCRService()
+ocr_service=OCRService()

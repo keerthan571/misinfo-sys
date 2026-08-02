@@ -75,7 +75,6 @@ export default function AnalyzeInput({
 
   return (
     <div className="bg-slate-800 rounded-2xl p-6 shadow-lg">
-
       <h2 className="text-2xl font-bold text-white mb-6">
         Analyze News
       </h2>
@@ -88,7 +87,7 @@ export default function AnalyzeInput({
         <textarea
           rows={10}
           value={news}
-          onChange={(e)=>setNews(e.target.value)}
+          onChange={(e) => setNews(e.target.value)}
           placeholder="OCR text will appear here. You can edit it before analysis..."
           className="w-full mt-3 bg-slate-900 rounded-xl p-4 text-white outline-none resize-none"
         />
@@ -96,7 +95,9 @@ export default function AnalyzeInput({
 
       <div className="flex items-center my-6">
         <div className="flex-1 border-t border-slate-600"></div>
-        <span className="px-4 text-gray-400 text-sm">OR</span>
+        <span className="px-4 text-gray-400 text-sm">
+          OR
+        </span>
         <div className="flex-1 border-t border-slate-600"></div>
       </div>
 
@@ -161,7 +162,7 @@ export default function AnalyzeInput({
 
         <select
           value={platform}
-          onChange={(e)=>setPlatform(e.target.value)}
+          onChange={(e) => setPlatform(e.target.value)}
           className="w-full mt-3 bg-slate-900 text-white rounded-xl p-3 outline-none border border-slate-600"
         >
           <option value="">
@@ -179,10 +180,6 @@ export default function AnalyzeInput({
           <option value="Twitter">
             Twitter / X
           </option>
-
-          <option value="YouTube">
-            YouTube
-          </option>
         </select>
       </div>
 
@@ -193,7 +190,6 @@ export default function AnalyzeInput({
       >
         {loading ? "Analyzing..." : "Analyze"}
       </button>
-
     </div>
   );
 }
