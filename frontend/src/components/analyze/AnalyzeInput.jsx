@@ -57,12 +57,17 @@ export default function AnalyzeInput({
         }
       );
 
-      if (data.status === "success" && data.extracted_text) {
-        setNews(data.extracted_text);
+      console.log(data);
+
+      if (data.status === "success") {
+        setNews(data.extracted_text || "");
         setOcrConfidence(data.confidence ?? 0);
         setOcrSuccess("OCR completed successfully.");
+        if (!data.extracted_text) {
+          setOcrError("No post text found. Engagement numbers were detected.");
+        }
       } else {
-        setOcrError("No readable text found in the image.");
+        setOcrError(data.message || "OCR failed.");
       }
     } catch (err) {
       setOcrError(

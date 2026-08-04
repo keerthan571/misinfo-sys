@@ -1,10 +1,12 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from datetime import datetime, timezone
 import uuid
 
-from ..services.prediction_service import prediction_service
-from ..database.mongodb import spread_predictions_collection
+from app.auth.dependencies import get_current_user
+from app.services.prediction_service import prediction_service
+from app.services.spread_factor_service import spread_factor_service
+from app.database.mongodb import spread_predictions_collection
 
 
 router = APIRouter()
@@ -12,104 +14,87 @@ router = APIRouter()
 
 class PredictRequest(BaseModel):
 
-    initial_likes: int
+    engagement: dict
 
-    initial_shares: int
+    detection: dict = {}
 
-    comments: int
-
-    follower_count: int
+    platform: str = "Unknown"
 
 
 
 @router.post("/")
-def predict_spread(request: PredictRequest):
+def predict_spread(
+    request: PredictRequest,
+    current_user=Depends(get_current_user)
+):
 
-    """
-    Endpoint to predict spread of misinformation.
-    """
+
+    engagement = request.engagement
+
+
+    spread_analysis = spread_factor_service.analyze(
+        engagement,
+        request.detection,
+        request.platform
+    )
 
 
     prediction_result = prediction_service.predict_spread({
 
-        "initial_likes": request.initial_likes,
+        **engagement,
 
-        "initial_shares": request.initial_shares,
+        "spread_score":
+        spread_analysis["metrics"]["spread_score"],
 
-        "comments": request.comments,
+        "risk_score":
+        request.detection.get(
+            "risk_score",
+            0
+        ),
 
-        "follower_count": request.follower_count
+        "emotion_score":0,
+
+        "manipulation_score":0
 
     })
 
 
-    prediction_data = prediction_result.get(
-        "data",
-        {}
-    )
-
-
-    # -------------------------
-    # Save Prediction History
-    # Member 1 Collection
-    # -------------------------
-
     prediction_document = {
 
+        "analysis_id":
+        str(uuid.uuid4()),
 
-        "analysis_id": str(uuid.uuid4()),
-
-
-        "userId": "test_user",
-
-
-        "initial_likes": request.initial_likes,
+        "user":
+        current_user.get("email"),
 
 
-        "initial_shares": request.initial_shares,
+        "engagement":
+        engagement,
 
 
-        "comments": request.comments,
+        "prediction":
+        prediction_result["data"],
 
 
-        "follower_count": request.follower_count,
-
-
-        "predicted_reach": prediction_data.get(
-            "predicted_reach",
-            0
-        ),
-
-
-        "risk_level": prediction_data.get(
-            "risk_level",
-            ""
-        ),
-
-
-        "virality_score": prediction_data.get(
-            "virality_score",
-            0
-        ),
-
-
-        "timestamp": datetime.now(
+        "timestamp":
+        datetime.now(
             timezone.utc
         ).isoformat()
 
     }
 
 
-
-    result = spread_predictions_collection.insert_one(
+    spread_predictions_collection.insert_one(
         prediction_document
     )
 
 
-    print(
-        "Prediction MongoDB inserted ID:",
-        result.inserted_id
-    )
+    return {
 
+        "prediction":
+        prediction_result,
 
-    return prediction_result
+        "spread_analysis":
+        spread_analysis
+
+    }

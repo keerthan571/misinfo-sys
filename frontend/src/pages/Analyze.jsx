@@ -251,25 +251,16 @@ export default function Analyze() {
             <button
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-xl shadow-lg"
               onClick={() => {
-                console.log("FULL RESPONSE", result.analysis);
+                console.log("FULL RESPONSE", result);
 
-                navigate("/prediction", {
+                navigate("/engagement-verification", {
                   state: {
-                    prediction:
-                      result.analysis.prediction,
-
-                    spread:
-                      result.analysis.spread_analysis,
-
-                    engagement: {
-                      ...result.analysis.engagement,
-                      platform: platform,
-                    },
+                    analysis: result.analysis
                   },
                 });
               }}
             >
-              🚀 View Spread Prediction
+              📊 Verify Engagement Values
             </button>
 
           </div>

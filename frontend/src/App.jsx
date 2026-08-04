@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Analyze from "./pages/Analyze";
 import Graph from "./pages/Graph";
 import Prediction from "./pages/Prediction";
+import EngagementVerification from "./pages/EngagementVerification";
 import History from "./pages/History";
 import HistoryDetails from "./pages/HistoryDetails";
 import Settings from "./pages/Settings";
@@ -25,8 +26,6 @@ function App() {
       <Routes>
 
 
-        {/* Authentication Pages */}
-
         <Route
           path="/login"
           element={<Login />}
@@ -43,10 +42,6 @@ function App() {
           path="/forgot-password"
           element={<ForgotPassword />}
         />
-
-
-
-        {/* Protected Pages */}
 
 
         <Route
@@ -79,6 +74,18 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <Graph />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+
+        <Route
+          path="/engagement-verification"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <EngagementVerification />
               </Layout>
             </ProtectedRoute>
           }

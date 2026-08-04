@@ -11,7 +11,6 @@ except Exception as e:
     print("❌ MongoDB Connection Failed:", e)
 
 
-# Import modular routers
 from .routes import (
     detect,
     graph,
@@ -33,7 +32,6 @@ app = FastAPI(
 )
 
 
-# Serve uploaded images
 app.mount(
     "/uploads",
     StaticFiles(directory="uploads"),
@@ -41,21 +39,13 @@ app.mount(
 )
 
 
-
-# CORS setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # Replace with frontend URL in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-
-# -----------------------------
-# Register API Routes
-# -----------------------------
 
 
 app.include_router(
@@ -125,11 +115,6 @@ app.include_router(
     tags=["History"]
 )
 
-
-
-# -----------------------------
-# Root Endpoint
-# -----------------------------
 
 @app.get("/")
 def root():
