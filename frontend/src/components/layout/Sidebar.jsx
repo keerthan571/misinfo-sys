@@ -7,7 +7,8 @@ import {
     History,
     ShieldCheck,
     Menu,
-    ChevronLeft
+    ChevronLeft,
+     FileText,
 } from "lucide-react";
 
 const menuItems = [
@@ -35,6 +36,11 @@ const menuItems = [
         title: "History",
         icon: <History size={20} />,
         path: "/history",
+    },
+    {
+        title: "Reports",
+        icon: <FileText size={20} />,
+        path: "/reports",
     },
 ];
 
