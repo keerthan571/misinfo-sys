@@ -71,21 +71,34 @@ class AnalysisPipeline:
             "prediction":{},
             "graph":{}
         },analysis_id,analysis_time
-    async def _run_ocr(self,image,final_text,response):
-        extracted_text=""
-        if not final_text.strip() and image:
-            image_bytes=await image.read()
-            ocr_result=ocr_service.extract_text_from_image(image_bytes)
-            if ocr_result.get("status")=="success":
-                extracted_text=ocr_result.get("extracted_text","")
-                response["ocr"]={
-                    "used":True,
-                    "extracted_text":extracted_text,
-                    "confidence":ocr_result.get("confidence",0),
-                    "word_count":len(extracted_text.split())
+    async def _run_ocr(self, image, final_text, response):
+
+        extracted_text = ""
+
+        if image:
+
+            image_bytes = await image.read()
+
+            ocr_result = ocr_service.extract_text_from_image(image_bytes)
+
+            if ocr_result.get("status") == "success":
+
+                extracted_text = ocr_result.get(
+                    "extracted_text",
+                    ""
+                )
+
+                response["ocr"] = {
+                    "used": True,
+                    "extracted_text": extracted_text,
+                    "confidence": ocr_result.get("confidence", 0),
+                    "word_count": len(extracted_text.split())
                 }
-                final_text=extracted_text
-        return final_text,extracted_text
+
+                if not final_text.strip():
+                    final_text = extracted_text
+
+        return final_text, extracted_text
     def _detect_platform(self,final_text,extracted_text,response):
         platform_text=final_text
         if extracted_text:
@@ -137,6 +150,7 @@ class AnalysisPipeline:
         self._generate_graph(final_text,response)
         processing_time=round(time.time()-start_time,2)
         self._save_analysis(current_user,analysis_id,analysis_time,final_text,response,processing_time)
+        
         return self._build_response(response,analysis_id,analysis_time,processing_time)
         
     def _analyze_engagement(self,final_text,response):

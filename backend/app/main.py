@@ -5,9 +5,9 @@ from app.config.database import client
 
 try:
     client.admin.command("ping")
-    print("✅ Connected to MongoDB Atlas")
+    print(" Connected to MongoDB Atlas")
 except Exception as e:
-    print("❌ MongoDB Connection Failed:", e)
+    print(" MongoDB Connection Failed:", e)
 
 # Import modular routers
 from .routes import (
@@ -19,7 +19,7 @@ from .routes import (
     ocr,
     analyze,
     auth,
-    dashboard
+    dashboard,
 )
 app = FastAPI(
     title="Misinformation Analysis System API",

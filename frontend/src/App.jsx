@@ -9,7 +9,6 @@ import Graph from "./pages/Graph";
 import Prediction from "./pages/Prediction";
 import History from "./pages/History";
 import Settings from "./pages/Settings";
-import ReportPage from "./pages/ReportPage";
 
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -107,17 +106,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/reports"
-            element={
-              <ProtectedRoute>
-               <Layout>
-               <ReportPage />
-               </Layout>
-           </ProtectedRoute>
-          }
-        />
-        
+       
         <Route
           path="/settings"
           element={

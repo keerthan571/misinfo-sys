@@ -4,13 +4,12 @@ import {
   ShieldCheck,
   ShieldAlert,
   ScanLine,
-  FileText,
   Target,
 } from "lucide-react";
 
 import Charts from "../components/dashboard/Charts";
 import StatCard from "../components/dashboard/StatCard";
-import RecentActivity from "../components/dashboard/RecentActivity";
+ 
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 
 import { getCurrentUser } from "../api/authApi";
@@ -18,15 +17,15 @@ import {
   getDashboardStats,
   getRecentActivity,
 } from "../api/dashboardApi";
+
 export default function Dashboard() {
   const [dashboard, setDashboard] = useState({
     totalAnalyses: 0,
     verifiedTrue: 0,
     verifiedFalse: 0,
     ocrUploads: 0,
-    reports: 0,
     avgConfidence: 0,
-    recentActivity: [],
+     
     weeklyAnalysis: [
       { day: "Mon", count: 0 },
       { day: "Tue", count: 0 },
@@ -41,6 +40,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [userName, setUserName] = useState("User");
+
   useEffect(() => {
     fetchDashboard();
   }, []);
@@ -54,7 +54,7 @@ export default function Dashboard() {
       ] = await Promise.all([
         getDashboardStats(),
         getCurrentUser(),
-        getRecentActivity(),
+         
       ]);
 
       setDashboard((prev) => ({
@@ -63,14 +63,12 @@ export default function Dashboard() {
         verifiedTrue: dashboardData.verifiedTrue,
         verifiedFalse: dashboardData.verifiedFalse,
         ocrUploads: dashboardData.ocrUploads,
-        reports: dashboardData.reports,
         avgConfidence: dashboardData.avgConfidence,
         weeklyAnalysis: dashboardData.weeklyAnalysis,
-        recentActivity: recentActivity,
+         
       }));
 
       setUserName(userData.name);
-
     } catch (err) {
       console.error(err);
       setError("Failed to load dashboard.");
@@ -78,50 +76,44 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
+
   const stats = [
-    {
-      title: "Total Analyses",
-      value: dashboard.totalAnalyses,
-      subtitle: "All analyses performed",
-      icon: BarChart3,
-      valueColor: "text-blue-500",
-    },
-    {
-      title: "Verified True",
-      value: dashboard.verifiedTrue,
-      subtitle: "Claims verified as true",
-      icon: ShieldCheck,
-      valueColor: "text-green-500",
-    },
-    {
-      title: "Verified False",
-      value: dashboard.verifiedFalse,
-      subtitle: "Claims verified as false",
-      icon: ShieldAlert,
-      valueColor: "text-red-500",
-    },
-    {
-      title: "OCR Uploads",
-      value: dashboard.ocrUploads,
-      subtitle: "Images processed",
-      icon: ScanLine,
-      valueColor: "text-purple-500",
-    },
-    {
-      title: "Reports",
-      value: dashboard.reports,
-      subtitle: "Generated reports",
-      icon: FileText,
-      valueColor: "text-indigo-500",
-    },
-    {
-      title: "AI Confidence",
-      value: `${dashboard.avgConfidence}%`,
-      subtitle: "Average AI confidence",
-      icon: Target,
-      valueColor: "text-yellow-500",
-    },
-  ];
+  {
+    title: "Total Analyses",
+    value: dashboard.totalAnalyses,
+    subtitle: "All analyses performed",
+    icon: BarChart3,
+    valueColor: "text-blue-500",
+  },
+  {
+    title: "Verified True",
+    value: dashboard.verifiedTrue,
+    subtitle: "Claims verified as true",
+    icon: ShieldCheck,
+    valueColor: "text-green-500",
+  },
+  {
+    title: "Verified False",
+    value: dashboard.verifiedFalse,
+    subtitle: "Claims verified as false",
+    icon: ShieldAlert,
+    valueColor: "text-red-500",
+  },
+  {
+    title: "OCR Uploads",
+    value: dashboard.ocrUploads,
+    subtitle: "Images processed using OCR",
+    icon: ScanLine,
+    valueColor: "text-purple-500",
+  },
+  {
+    title: "AI Confidence",
+    value: `${dashboard.avgConfidence}%`,
+    subtitle: "Average AI confidence",
+    icon: Target,
+    valueColor: "text-yellow-500",
+  },
+];
 
   if (loading) {
     return (
@@ -147,8 +139,7 @@ export default function Dashboard() {
     <div className="space-y-8">
       <DashboardHeader userName={userName} />
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         {stats.map((stat) => (
           <StatCard
             key={stat.title}
@@ -161,15 +152,13 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Charts */}
-      <Charts
-        fakeNews={dashboard.verifiedFalse}
-        realNews={dashboard.verifiedTrue}
-        weeklyAnalysis={dashboard.weeklyAnalysis}
-      />
-
-      {/* Recent Activity */}
-      <RecentActivity activities={dashboard.recentActivity} />
+      <div className="w-full">
+        <Charts
+            fakeNews={dashboard.verifiedFalse}
+            realNews={dashboard.verifiedTrue}
+            weeklyAnalysis={dashboard.weeklyAnalysis}
+        />
+    </div>
     </div>
   );
 }
