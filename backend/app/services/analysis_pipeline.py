@@ -4,12 +4,19 @@ import io
 
 from PIL import Image
 
+import cv2
+import numpy as np
+
+
 from app.services.vision_engagement_detector import vision_engagement_detector
+from app.services.engagement_extractor import engagement_extractor
+
 from app.services.nlp_service import nlp_service
 from app.services.fact_verification_service import verify_claim
 from app.services.spread_factor_service import spread_factor_service
 from app.services.prediction_service import prediction_service
 from app.database.mongodb import analysis_collection
+
 
 
 class AnalysisPipeline:
@@ -22,78 +29,134 @@ class AnalysisPipeline:
         platform,
         current_user,
         followers=0,
-        ocr_values={}
+        ocr_values=None
     ):
+
 
         start=time.time()
 
         analysis_id=str(uuid.uuid4())
 
 
+        if ocr_values is None:
+            ocr_values={}
+
+
         extracted_text=""
+
         engagement_values={}
 
 
 
-        # IMAGE + GEMINI VISION
+
+        # ==========================
+        # IMAGE PROCESSING
+        # ==========================
 
         if image:
 
-            image_bytes=await image.read()
+
+            image_bytes = await image.read()
 
 
-            img=Image.open(
+            pil_image = Image.open(
                 io.BytesIO(image_bytes)
             )
 
-            img.load()
+
+            pil_image.load()
 
 
 
-            vision_result=vision_engagement_detector.analyze(
+            # PIL -> OpenCV
+
+            img = np.array(
+                pil_image
+            )
+
+
+            img = cv2.cvtColor(
                 img,
-                platform
+                cv2.COLOR_RGB2BGR
             )
 
 
 
-            extracted_text=vision_result.get(
-                "post_text",
-                ""
+            # ==========================
+            # OPENCV ENGAGEMENT
+            # ==========================
+
+            engagement_values = engagement_extractor.analyze(
+                img
+            )
+
+
+            print(
+                "========== OPENCV ENGAGEMENT =========="
+            )
+
+            print(
+                engagement_values
+            )
+
+            print(
+                "========================================"
             )
 
 
 
-            engagement_values=vision_result.get(
-                "engagement",
-                {}
-            )
+
+            # ==========================
+            # GEMINI TEXT ONLY
+            # ==========================
+
+            try:
+
+
+                vision_result = vision_engagement_detector.analyze(
+                    pil_image,
+                    platform
+                )
+
+
+                extracted_text = vision_result.get(
+                    "post_text",
+                    ""
+                )
+
+
+            except Exception as e:
+
+
+                print(
+                    "VISION TEXT ERROR:",
+                    e
+                )
+
+                extracted_text=""
 
 
 
-            if not isinstance(
-                engagement_values,
-                dict
-            ):
-
-                engagement_values={}
 
 
 
-
-
-        # GEMINI FAILURE FALLBACK -> OCR VALUES
+        # ==========================
+        # OCR FALLBACK
+        # ==========================
 
         if not engagement_values and ocr_values:
 
 
-            print("USING OCR FALLBACK")
+            print(
+                "USING OCR FALLBACK"
+            )
 
 
             for key,value in ocr_values.items():
 
 
                 try:
+
 
                     clean=str(value).replace(
                         ",",
@@ -105,13 +168,12 @@ class AnalysisPipeline:
 
 
                     if clean=="":
-
                         clean="0"
 
 
-
-                    engagement_values[key]=int(clean)
-
+                    engagement_values[key]=int(
+                        clean
+                    )
 
 
                 except:
@@ -121,19 +183,8 @@ class AnalysisPipeline:
 
 
 
-        # REMOVE OCR FALSE POSITIVES
 
-        # 69 was coming from "69 ball century"
-        if "bookmarks" in engagement_values:
-
-            if engagement_values["bookmarks"] < 100:
-
-                engagement_values["bookmarks"]=0
-
-
-
-
-        final_text=text.strip() if text else extracted_text
+        final_text = text.strip() if text else extracted_text
 
 
         if not final_text:
@@ -143,35 +194,36 @@ class AnalysisPipeline:
 
 
 
-        detection=nlp_service.analyze_text(
+
+        detection = nlp_service.analyze_text(
             final_text
         )
 
 
 
-        claim=detection.get(
+        claim = detection.get(
             "claim",
             final_text
         )
 
 
 
-        fact_result=verify_claim(
+        fact_result = verify_claim(
             claim
         )
 
 
 
 
-        print("========== VISION DEBUG ==========")
+        print("========== FINAL DEBUG ==========")
 
         print("PLATFORM:",platform)
 
-        print("POST TEXT:",extracted_text)
+        print("TEXT:",extracted_text)
 
         print("ENGAGEMENT:",engagement_values)
 
-        print("==================================")
+        print("=================================")
 
 
 
@@ -186,8 +238,6 @@ class AnalysisPipeline:
 
 
 
-
-
         for key,value in engagement_values.items():
 
 
@@ -195,12 +245,13 @@ class AnalysisPipeline:
 
 
                 engagement["metrics"].append(
+
                     {
                         "label":key.title(),
                         "value":value
                     }
-                )
 
+                )
 
 
 
@@ -214,28 +265,21 @@ class AnalysisPipeline:
 
 
 
-        print("========== FINAL ENGAGEMENT ==========")
+        spread_analysis = spread_factor_service.analyze(
 
-        print(engagement)
-
-        print("======================================")
-
-
-
-
-
-
-        spread_analysis=spread_factor_service.analyze(
             engagement,
+
             detection,
+
             platform
+
         )
 
 
 
 
 
-        prediction=prediction_service.predict_spread(
+        prediction = prediction_service.predict_spread(
 
             {
 
@@ -266,8 +310,6 @@ class AnalysisPipeline:
 
 
 
-
-
         final_result={
 
 
@@ -276,7 +318,6 @@ class AnalysisPipeline:
                 "verdict",
                 "Insufficient Evidence"
             ),
-
 
 
             "confidence":
@@ -288,18 +329,14 @@ class AnalysisPipeline:
             ),
 
 
-
             "risk_level":
             prediction["data"]["risk_level"],
-
 
 
             "summary":
             spread_analysis["summary"]
 
         }
-
-
 
 
 
@@ -316,7 +353,6 @@ class AnalysisPipeline:
             },
 
 
-
             "vision":{
 
                 "used":bool(image),
@@ -326,7 +362,6 @@ class AnalysisPipeline:
                 "engagement_values":engagement_values
 
             },
-
 
 
             "detection":detection,
@@ -345,7 +380,6 @@ class AnalysisPipeline:
 
 
             "final_result":final_result,
-
 
 
             "metadata":{
@@ -399,10 +433,7 @@ class AnalysisPipeline:
     ):
 
 
-        if isinstance(
-            value,
-            (int,float)
-        ):
+        if isinstance(value,(int,float)):
 
             return value
 
@@ -417,11 +448,9 @@ class AnalysisPipeline:
             return 90
 
 
-
         if "medium" in value:
 
             return 70
-
 
 
         if "low" in value:
@@ -438,6 +467,14 @@ class AnalysisPipeline:
                     ""
                 )
             )
+
+
         except:
+
             return 0
-analysis_pipeline=AnalysisPipeline()
+
+
+
+
+
+analysis_pipeline = AnalysisPipeline()
