@@ -1,24 +1,127 @@
 class SpreadFactorService:
 
-    def analyze(self,engagement,content_analysis=None,platform=None):
+    def analyze(
+        self,
+        engagement,
+        content_analysis=None,
+        platform=None
+    ):
 
-        likes=engagement.get("likes",0) or 0
-        shares=engagement.get("shares",0) or 0
-        comments=engagement.get("comments",0) or 0
-        views=engagement.get("views",0) or 0
-        bookmarks=engagement.get("bookmarks",0) or 0
-        followers=engagement.get("followers")
+        platform_name=str(
+            platform or ""
+        ).lower()
+
+
+        likes=0
+        comments=0
+        shares=0
+        views=0
+        saves=0
+
+        followers=engagement.get(
+            "followers",
+            0
+        )
+
+
+        if "instagram" in platform_name:
+
+            likes=engagement.get(
+                "likes",
+                0
+            )
+
+            comments=engagement.get(
+                "comments",
+                0
+            )
+
+            shares=engagement.get(
+                "shares",
+                0
+            )
+
+            saves=engagement.get(
+                "saves",
+                0
+            )
+
+            views=engagement.get(
+                "views",
+                0
+            )
+
+
+        elif "facebook" in platform_name:
+
+            likes=engagement.get(
+                "reactions",
+                0
+            )
+
+            comments=engagement.get(
+                "comments",
+                0
+            )
+
+            shares=engagement.get(
+                "shares",
+                0
+            )
+
+            views=engagement.get(
+                "views",
+                0
+            )
+
+
+        elif "twitter" in platform_name or platform_name=="x":
+
+            likes=engagement.get(
+                "likes",
+                0
+            )
+
+            comments=engagement.get(
+                "replies",
+                0
+            )
+
+            shares=engagement.get(
+                "reposts",
+                0
+            )
+
+            views=engagement.get(
+                "views",
+                0
+            )
+
+            saves=engagement.get(
+                "bookmarks",
+                0
+            )
+
 
         factors=[]
         warnings=[]
         risk_factors=[]
 
-        total=likes+shares+comments+bookmarks
+
+        total_engagement=(
+
+            likes+
+            comments+
+            shares+
+            saves
+
+        )
+
 
         if views>0:
 
             engagement_rate=round(
-                (total/views)*100,
+                (total_engagement/views)*100,
                 2
             )
 
@@ -32,10 +135,6 @@ class SpreadFactorService:
             engagement_rate=0
             share_ratio=0
 
-
-        platform_name=str(
-            platform
-        ).lower()
 
 
         if shares>0:
@@ -58,7 +157,7 @@ class SpreadFactorService:
             )
 
 
-        if bookmarks>0:
+        if saves>0:
 
             factors.append(
                 {
@@ -67,6 +166,8 @@ class SpreadFactorService:
                 }
             )
 
+
+        influence="Low"
 
         follower_score=0
 
@@ -83,7 +184,6 @@ class SpreadFactorService:
                     100
                 )
 
-
                 factors.append(
                     {
                         "factor":f"Instagram account influence ({followers} followers)",
@@ -97,14 +197,9 @@ class SpreadFactorService:
             influence="High"
 
 
-        elif "twitter" in platform_name or "x" in platform_name:
+        elif "twitter" in platform_name or platform_name=="x":
 
             influence="High"
-
-
-        else:
-
-            influence="Low"
 
 
 
@@ -125,13 +220,13 @@ class SpreadFactorService:
                     "High NLP misinformation risk"
                 )
 
-
                 factors.append(
                     {
                         "factor":"High misinformation risk",
                         "impact":"High"
                     }
                 )
+
 
 
         if views==0:
@@ -148,11 +243,11 @@ class SpreadFactorService:
             )
 
 
+
         spread_score=0
 
 
         if views>0:
-
 
             spread_score+=min(
                 share_ratio*5,
@@ -168,16 +263,16 @@ class SpreadFactorService:
 
         else:
 
-
             spread_score+=min(
                 (
                     likes*0.4+
                     shares*1.5+
                     comments*0.8+
-                    bookmarks*1.2
+                    saves*1.2
                 )/100,
                 70
             )
+
 
 
         spread_score+=min(
@@ -188,11 +283,11 @@ class SpreadFactorService:
 
         if "instagram" in platform_name:
 
-
             spread_score+=min(
                 follower_score*0.2,
                 20
             )
+
 
 
         spread_score=round(
@@ -210,13 +305,13 @@ class SpreadFactorService:
 
                 "likes":likes,
 
-                "shares":shares,
-
                 "comments":comments,
+
+                "shares":shares,
 
                 "views":views,
 
-                "bookmarks":bookmarks,
+                "saves":saves,
 
                 "followers":followers,
 
@@ -228,7 +323,6 @@ class SpreadFactorService:
 
             },
 
-
             "factors":factors,
 
             "warnings":warnings,
@@ -237,7 +331,6 @@ class SpreadFactorService:
 
             "platform_influence":influence,
 
-
             "summary":self.generate_summary(
                 spread_score
             )
@@ -245,7 +338,11 @@ class SpreadFactorService:
         }
 
 
-    def generate_summary(self,score):
+
+    def generate_summary(
+        self,
+        score
+    ):
 
         if score>=70:
 

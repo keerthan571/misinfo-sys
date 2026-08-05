@@ -1,14 +1,21 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.database import client
 
+
 try:
     client.admin.command("ping")
     print("✅ Connected to MongoDB Atlas")
 except Exception as e:
     print("❌ MongoDB Connection Failed:", e)
+
 
 
 from .routes import (
@@ -25,6 +32,7 @@ from .routes import (
 )
 
 
+
 app = FastAPI(
     title="Misinformation Analysis System API",
     description="Backend API for the VTU final year project.",
@@ -32,11 +40,13 @@ app = FastAPI(
 )
 
 
+
 app.mount(
     "/uploads",
     StaticFiles(directory="uploads"),
     name="uploads"
 )
+
 
 
 app.add_middleware(
@@ -48,9 +58,11 @@ app.add_middleware(
 )
 
 
+
 app.include_router(
     auth.router
 )
+
 
 
 app.include_router(
@@ -60,11 +72,13 @@ app.include_router(
 )
 
 
+
 app.include_router(
     analyze.router,
     prefix="/api/analyze",
     tags=["Complete Analysis"]
 )
+
 
 
 app.include_router(
@@ -74,11 +88,13 @@ app.include_router(
 )
 
 
+
 app.include_router(
     fact_verify.router,
     prefix="/api/fact-verify",
     tags=["Fact Verification"]
 )
+
 
 
 app.include_router(
@@ -88,11 +104,13 @@ app.include_router(
 )
 
 
+
 app.include_router(
     predict.router,
     prefix="/api/predict",
     tags=["Spread Prediction"]
 )
+
 
 
 app.include_router(
@@ -102,11 +120,13 @@ app.include_router(
 )
 
 
+
 app.include_router(
     influence.router,
     prefix="/api/influence",
     tags=["Influence Detection"]
 )
+
 
 
 app.include_router(
@@ -116,9 +136,10 @@ app.include_router(
 )
 
 
+
 @app.get("/")
 def root():
 
     return {
-        "message": "Welcome to the Misinformation Analysis System API. Go to /docs for Swagger UI."
+        "message":"Welcome to the Misinformation Analysis System API. Go to /docs for Swagger UI."
     }

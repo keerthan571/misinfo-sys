@@ -39,37 +39,57 @@ def predict_spread(
     )
 
 
-    prediction_result = prediction_service.predict_spread({
 
-        **engagement,
+    prediction_result = prediction_service.predict_spread(
 
-        "spread_score":
-        spread_analysis["metrics"]["spread_score"],
+        {
 
-        "risk_score":
-        request.detection.get(
-            "risk_score",
-            0
-        ),
+            **engagement,
 
-        "emotion_score":0,
+            "spread_score":
+            spread_analysis["metrics"]["spread_score"],
 
-        "manipulation_score":0
 
-    })
+            "risk_score":
+            request.detection.get(
+                "risk_score",
+                0
+            ),
+
+
+            "emotion_score":0,
+
+            "manipulation_score":0
+
+        }
+
+    )
+
 
 
     prediction_document = {
 
+
         "analysis_id":
         str(uuid.uuid4()),
 
+
         "user":
-        current_user.get("email"),
+        current_user.get(
+            "email"
+        ),
+
+
+        "platform":
+        request.platform,
 
 
         "engagement":
         engagement,
+
+
+        "spread_analysis":
+        spread_analysis,
 
 
         "prediction":
@@ -84,15 +104,18 @@ def predict_spread(
     }
 
 
+
     spread_predictions_collection.insert_one(
         prediction_document
     )
+
 
 
     return {
 
         "prediction":
         prediction_result,
+
 
         "spread_analysis":
         spread_analysis

@@ -1,7 +1,10 @@
 import time
 import uuid
+import io
 
-from app.services.ocr_service import ocr_service
+from PIL import Image
+
+from app.services.vision_engagement_detector import vision_engagement_detector
 from app.services.nlp_service import nlp_service
 from app.services.fact_verification_service import verify_claim
 from app.services.spread_factor_service import spread_factor_service
@@ -18,47 +21,116 @@ class AnalysisPipeline:
         image,
         platform,
         current_user,
-        followers=0
+        followers=0,
+        ocr_values={}
     ):
-
 
         start=time.time()
 
         analysis_id=str(uuid.uuid4())
 
+
         extracted_text=""
         engagement_values={}
 
-        image_bytes=None
 
 
-
-        # ================= OCR =================
+        # IMAGE + GEMINI VISION
 
         if image:
 
             image_bytes=await image.read()
 
-            ocr_result=ocr_service.extract_text_from_image(
-                image_bytes
+
+            img=Image.open(
+                io.BytesIO(image_bytes)
+            )
+
+            img.load()
+
+
+
+            vision_result=vision_engagement_detector.analyze(
+                img,
+                platform
             )
 
 
-            if ocr_result.get("status")=="success":
 
-                extracted_text=ocr_result.get(
-                    "extracted_text",
-                    ""
-                )
-
-                engagement_values=ocr_result.get(
-                    "ordered_values",
-                    {}
-                )
+            extracted_text=vision_result.get(
+                "post_text",
+                ""
+            )
 
 
 
-        # ================= NLP =================
+            engagement_values=vision_result.get(
+                "engagement",
+                {}
+            )
+
+
+
+            if not isinstance(
+                engagement_values,
+                dict
+            ):
+
+                engagement_values={}
+
+
+
+
+
+        # GEMINI FAILURE FALLBACK -> OCR VALUES
+
+        if not engagement_values and ocr_values:
+
+
+            print("USING OCR FALLBACK")
+
+
+            for key,value in ocr_values.items():
+
+
+                try:
+
+                    clean=str(value).replace(
+                        ",",
+                        ""
+                    )
+
+
+                    clean=clean.lstrip("0")
+
+
+                    if clean=="":
+
+                        clean="0"
+
+
+
+                    engagement_values[key]=int(clean)
+
+
+
+                except:
+
+                    continue
+
+
+
+
+        # REMOVE OCR FALSE POSITIVES
+
+        # 69 was coming from "69 ball century"
+        if "bookmarks" in engagement_values:
+
+            if engagement_values["bookmarks"] < 100:
+
+                engagement_values["bookmarks"]=0
+
+
 
 
         final_text=text.strip() if text else extracted_text
@@ -70,13 +142,11 @@ class AnalysisPipeline:
 
 
 
+
         detection=nlp_service.analyze_text(
             final_text
         )
 
-
-
-        # ================= FACT =================
 
 
         claim=detection.get(
@@ -85,66 +155,30 @@ class AnalysisPipeline:
         )
 
 
+
         fact_result=verify_claim(
             claim
         )
 
 
 
-        # ================= ENGAGEMENT =================
 
+        print("========== VISION DEBUG ==========")
 
-        print("========== ENGAGEMENT DEBUG ==========")
         print("PLATFORM:",platform)
-        print("OCR VALUES:",engagement_values)
-        print("======================================")
+
+        print("POST TEXT:",extracted_text)
+
+        print("ENGAGEMENT:",engagement_values)
+
+        print("==================================")
+
 
 
 
         engagement={
 
-
-            "likes":self.convert_number(
-                engagement_values.get(
-                    "likes",
-                    0
-                )
-            ),
-
-
-            "comments":self.convert_number(
-                engagement_values.get(
-                    "comments",
-                    0
-                )
-            ),
-
-
-            "reposts":self.convert_number(
-                engagement_values.get(
-                    "reposts",
-                    0
-                )
-            ),
-
-
-            "shares":self.convert_number(
-                engagement_values.get(
-                    "shares",
-                    0
-                )
-            ),
-
-
-            "bookmarks":self.convert_number(
-                engagement_values.get(
-                    "bookmarks",
-                    0
-                )
-            ),
-
-
-            "views":0,
+            **engagement_values,
 
             "metrics":[]
 
@@ -152,65 +186,53 @@ class AnalysisPipeline:
 
 
 
-        for key in [
-
-            "likes",
-            "comments",
-            "reposts",
-            "shares",
-            "bookmarks"
-
-        ]:
 
 
-            if engagement[key] > 0:
+        for key,value in engagement_values.items():
+
+
+            if isinstance(value,(int,float)) and value>0:
 
 
                 engagement["metrics"].append(
-
                     {
                         "label":key.title(),
-                        "value":engagement[key]
+                        "value":value
                     }
-
                 )
 
 
 
 
-        if platform=="Instagram":
 
-            engagement["platform"]="Instagram"
+        if platform.lower()=="instagram" and followers:
+
 
             engagement["followers"]=followers
 
 
 
+
+
         print("========== FINAL ENGAGEMENT ==========")
+
         print(engagement)
+
         print("======================================")
 
 
 
 
-        # ================= SPREAD =================
 
 
         spread_analysis=spread_factor_service.analyze(
-
             engagement,
-
             detection,
-
             platform
-
         )
 
 
 
-
-
-        # ================= PREDICTION =================
 
 
         prediction=prediction_service.predict_spread(
@@ -244,7 +266,6 @@ class AnalysisPipeline:
 
 
 
-        # ================= FINAL =================
 
 
         final_result={
@@ -260,12 +281,10 @@ class AnalysisPipeline:
 
             "confidence":
             self.convert_confidence(
-
                 fact_result.get(
                     "confidence",
                     "0%"
                 )
-
             ),
 
 
@@ -283,6 +302,9 @@ class AnalysisPipeline:
 
 
 
+
+
+
         response={
 
 
@@ -290,17 +312,16 @@ class AnalysisPipeline:
 
 
             "platform":{
-
                 "platform":platform
-
             },
 
 
-            "ocr":{
+
+            "vision":{
 
                 "used":bool(image),
 
-                "extracted_text":extracted_text,
+                "post_text":extracted_text,
 
                 "engagement_values":engagement_values
 
@@ -340,8 +361,8 @@ class AnalysisPipeline:
 
             }
 
-
         }
+
 
 
 
@@ -372,64 +393,16 @@ class AnalysisPipeline:
 
 
 
-    # ================= NUMBER CONVERTER =================
+    def convert_confidence(
+        self,
+        value
+    ):
 
 
-    def convert_number(self,value):
-
-
-        if value is None:
-
-            return 0
-
-
-
-        value=str(value).replace(
-            ",",
-            ""
-        ).strip()
-
-
-
-        try:
-
-
-            if value.lower().endswith("k"):
-
-                return int(
-                    float(value[:-1]) * 1000
-                )
-
-
-
-            if value.lower().endswith("m"):
-
-                return int(
-                    float(value[:-1]) * 1000000
-                )
-
-
-
-            return int(
-                float(value)
-            )
-
-
-
-        except:
-
-
-            return 0
-
-
-
-
-
-
-    def convert_confidence(self,value):
-
-
-        if isinstance(value,(int,float)):
+        if isinstance(
+            value,
+            (int,float)
+        ):
 
             return value
 
@@ -465,13 +438,6 @@ class AnalysisPipeline:
                     ""
                 )
             )
-
-
         except:
-
             return 0
-
-
-
-
 analysis_pipeline=AnalysisPipeline()
