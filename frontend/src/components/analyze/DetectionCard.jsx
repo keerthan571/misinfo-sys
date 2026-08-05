@@ -1,12 +1,8 @@
 export default function DetectionCard({ data }) {
-
   if (!data) return null;
 
-
   const getBadgeColor = (prediction) => {
-
-    switch(prediction?.toLowerCase()) {
-
+    switch (prediction?.toLowerCase()) {
       case "potential misinformation":
         return "bg-red-500";
 
@@ -18,46 +14,31 @@ export default function DetectionCard({ data }) {
 
       default:
         return "bg-blue-500";
-
     }
-
   };
 
-
-
-  const confidenceValue = Number(
-    String(data.confidence || "0")
-    .replace("%","")
-  ) || 0;
-
-
+  const confidenceValue =
+    Number(String(data.confidence || "0").replace("%", "")) || 0;
 
   return (
+    <div className="bg-slate-800 rounded-2xl shadow-lg p-5 h-full flex flex-col">
 
-    <div className="bg-slate-800 rounded-2xl shadow-lg p-6">
-
-
-      <h2 className="text-2xl font-bold text-white mb-6">
+      <h2 className="text-2xl font-bold text-white mb-4">
         🧠 NLP Analysis
       </h2>
 
 
-
-      <div className="space-y-5">
-
-
+      <div className="space-y-4">
 
         {/* Classification */}
-
         <div className="flex justify-between items-center">
 
           <span className="text-gray-400">
             Classification
           </span>
 
-
           <span
-            className={`px-4 py-1 rounded-full text-white font-semibold ${getBadgeColor(
+            className={`px-3 py-1 rounded-full text-sm text-white font-semibold ${getBadgeColor(
               data.prediction
             )}`}
           >
@@ -67,11 +48,7 @@ export default function DetectionCard({ data }) {
         </div>
 
 
-
-
-
         {/* Confidence */}
-
         <div>
 
           <div className="flex justify-between mb-2">
@@ -80,7 +57,6 @@ export default function DetectionCard({ data }) {
               Confidence
             </span>
 
-
             <span className="text-white font-semibold">
               {confidenceValue}%
             </span>
@@ -88,13 +64,12 @@ export default function DetectionCard({ data }) {
           </div>
 
 
-
           <div className="w-full bg-slate-900 rounded-full h-2">
 
             <div
               className="bg-green-400 h-2 rounded-full"
               style={{
-                width:`${confidenceValue}%`
+                width: `${confidenceValue}%`,
               }}
             />
 
@@ -103,33 +78,22 @@ export default function DetectionCard({ data }) {
         </div>
 
 
-
-
-
         {/* Claim */}
+        <div className="bg-slate-900 rounded-xl p-3">
 
-        <div className="bg-slate-900 rounded-xl p-4">
-
-          <h3 className="text-white font-bold mb-3">
+          <h3 className="text-white font-bold mb-2">
             📌 Detected Claim
           </h3>
-
 
           <p className="text-gray-300">
             {data.claim || "Unknown"}
           </p>
 
-
         </div>
 
 
-
-
-
-
-        {/* Claim Type + Language + Time */}
-
-        <div className="bg-slate-900 rounded-xl p-4 space-y-3">
+        {/* Claim Type + Language */}
+        <div className="bg-slate-900 rounded-xl p-3 space-y-2">
 
 
           <div className="flex justify-between">
@@ -138,14 +102,11 @@ export default function DetectionCard({ data }) {
               Claim Type
             </span>
 
-
             <span className="text-white font-semibold">
               {data.claim_type || "Unknown"}
             </span>
 
           </div>
-
-
 
 
           <div className="flex justify-between">
@@ -154,26 +115,8 @@ export default function DetectionCard({ data }) {
               Language
             </span>
 
-
             <span className="text-white font-semibold">
               {data.language || "Unknown"}
-            </span>
-
-          </div>
-
-
-
-
-
-          <div className="flex justify-between">
-
-            <span className="text-gray-400">
-              Time Context
-            </span>
-
-
-            <span className="text-white font-semibold">
-              {data.temporal_context || "Unknown"}
             </span>
 
           </div>
@@ -182,188 +125,109 @@ export default function DetectionCard({ data }) {
         </div>
 
 
-
-
-
-
-
         {/* Keywords */}
+        {data.keywords?.length > 0 && (
 
-        {
-          data.keywords?.length > 0 && (
+          <div>
 
-            <div>
-
-              <p className="text-gray-400 mb-2">
-                🔑 Keywords
-              </p>
+            <p className="text-gray-400 mb-2">
+              🔑 Keywords
+            </p>
 
 
-              <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
 
+              {data.keywords.map((item, index) => (
 
-                {
-                  data.keywords.map(
+                <span
+                  key={index}
+                  className="bg-slate-900 px-2.5 py-1 rounded-lg text-sm text-gray-300"
+                >
+                  {item}
+                </span>
 
-                    (item,index)=>(
-
-                      <span
-
-                        key={index}
-
-                        className="bg-slate-900 px-3 py-2 rounded-lg text-gray-300"
-
-                      >
-
-                        {item}
-
-                      </span>
-
-                    )
-
-                  )
-                }
-
-
-              </div>
-
+              ))}
 
             </div>
 
-          )
+          </div>
 
-        }
-
-
-
-
-
+        )}
 
 
 
         {/* Manipulation Signals */}
+        {data.manipulation_signals?.length > 0 && (
 
-        {
-          data.manipulation_signals?.length > 0 && (
+          <div>
 
-            <div>
-
-
-              <p className="text-gray-400 mb-2">
-                ⚠️ Manipulation Signals
-              </p>
+            <p className="text-gray-400 mb-2">
+              ⚠️ Manipulation Signals
+            </p>
 
 
+            <div className="space-y-2">
 
-              <div className="space-y-2">
+              {data.manipulation_signals.map((item, index) => (
 
+                <div
+                  key={index}
+                  className="bg-slate-900 rounded-lg p-2.5 text-sm text-gray-300"
+                >
+                  ✓ {item}
+                </div>
 
-                {
-                  data.manipulation_signals.map(
-
-                    (item,index)=>(
-
-                      <div
-
-                        key={index}
-
-                        className="bg-slate-900 rounded-lg p-3 text-gray-300"
-
-                      >
-
-                        ✓ {item}
-
-                      </div>
-
-                    )
-
-                  )
-                }
-
-
-              </div>
-
+              ))}
 
             </div>
 
-          )
+          </div>
 
-        }
-
-
-
-
-
-
+        )}
 
 
 
         {/* Entities */}
+        {data.entities?.length > 0 && (
 
-        {
-          data.entities?.length > 0 && (
+          <div>
 
-            <div>
-
-
-              <p className="text-gray-400 mb-2">
-                🌐 Extracted Entities
-              </p>
+            <p className="text-gray-400 mb-2">
+              🌐 Extracted Entities
+            </p>
 
 
+            <div className="space-y-2">
 
-              <div className="space-y-2">
+              {data.entities.map((entity, index) => (
 
+                <div
+                  key={index}
+                  className="bg-slate-900 rounded-lg p-2.5 flex justify-between items-center"
+                >
 
-                {
-                  data.entities.map(
+                  <span className="text-gray-300">
+                    {entity.name}
+                  </span>
 
-                    (entity,index)=>(
+                  <span className="text-blue-400">
+                    {entity.type}
+                  </span>
 
-                      <div
+                </div>
 
-                        key={index}
-
-                        className="bg-slate-900 rounded-lg p-3 flex justify-between"
-
-                      >
-
-                        <span className="text-gray-300">
-                          {entity.name}
-                        </span>
-
-
-                        <span className="text-blue-400">
-                          {entity.type}
-                        </span>
-
-
-                      </div>
-
-                    )
-
-                  )
-                }
-
-
-              </div>
-
+              ))}
 
             </div>
 
-          )
+          </div>
 
-        }
-
-
-
+        )}
 
 
 
         {/* Similar Claim */}
-
         <div className="flex justify-between">
-
 
           <span className="text-gray-400">
             Similar Claim
@@ -372,25 +236,17 @@ export default function DetectionCard({ data }) {
 
           <span className="text-white font-semibold">
 
-            {
-              data.similar_claim
+            {data.similar_claim
               ? "Detected"
-              : "Not Detected"
-            }
+              : "Not Detected"}
 
           </span>
-
 
         </div>
 
 
-
       </div>
 
-
     </div>
-
-
   );
-
 }

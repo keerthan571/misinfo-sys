@@ -1,261 +1,264 @@
 class PredictionService:
 
 
-    def calculate_risk_level(self, probability):
+    def calculate_risk_level(
+        self,
+        probability
+    ):
 
-        if probability >= 80:
+        if probability>=80:
             return "Very High"
 
-        elif probability >= 60:
+        elif probability>=60:
             return "High"
 
-        elif probability >= 30:
+        elif probability>=30:
             return "Medium"
 
-        else:
-            return "Low"
+        return "Low"
 
 
 
-    def predict_spread(self, features):
+    def predict_spread(
+        self,
+        features
+    ):
 
 
-        likes = features.get("likes", 0) or 0
-        shares = features.get("shares", 0) or 0
-        comments = features.get("comments", 0) or 0
-        views = features.get("views", 0) or 0
-        bookmarks = features.get("bookmarks", 0) or 0
+        likes=features.get(
+            "likes",
+            0
+        ) or 0
 
 
-        spread_score = features.get(
+        shares=features.get(
+            "shares",
+            0
+        ) or 0
+
+
+        comments=features.get(
+            "comments",
+            0
+        ) or 0
+
+
+        views=features.get(
+            "views",
+            0
+        ) or 0
+
+
+        saves=features.get(
+            "saves",
+            0
+        ) or 0
+
+
+
+        spread_score=features.get(
             "spread_score",
             0
         ) or 0
 
 
-        risk_score = features.get(
+        risk_score=features.get(
             "risk_score",
             0
         ) or 0
 
 
-        emotion_score = features.get(
-            "emotion_score",
-            0
-        ) or 0
 
+        total_engagement=(
 
-        manipulation_score = features.get(
-            "manipulation_score",
-            0
-        ) or 0
-
-
-
-        # -----------------------------
-        # Engagement calculation
-        # -----------------------------
-
-        engagement_score = 0
-
-
-        if views > 0:
-
-            engagement_score = (
-
-                (
-                    likes +
-                    shares +
-                    comments +
-                    bookmarks
-                )
-                /
-                views
-
-            ) * 100
-
-
-
-        engagement_score = min(
-            engagement_score,
-            100
-        )
-
-
-
-        # -----------------------------
-        # Spread Probability
-        # -----------------------------
-
-        spread_probability = (
-
-            (risk_score * 0.40)
-            +
-            (spread_score * 0.30)
-            +
-            (emotion_score * 0.10)
-            +
-            (manipulation_score * 0.10)
-            +
-            (engagement_score * 0.10)
+            likes+
+            shares+
+            comments+
+            saves
 
         )
 
 
-        spread_probability = round(
+
+        if views>0:
+
+            engagement_score=(
+
+                total_engagement/views
+
+            )*100
+
+
+        else:
+
+            engagement_score=min(
+
+                total_engagement/100,
+
+                100
+
+            )
+
+
+
+        engagement_score=round(
+
+            min(
+                engagement_score,
+                100
+            ),
+
+            2
+
+        )
+
+
+
+        spread_probability=(
+
+            risk_score*0.35+
+
+            spread_score*0.35+
+
+            engagement_score*0.25
+
+        )
+
+
+
+        spread_probability=round(
+
             min(
                 spread_probability,
                 100
             ),
+
             2
+
         )
 
 
 
-        risk_level = self.calculate_risk_level(
+        risk_level=self.calculate_risk_level(
+
             spread_probability
-        )
-
-
-
-        # -----------------------------
-        # Estimated Reach Prediction
-        # -----------------------------
-
-        # If social media views exist,
-        # use them as the base.
-        # For text-only input,
-        # use a default baseline.
-
-        base_views = views if views > 0 else 1000
-
-
-        growth_multiplier = (
-            1 +
-            (spread_probability / 100)
-        )
-
-
-        predicted_reach = round(
-
-            base_views *
-            growth_multiplier,
-
-            2
 
         )
 
 
 
-        # -----------------------------
-        # Explanation
-        # -----------------------------
+        if views>0:
 
-        if shares > likes:
+            predicted_reach=views*(
 
-            reason = (
+                1+
 
-                "High redistribution potential detected "
-                "because sharing activity is dominant."
-
-            )
-
-
-        elif risk_score >= 70:
-
-            reason = (
-
-                "High misinformation risk signals "
-                "indicate possible rapid spread."
-
-            )
-
-
-        elif spread_score >= 50:
-
-            reason = (
-
-                "Content shows multiple spread indicators."
+                spread_probability/100
 
             )
 
 
         else:
 
-            reason = (
+            predicted_reach=total_engagement*(
 
-                "Low spread indicators detected."
+                5+
+
+                spread_probability/20
 
             )
 
 
 
+        predicted_reach=round(
+
+            predicted_reach,
+
+            2
+
+        )
+
+
+
+        if shares>likes:
+
+            summary="High redistribution potential detected because sharing activity is dominant."
+
+
+        elif risk_score>=70:
+
+            summary="High misinformation risk signals detected."
+
+
+        elif spread_score>=50:
+
+            summary="Multiple spread indicators detected."
+
+
+        else:
+
+            summary="Low spread indicators detected."
+
+
+
         return {
 
+            "status":"success",
 
-            "status": "success",
+            "module":"Spread Prediction",
 
+            "data":{
 
-            "module": "Spread Prediction",
+                "predicted_reach":predicted_reach,
 
+                "spread_probability":spread_probability,
 
-            "data": {
+                "risk_level":risk_level,
 
+                "virality_score":round(
 
-                "predicted_reach":
-                    predicted_reach,
+                    (
 
+                        spread_score*0.6
 
-                "spread_probability":
-                    spread_probability,
+                    )+
 
+                    (
 
-                "risk_level":
-                    risk_level,
+                        spread_probability*0.4
 
-
-                "virality_score":
-                    round(
-                        (
-                            spread_score * 0.6
-                            +
-                            spread_probability * 0.4
-                        ),
-                        2
                     ),
 
+                    2
 
-                "features_used": {
+                ),
 
+                "features_used":{
 
-                    "likes": likes,
+                    "likes":likes,
 
-                    "shares": shares,
+                    "shares":shares,
 
-                    "comments": comments,
+                    "comments":comments,
 
-                    "views": views,
+                    "views":views,
 
-                    "bookmarks": bookmarks,
+                    "saves":saves,
 
-                    "spread_score": spread_score,
+                    "spread_score":spread_score,
 
-                    "risk_score": risk_score,
+                    "risk_score":risk_score,
 
-                    "emotion_score": emotion_score,
-
-                    "manipulation_score": manipulation_score
+                    "engagement_score":engagement_score
 
                 }
 
             },
 
-
-            "analysis_summary": reason
+            "analysis_summary":summary
 
         }
 
 
 
-
-prediction_service = PredictionService()
+prediction_service=PredictionService()

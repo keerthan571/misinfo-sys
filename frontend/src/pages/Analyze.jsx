@@ -1,257 +1,348 @@
 import { useState } from "react";
-import apiClient from "../api/apiClient";
 import { useNavigate } from "react-router-dom";
+import apiClient from "../api/apiClient";
+import { useAnalysis } from "../context/AnalysisContext";
 
 import AnalyzeInput from "../components/analyze/AnalyzeInput";
 import DetectionCard from "../components/analyze/DetectionCard";
 import FactVerificationCard from "../components/analyze/FactVerificationCard";
-import OCRCard from "../components/analyze/OCRCard";
-import PlatformCard from "../components/analyze/PlatformCard";
-import SpreadPredictionCard from "../components/analyze/SpreadPredictionCard";
-
 
 export default function Analyze() {
+  const { analysisData, setAnalysisData } = useAnalysis();
 
-  const [news, setNews] = useState("");
+  const [news, setNews] = useState(analysisData?.news || "");
   const [image, setImage] = useState(null);
-
-  const [result, setResult] = useState(null);
-
+  const [platform, setPlatform] = useState("");
+  const [followers, setFollowers] = useState("");
+  const [ocrEngagement, setOcrEngagement] = useState({});
+  const [imagePreview, setImagePreview] = useState(
+    analysisData?.imagePreview || null
+  );
+  const [result, setResult] = useState(
+    analysisData?.result || null
+  );
   const [loading, setLoading] = useState(false);
-
   const [error, setError] = useState("");
+
   const navigate = useNavigate();
+
   const handleAnalyze = async () => {
     if (!news.trim() && !image) {
-      setError(
-        "Please enter news text or upload an image."
-      );
+      setError("Please enter news text or upload an image.");
       return;
     }
+
+    if (!platform) {
+      setError("Please select the platform.");
+      return;
+    }
+
     try {
       setLoading(true);
       setError("");
       setResult(null);
+
       const formData = new FormData();
+
+      formData.append("platform", platform);
+
+      if (platform === "Instagram" && followers) {
+        formData.append("followers", followers);
+      }
+
       if (news.trim()) {
-        formData.append(
-          "text",
-          news
-        );
+        formData.append("text", news);
       }
+
       if (image) {
-        formData.append(
-          "image",
-          image
-        );
+        formData.append("image", image);
       }
+
+      formData.append(
+        "ocr_engagement",
+        JSON.stringify(ocrEngagement)
+      );
+
       const response = await apiClient.post(
         "/api/analyze/",
         formData,
         {
-          headers:{
-            "Content-Type":"multipart/form-data"
-          }
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         }
       );
+
       setResult(response.data);
-      console.log(response);
+
+      let preview = null;
+
+      const savedImage =
+        response.data?.analysis?.image?.path;
+
+      if (savedImage) {
+        preview = `http://127.0.0.1:8000/${savedImage.replace(
+          "\\",
+          "/"
+        )}`;
+
+        setImagePreview(preview);
+      }
+
+      setAnalysisData({
+        result: response.data,
+        imagePreview: preview,
+        news,
+        platform,
+        followers,
+      });
+
       if (
-        response.data?.analysis?.ocr?.extracted_text
-        &&
+        response.data?.analysis?.vision?.post_text &&
         !news.trim()
-      ){
+      ) {
         setNews(
-          response.data.analysis.ocr.extracted_text
+          response.data.analysis.vision.post_text
         );
       }
-    }
-    catch(err){
-      console.error(err);
+    } catch (err) {
       setError(
         err.response?.data?.detail ||
-        err.response?.data?.message ||
-        "Analysis failed."
+          err.response?.data?.message ||
+          "Analysis failed."
       );
-    }
-    finally{
+    } finally {
       setLoading(false);
     }
   };
-  
-  const handleViewGraph = () => {
 
+  const handleViewGraph = () => {
     if (!result?.analysis) {
-        alert("Analysis data is not available.");
-        return;
+      alert("Analysis data is not available.");
+      return;
     }
 
     localStorage.setItem(
-        "latestAnalysis",
-        JSON.stringify(result.analysis)
+      "latestAnalysis",
+      JSON.stringify(result.analysis)
     );
 
     navigate("/graph", {
-        state: {
-            analysis: result.analysis
-        }
+      state: {
+        analysis: result.analysis,
+      },
     });
   };
 
+  const prediction =
+    result?.analysis?.final_result?.label || "";
+
+  const predictionColor = () => {
+    const label = prediction.toLowerCase();
+
+    if (
+      label.includes("verified") ||
+      label.includes("reliable")
+    ) {
+      return "text-green-400";
+    }
+
+    if (
+      label.includes("false") ||
+      label.includes("misinformation")
+    ) {
+      return "text-red-400";
+    }
+
+    if (
+      label.includes("verification") ||
+      label.includes("misleading")
+    ) {
+      return "text-yellow-400";
+    }
+
+    return "text-blue-400";
+  };
+  
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold text-white">
-          Analyze News
-        </h1>
-        <p className="text-gray-400 mt-2">
-          Upload news images or enter text.
-          OCR extraction, misinformation detection and verification happen automatically.
-        </p>
-      </div>
-      <AnalyzeInput
+  <div className="space-y-8">
 
-        news={news}
+    <div>
+      <h1 className="text-4xl font-bold text-white">
+        Analyze News
+      </h1>
 
-        setNews={setNews}
-
-        image={image}
-
-        setImage={setImage}
-
-        loading={loading}
-
-        onAnalyze={handleAnalyze}
-
-      />
-
-      {
-        error && (
-          <div className="bg-red-500 p-4 rounded-xl text-white">
-            {error}
-          </div>
-        )
-      }
-      {
-        result?.analysis && (
-          <div className="space-y-6">
-            {/* FINAL RESULT */}
-              <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
-                <h2 className="text-3xl font-bold mb-5">
-                  🧠 Final Analysis Result
-                </h2>
-
-                <p className="text-xl">
-                  Prediction:
-                  <span className="ml-3 font-bold text-red-400">
-                    {result.analysis.final_result?.label}
-                  </span>
-                </p>
-
-                <p className="text-xl mt-3">
-                  Confidence:
-                  <span className="ml-3 font-bold text-green-400">
-                    {result.analysis.final_result?.confidence}%
-                  </span>
-                </p>
-
-                <p className="text-xl mt-3">
-                  Risk Level:
-                  <span className="ml-3 font-bold text-yellow-400">
-                    {result.analysis.final_result?.risk_level}
-                  </span>
-                </p>
-
-                <p className="text-gray-300 mt-5">
-                  {result.analysis.final_result?.summary}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-                <OCRCard
-                  data={result.analysis.ocr}
-                />
-
-                <PlatformCard
-                  data={result.analysis.platform}
-                />
-
-                <DetectionCard
-                  data={result.analysis.detection}
-                />
-
-                <FactVerificationCard
-                  data={result.analysis.fact_verification}
-                />
-
-                <SpreadPredictionCard
-                  data={{
-                    ...result.analysis.prediction?.data,
-                    analysis_summary:
-                      result.analysis.prediction?.analysis_summary,
-                  }}
-                />
-
-                {/* ENGAGEMENT */}
-                <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
-                  <h2 className="text-2xl font-bold mb-5 text-white">
-                    📊 Social Engagement Signals
-                  </h2>
-
-                  <p>
-                    ❤️ Likes: {result.analysis.engagement?.likes ?? 0}
-                  </p>
-
-                  <p>
-                    🔁 Shares: {result.analysis.engagement?.shares ?? 0}
-                  </p>
-
-                  <p>
-                    👀 Views: {result.analysis.engagement?.views ?? 0}
-                  </p>
-
-                  <p>
-                    🔖 Bookmarks: {result.analysis.engagement?.bookmarks ?? 0}
-                  </p>
-                </div>
-
-                {/* SPREAD ANALYSIS */}
-                <div className="bg-slate-800 rounded-2xl shadow-lg p-6 text-white">
-                  <h2 className="text-2xl font-bold mb-5 text-white">
-                    📈 Spread Factor Analysis
-                  </h2>
-
-                  <p>
-                    Spread Score:
-                    <span className="ml-2 font-bold text-green-400">
-                      {result.analysis.spread_analysis?.metrics?.spread_score ?? 0}
-                    </span>
-                  </p>
-
-                  <p className="mt-4 text-gray-300">
-                    {result.analysis.spread_analysis?.summary ||
-                      "No spread analysis available."}
-                  </p>
-                </div>
-
-              </div>
-
-              {/* VIEW GRAPH BUTTON (Only for OCR/Image Analysis) */}
-              {image && result?.analysis && (
-                <div className="flex justify-center">
-                  <button
-                    onClick={handleViewGraph}
-                    className="bg-indigo-600 hover:bg-indigo-700 transition-all duration-200 text-white font-semibold px-8 py-3 rounded-xl shadow-lg"
-                  >
-                    🌐 View Propagation Graph
-                  </button>
-                </div>
-              )}
-
-            </div>
-          )
-      }
+      <p className="text-gray-400 mt-2">
+        Upload social media images or enter text.
+        Vision extraction, misinformation detection and verification happen automatically.
+      </p>
     </div>
-  );
+
+    <AnalyzeInput
+      news={news}
+      setNews={setNews}
+      image={image}
+      setImage={setImage}
+      loading={loading}
+      onAnalyze={handleAnalyze}
+      platform={platform}
+      setPlatform={setPlatform}
+      followers={followers}
+      setFollowers={setFollowers}
+      setOcrEngagement={setOcrEngagement}
+    />
+
+    {error && (
+      <div className="bg-red-500 p-4 rounded-xl text-white">
+        {error}
+      </div>
+    )}
+
+    {imagePreview && (
+      <div className="bg-slate-800 rounded-2xl p-6">
+        <h2 className="text-2xl font-bold text-white mb-4">
+          🖼 Uploaded Image
+        </h2>
+
+        <img
+          src={imagePreview}
+          alt="Uploaded"
+          className="rounded-xl max-h-96 mx-auto"
+        />
+      </div>
+    )}
+
+    {result?.analysis && (
+      <div className="space-y-6">
+
+        <div className="bg-slate-800 rounded-2xl shadow-lg p-6">
+
+          <h2 className="text-3xl font-bold text-white mb-6">
+            🧠 Final Analysis Result
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
+            <div className="bg-slate-900 rounded-xl p-5">
+              <p className="text-gray-400 text-sm">
+                Prediction
+              </p>
+
+              <p className={`text-lg font-bold ${predictionColor()}`}>
+                {result.analysis.final_result?.label}
+              </p>
+            </div>
+
+            <div className="bg-slate-900 rounded-xl p-5">
+              <p className="text-gray-400 text-sm">
+                Confidence
+              </p>
+
+              <p className="text-lg font-bold text-green-400">
+                {result.analysis.final_result?.confidence}%
+              </p>
+            </div>
+
+            <div className="bg-slate-900 rounded-xl p-5">
+              <p className="text-gray-400 text-sm">
+                Risk Level
+              </p>
+
+              <p className="text-lg font-bold text-yellow-400">
+                {result.analysis.final_result?.risk_level}
+              </p>
+            </div>
+
+          </div>
+
+          <div className="border-t border-slate-700 pt-5">
+
+            <h3 className="text-lg font-semibold text-white">
+              Summary
+            </h3>
+
+            <p className="text-gray-300 leading-7">
+              {result.analysis.final_result?.summary}
+            </p>
+
+          </div>
+
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          <DetectionCard
+            data={result.analysis.detection}
+          />
+
+          <FactVerificationCard
+            data={result.analysis.fact_verification}
+          />
+
+        </div>
+
+        {image ? (
+
+          <div className="flex justify-center gap-4 flex-wrap">
+
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-xl"
+              onClick={() => {
+                navigate("/engagement-verification", {
+                  state: {
+                    analysis: {
+                      ...result.analysis,
+                      engagement: {
+                        ...result.analysis.engagement,
+                        followers: Number(followers)
+                      }
+                    }
+                  }
+                });
+              }}
+            >
+              📊 Verify Engagement Values
+            </button>
+
+            <button
+              onClick={handleViewGraph}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-4 rounded-xl"
+            >
+              🌐 View Propagation Graph
+            </button>
+
+          </div>
+
+        ) : (
+
+          <div className="flex justify-center">
+
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-xl"
+              onClick={() => {
+                navigate("/engagement-verification", {
+                  state: {
+                    analysis: {
+                      ...result.analysis,
+                      engagement: {
+                        ...result.analysis.engagement,
+                        followers: Number(followers)
+                      }
+                    }
+                  }
+                });
+              }}
+            >
+              📊 Verify Engagement Values
+            </button>
+
+          </div>
+
+        )}
+
+      </div>
+    )}
+
+  </div>
+);
 }

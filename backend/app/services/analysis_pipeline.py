@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 import time
 import uuid
 from ..database.mongodb import analyses_collection
@@ -12,45 +11,21 @@ from .prediction_service import prediction_service
 from .spread_factor_service import spread_factor_service
 
 class AnalysisPipeline:
-    def __init__(self):
-        pass
-    @staticmethod
-    def safe_confidence(value):
-        try:
-            return int(str(value).replace("%",""))
-        except Exception:
-            return 0
-    @staticmethod
-    def generate_final_result(response):
-        detection=response.get("detection",{})
-        fact=response.get("fact_verification",{})
-        prediction=response.get("prediction",{})
-        detection_conf=AnalysisPipeline.safe_confidence(detection.get("confidence",0))
-        fact_conf=AnalysisPipeline.safe_confidence(fact.get("confidence",0))
-        virality_score=int(prediction.get("virality_score",0))
-        final_confidence=int(detection_conf*0.5+fact_conf*0.3+virality_score*0.2)
-        verdict=str(fact.get("verdict","")).lower()
-        if "false" in verdict or "fake" in verdict:
-            label="False Information"
-        elif "verified" in verdict or "true" in verdict:
-            label="Verified Information"
-        elif "misleading" in verdict:
-            label="Misleading Information"
-        else:
-            label="Insufficient Evidence"
-        if final_confidence>=75:
-            risk_level="High"
-        elif final_confidence>=40:
-            risk_level="Medium"
-        else:
-            risk_level="Low"
-        return{
-            "label":label,
-            "confidence":final_confidence,
-            "risk_level":risk_level,
-            "summary":f"Final analysis result: {label} with {final_confidence}% confidence."
-        }
-    def _initialize_response(self):
+
+
+    async def run(
+        self,
+        text,
+        image,
+        platform,
+        current_user,
+        followers=0,
+        ocr_values=None
+    ):
+
+
+        start=time.time()
+
         analysis_id=str(uuid.uuid4())
         analysis_time=datetime.now(timezone.utc).isoformat()
         return{
@@ -191,47 +166,135 @@ class AnalysisPipeline:
     def _save_analysis(self,current_user,analysis_id,analysis_time,final_text,response,processing_time):
         analysis_document={
             "analysis_id":analysis_id,
-            "email":current_user["email"],
-            "userId":current_user["email"],
-            "text":final_text,
-            "analysis_time":analysis_time,
-            "platform":response["platform"],
-            "final_result":response["final_result"],
-            "detection":response["detection"],
-            "fact_verification":response["fact_verification"],
-            "ocr":response["ocr"],
-            "engagement":response["engagement"],
-            "spread_analysis":response["spread_analysis"],
-            "prediction":response["prediction"],
-            "graph":response["graph"],
+
+
+            "platform":{
+                "platform":platform
+            },
+
+
+            "vision":{
+
+                "used":bool(image),
+
+                "post_text":extracted_text,
+
+                "engagement_values":engagement_values
+
+            },
+
+
+            "detection":detection,
+
+
+            "fact_verification":fact_result,
+
+
+            "engagement":engagement,
+
+
+            "spread_analysis":spread_analysis,
+
+
+            "prediction":prediction["data"],
+
+
+            "final_result":final_result,
+
+
             "metadata":{
-                "processing_time":processing_time,
-                "text_length":len(final_text),
-                "word_count":len(final_text.split()),
-                "pipeline_version":"2.0",
-                "created_at":analysis_time
+
+                "analysis_id":analysis_id,
+
+                "processing_status":"completed",
+
+                "processing_time":round(
+                    time.time()-start,
+                    2
+                )
+
             }
+
         }
-        try:
-            analyses_collection.insert_one(analysis_document)
-        except Exception as e:
-            print("MongoDB Error:",e)
-    def _build_response(self,response,analysis_id,analysis_time,processing_time):
-        return{
-            "status":"success",
-            "analysis_id":analysis_id,
-            "processing_time":processing_time,
-            "analysis":{
+
+
+
+
+
+        analysis_collection.insert_one(
+
+            {
+
                 **response,
-                "verification_status":response["fact_verification"].get("verdict","Insufficient Evidence"),
-                "spread_prediction":response["prediction"],
-                "metadata":{
-                    "analysis_id":analysis_id,
-                    "timestamp":analysis_time,
-                    "processing_time":processing_time,
-                    "processing_status":"completed"
-                }
+
+                "user":current_user.get(
+                    "email"
+                )
+
             }
+
+        )
+
+
+
+        return {
+
+            "analysis":response
+
         }
-        
+
+
+
+
+
+    def convert_confidence(
+        self,
+        value
+    ):
+
+
+        if isinstance(value,(int,float)):
+
+            return value
+
+
+
+        value=str(value).lower()
+
+
+
+        if "high" in value:
+
+            return 90
+
+
+        if "medium" in value:
+
+            return 70
+
+
+        if "low" in value:
+
+            return 40
+
+
+
+        try:
+
+            return float(
+                value.replace(
+                    "%",
+                    ""
+                )
+            )
+
+
+        except:
+
+            return 0
+
+
+
+
+
 analysis_pipeline = AnalysisPipeline()

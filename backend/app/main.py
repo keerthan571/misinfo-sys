@@ -1,4 +1,9 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.database import client
@@ -9,7 +14,6 @@ try:
 except Exception as e:
     print(" MongoDB Connection Failed:", e)
 
-# Import modular routers
 from .routes import (
     detect,
     graph,
@@ -20,34 +24,39 @@ from .routes import (
     analyze,
     auth,
     dashboard,
+    history
 )
+
 app = FastAPI(
     title="Misinformation Analysis System API",
     description="Backend API for the VTU final year project.",
     version="1.0.0"
 )
 
-# CORS setup
+app.mount(
+    "/uploads",
+    StaticFiles(directory="uploads"),
+    name="uploads"
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # Replace with frontend URL in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# -----------------------------
-# Register API Routes
-# -----------------------------
-
 app.include_router(
-    auth.router              # <-- NEW
+    auth.router
 )
+
 app.include_router(
     dashboard.router,
     prefix="/api/dashboard",
     tags=["Dashboard"]
 )
+
 app.include_router(
     analyze.router,
     prefix="/api/analyze",
@@ -90,9 +99,11 @@ app.include_router(
     tags=["Influence Detection"]
 )
 
-# -----------------------------
-# Root Endpoint
-# -----------------------------
+app.include_router(
+    history.router,
+    prefix="/api/history",
+    tags=["History"]
+)
 
 @app.get("/")
 def root():

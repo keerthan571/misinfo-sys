@@ -4,8 +4,23 @@ import App from "./App.jsx";
 import "./App.css";
 import "./index.css";
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+import {
+  AnalysisProvider
+} from "./context/AnalysisContext.jsx";
+
+
+ReactDOM.createRoot(
+  document.getElementById("root")
+).render(
+
   <React.StrictMode>
-    <App />
+
+    <AnalysisProvider>
+
+      <App />
+
+    </AnalysisProvider>
+
   </React.StrictMode>
+
 );
