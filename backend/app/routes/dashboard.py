@@ -58,23 +58,14 @@ def normalize_verdict(verdict):
 # =====================================================
 
 @router.get("/stats")
-def get_dashboard_stats(
-    current_user=Depends(get_current_user)
-):
+@router.get("/stats")
+def get_dashboard_stats(current_user=Depends(get_current_user)):
 
     user_filter = {
         "email": current_user["email"]
     }
 
-
-    print("\n========== DASHBOARD DEBUG ==========")
-    print("User:", current_user["email"])
-
-
-    total = analysis_collection.count_documents(
-        user_filter
-    )
-
+    total = analysis_collection.count_documents(user_filter)
 
     analyses = list(
         analysis_collection.find(
@@ -82,181 +73,92 @@ def get_dashboard_stats(
             {
                 "fact_verification.verdict": 1,
                 "detection.confidence": 1,
+                "analysis.ocr.used": 1,
                 "ocr.used": 1
             }
         )
     )
-
-
+    print("\n===== SAMPLE DOCUMENT =====")
+    if analyses:
+        print(analyses[0])
+    print("===========================\n")
     verified_true = 0
     verified_false = 0
     confidence_values = []
     ocr_uploads = 0
 
-
-
     for analysis in analyses:
 
-
-        # Verdict
         verdict = normalize_verdict(
-            analysis
-            .get("fact_verification", {})
-            .get("verdict", "")
+            analysis.get("fact_verification", {}).get("verdict", "")
         )
-
 
         if verdict == "Verified True":
             verified_true += 1
-
-
         elif verdict == "Verified False":
             verified_false += 1
 
-
-
-        # Confidence
-        confidence = (
-            analysis
-            .get("detection", {})
-            .get("confidence")
-        )
-
+        confidence = analysis.get("detection", {}).get("confidence")
 
         if isinstance(confidence, (int, float)):
             confidence_values.append(confidence)
 
-
-
-        # OCR
-        if (
-            analysis
-            .get("ocr", {})
-            .get("used")
-            is True
-        ):
-            ocr_uploads += 1
-
-
-
-    # Average confidence
-
-    if confidence_values:
-
-        avg_confidence = round(
-            sum(confidence_values)
-            /
-            len(confidence_values),
-            2
+        # OCR Count
+        ocr_used = (
+            analysis.get("ocr", {}).get("used")
+            or
+            analysis.get("analysis", {}).get("ocr", {}).get("used")
         )
 
-    else:
+        if ocr_used:
+            ocr_uploads += 1
 
-        avg_confidence = 0
-
-
-
-    # Reports
-
-    reports = reports_collection.count_documents(
-        user_filter
+    avg_confidence = (
+        round(sum(confidence_values) / len(confidence_values), 2)
+        if confidence_values
+        else 0
     )
-
-
-
-    # Weekly analysis
 
     today = datetime.utcnow()
+    start_of_week = today - timedelta(days=today.weekday())
 
-    start_of_week = (
-        today -
-        timedelta(days=today.weekday())
-    )
-
-
-    days = [
-        "Mon",
-        "Tue",
-        "Wed",
-        "Thu",
-        "Fri",
-        "Sat",
-        "Sun"
-    ]
-
-
+    days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     weekly_analysis = []
-
 
     for i in range(7):
 
-        current_day = (
-            start_of_week +
-            timedelta(days=i)
-        )
-
+        current_day = start_of_week + timedelta(days=i)
 
         start = current_day.replace(
             hour=0,
             minute=0,
             second=0,
-            microsecond=0
+            microsecond=0,
         )
-
 
         end = start + timedelta(days=1)
 
-
-
-        count = analysis_collection.count_documents(
-            {
-                **user_filter,
-                "analysis_time": {
-                    "$gte": start.isoformat(),
-                    "$lt": end.isoformat()
-                }
+        count = analysis_collection.count_documents({
+            **user_filter,
+            "analysis_time": {
+                "$gte": start.isoformat(),
+                "$lt": end.isoformat()
             }
-        )
+        })
 
-
-        weekly_analysis.append(
-            {
-                "day": days[i],
-                "count": count
-            }
-        )
-
-
-
-    print("Total:", total)
-    print("Verified True:", verified_true)
-    print("Verified False:", verified_false)
-    print("OCR:", ocr_uploads)
-    print("Confidence:", avg_confidence)
-    print("====================================\n")
-
-
+        weekly_analysis.append({
+            "day": days[i],
+            "count": count
+        })
 
     return {
-
         "totalAnalyses": total,
-
         "verifiedTrue": verified_true,
-
         "verifiedFalse": verified_false,
-
         "ocrUploads": ocr_uploads,
-
-        "reports": reports,
-
         "avgConfidence": avg_confidence,
-
         "weeklyAnalysis": weekly_analysis
-
     }
-
-
-
 
 # =====================================================
 # RECENT ACTIVITY

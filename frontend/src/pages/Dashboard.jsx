@@ -4,13 +4,11 @@ import {
   ShieldCheck,
   ShieldAlert,
   ScanLine,
-  FileText,
   Target,
 } from "lucide-react";
 
 import Charts from "../components/dashboard/Charts";
 import StatCard from "../components/dashboard/StatCard";
-import QuickActions from "../components/dashboard/QuickActions";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 
 import { getCurrentUser } from "../api/authApi";
@@ -22,7 +20,6 @@ export default function Dashboard() {
     verifiedTrue: 0,
     verifiedFalse: 0,
     ocrUploads: 0,
-    reports: 0,
     avgConfidence: 0,
     weeklyAnalysis: [
       { day: "Mon", count: 0 },
@@ -56,7 +53,6 @@ export default function Dashboard() {
         verifiedTrue: dashboardData.verifiedTrue,
         verifiedFalse: dashboardData.verifiedFalse,
         ocrUploads: dashboardData.ocrUploads,
-        reports: dashboardData.reports,
         avgConfidence: dashboardData.avgConfidence,
         weeklyAnalysis: dashboardData.weeklyAnalysis,
       }));
@@ -95,16 +91,9 @@ export default function Dashboard() {
     {
       title: "OCR Uploads",
       value: dashboard.ocrUploads,
-      subtitle: "Images processed",
+      subtitle: "Images processed using OCR",
       icon: ScanLine,
       valueColor: "text-purple-500",
-    },
-    {
-      title: "Reports",
-      value: dashboard.reports,
-      subtitle: "Generated reports",
-      icon: FileText,
-      valueColor: "text-indigo-500",
     },
     {
       title: "AI Confidence",
@@ -137,11 +126,8 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-
-      {/* Header */}
       <DashboardHeader userName={userName} />
 
-      {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {stats.map((stat) => (
           <StatCard
@@ -155,16 +141,13 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Quick Actions */}
-      <QuickActions />
-
-      {/* Charts */}
-      <Charts
-        fakeNews={dashboard.verifiedFalse}
-        realNews={dashboard.verifiedTrue}
-        weeklyAnalysis={dashboard.weeklyAnalysis}
-      />
-
+      <div className="w-full">
+        <Charts
+          fakeNews={dashboard.verifiedFalse}
+          realNews={dashboard.verifiedTrue}
+          weeklyAnalysis={dashboard.weeklyAnalysis}
+        />
+      </div>
     </div>
   );
 }

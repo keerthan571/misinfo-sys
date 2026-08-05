@@ -1,205 +1,398 @@
-import { useState } from "react";
+import { useEffect, useState ,useMemo} from "react";
+import { useLocation, Navigate } from "react-router-dom";
 import ReactFlow, {
   Background,
   Controls,
   MiniMap,
 } from "reactflow";
-import dagre from "dagre";
 import "reactflow/dist/style.css";
+import GraphNode from "../components/graph/GraphNode";
+import GraphGenerator from "../graph/GraphGenerator";
 
-import apiClient from "../api/apiClient";
+function InfoCard({ title, value }) {
 
-const dagreGraph = new dagre.graphlib.Graph();
-dagreGraph.setDefaultEdgeLabel(() => ({}));
+    return (
 
-const nodeWidth = 170;
-const nodeHeight = 70;
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
 
-const getLayoutedElements = (nodes, edges) => {
-  dagreGraph.setGraph({
-    rankdir: "TB", // Top -> Bottom
-    ranksep: 120,
-    nodesep: 80,
-  });
+            <div className="text-xs uppercase tracking-wider text-slate-400">
 
-  nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, {
-      width: nodeWidth,
-      height: nodeHeight,
-    });
-  });
+                {title}
 
-  edges.forEach((edge) => {
-    dagreGraph.setEdge(edge.source, edge.target);
-  });
+            </div>
 
-  dagre.layout(dagreGraph);
+            <div className="text-lg font-semibold text-white mt-2 break-all">
 
-  const layoutedNodes = nodes.map((node) => {
-    const position = dagreGraph.node(node.id);
+                {value ?? "-"}
 
-    return {
-      ...node,
-      position: {
-        x: position.x - nodeWidth / 2,
-        y: position.y - nodeHeight / 2,
-      },
-    };
-  });
+            </div>
 
-  return {
-    nodes: layoutedNodes,
-    edges,
-  };
-};
+        </div>
+
+    );
+
+}
 
 export default function Graph() {
-  const [content, setContent] = useState("");
-  const [reposts, setReposts] = useState("");
+  const location = useLocation();
+
+  const savedAnalysis =
+    localStorage.getItem(
+        "latestAnalysis"
+    );
+
+  const analysis =
+      location.state?.analysis ||
+      (savedAnalysis
+          ? JSON.parse(savedAnalysis)
+          : null);
+
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
-  const [loading, setLoading] = useState(false);
 
-  const generateGraph = async () => {
-    if (!content || !reposts) {
-      alert("Please enter content and repost count.");
-      return;
-    }
+  const [analytics, setAnalytics] = useState(null);
+  const [influencers, setInfluencers] = useState([]);
+  const [blueprint, setBlueprint] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null);
 
-    try {
-      setLoading(true);
+  useEffect(() => {
 
-      const response = await apiClient.post("/graph/", {
-        content,
-        reposts: Number(reposts),
-      });
+    if (!analysis) return;
+    console.log("Analysis:", analysis);
+    const loadGraph = async () => {
 
-      const graph = response.data;
+        console.log("Analysis:", analysis);
 
-      const flowNodes = graph.nodes.map((node) => ({
-        id: node.id,
-        data: {
-          label: node.label,
-        },
-        style: {
-          background: node.color,
-          color: "#fff",
-          border: "2px solid white",
-          borderRadius: "12px",
-          width: 150,
-          padding: "10px",
-          textAlign: "center",
-          fontWeight: "bold",
-          fontSize: "14px",
-        },
-        position: { x: 0, y: 0 },
-      }));
+        const graph =
+            await GraphGenerator.generate(
+                analysis
+            );
 
-      const flowEdges = graph.edges.map((edge, index) => ({
-        id: `edge-${index}`,
-        source: edge.source,
-        target: edge.target,
-        animated: true,
-        type: "smoothstep",
-        style: {
-          stroke: "#60a5fa",
-          strokeWidth: 2,
-        },
-      }));
+        const reactNodes =
+            graph.nodes.map(node => ({
+                ...node,
+                type: "custom"
+            }));
 
-      const layouted = getLayoutedElements(flowNodes, flowEdges);
+        setNodes(reactNodes);
+        setEdges(graph.edges);
 
-      setNodes(layouted.nodes);
-      setEdges(layouted.edges);
+        setAnalytics(graph.analytics);
+        setInfluencers(graph.influencers);
+        setBlueprint(graph.blueprint);
+    };
 
-    } catch (error) {
-      console.error(error);
-      alert("Failed to generate graph.");
-    } finally {
-      setLoading(false);
-    }
+    loadGraph();
+
+}, [analysis]);
+
+  const nodeTypes = useMemo(
+    () => ({
+        custom: GraphNode,
+    }),
+    []
+  );
+  
+  if (!analysis) {
+    return <Navigate to="/analyze" replace />;
+  }
+
+  const closeDetails = () => {
+    setSelectedNode(null);
   };
 
   return (
     <div className="space-y-6 p-6">
 
-      <h1 className="text-4xl font-bold text-white">
-        🌐 Propagation Analytics
-      </h1>
+      <div className="space-y-2">
 
-      <div className="bg-slate-800 rounded-xl p-6 space-y-4 shadow-lg">
+        <h1 className="text-4xl font-bold text-white">
+            AI Misinformation Propagation Network
+        </h1>
 
-        <textarea
-          rows={5}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          className="w-full p-4 rounded-lg bg-slate-900 text-white border border-slate-700"
-          placeholder="Enter news article..."
-        />
+        <p className="text-slate-400">
+            Network simulation generated using NLP classification,
+            propagation modelling and PageRank influence analysis.
+        </p>
 
-        <input
-          type="number"
-          value={reposts}
-          onChange={(e) => setReposts(e.target.value)}
-          className="w-full p-4 rounded-lg bg-slate-900 text-white border border-slate-700"
-          placeholder="Number of reposts"
-        />
+    </div>
 
-        <button
-          onClick={generateGraph}
-          className="bg-blue-600 hover:bg-blue-700 transition-all px-8 py-3 rounded-lg font-semibold text-white"
-        >
-          {loading ? "Generating..." : "Generate Propagation Graph"}
-        </button>
+      {/* Analysis Summary */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
 
-      </div>
+        <div className="bg-slate-800 rounded-xl p-5">
 
-      <div
-        className="bg-slate-800 rounded-xl shadow-lg"
-        style={{ height: "700px" }}
-      >
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          fitView
-        >
-          <MiniMap zoomable pannable />
-          <Controls showInteractive={true} />
-          <Background gap={20} size={1} />
-        </ReactFlow>
-      </div>
+        <h3 className="text-slate-400 text-sm">
+        Prediction
+        </h3>
 
-      <div className="bg-slate-800 rounded-xl p-5 text-white">
+        <p className="text-2xl font-bold text-green-400">
 
-        <h2 className="text-xl font-semibold mb-3">
-          Graph Legend
-        </h2>
+        {analysis?.final_result?.label}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        </p>
 
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-4 rounded-full bg-red-500"></span>
-            Source Post
-          </div>
+        </div>
 
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-4 rounded-full bg-blue-500"></span>
-            User
-          </div>
+        <div className="bg-slate-800 rounded-xl p-5">
 
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-4 rounded-full bg-green-500"></span>
-            Influencer
-          </div>
+        <h3 className="text-slate-400 text-sm">
+        Confidence
+        </h3>
 
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-4 rounded-full bg-purple-500"></span>
-            Community
-          </div>
+        <p className="text-2xl font-bold text-blue-400">
+
+        {analysis?.final_result?.confidence}%
+
+        </p>
+
+        </div>
+
+        <div className="bg-slate-800 rounded-xl p-5">
+
+        <h3 className="text-slate-400 text-sm">
+        Risk Level
+        </h3>
+
+        <p className="text-2xl font-bold text-red-400">
+
+        {analysis?.final_result?.risk_level}
+
+        </p>
+
+        </div>
+
+        <div className="bg-slate-800 rounded-xl p-5">
+
+        <h3 className="text-slate-400 text-sm">
+        Predicted Reach
+        </h3>
+
+        <p className="text-2xl font-bold text-cyan-400">
+
+        {blueprint?.propagation?.predictedReach?.toLocaleString()}
+
+        </p>
 
         </div>
 
       </div>
+
+      {/* Graph */}
+      
+     <div
+        className={`bg-slate-800 rounded-xl shadow-2xl border border-slate-700 transition-all duration-300 ${
+            selectedNode ? "mr-[420px]" : ""
+        }`}
+        style={{
+        height:"760px"
+        }}
+      >
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          fitView
+          onNodeClick={(_, node) => {
+              console.log("CLICKED", node);
+              setSelectedNode(node.data);
+          }}
+        >
+          <MiniMap
+              pannable
+              zoomable
+              nodeStrokeWidth={3}
+          />
+          <Controls
+              showInteractive={false}
+          />
+          <Background
+              gap={24}
+              size={1}
+          />
+        </ReactFlow>
+      </div>
+
+      {selectedNode && (
+
+        <div className="fixed top-0 right-0 h-screen w-[420px] bg-slate-900 border-l border-slate-700 shadow-2xl z-50 overflow-y-auto">
+
+            <div className="sticky top-0 bg-slate-900 border-b border-slate-700 p-6 flex justify-between items-center">
+
+                <div>
+
+                    <h2 className="text-2xl font-bold text-white">
+                        Node Details
+                    </h2>
+
+                    <p className="text-slate-400 text-sm mt-1">
+                        Propagation Node Information
+                    </p>
+
+                </div>
+
+                <button
+                    onClick={closeDetails}
+                    className="text-3xl text-slate-400 hover:text-red-400"
+                >
+                    ×
+                </button>
+
+            </div>
+
+            <div className="p-6 space-y-4">
+
+                <InfoCard
+                    title="Username"
+                    value={selectedNode.displayName}
+                />
+
+                <InfoCard
+                    title="Role"
+                    value={selectedNode.label}
+                />
+
+                <InfoCard
+                    title="Followers"
+                    value={selectedNode.formattedFollowers}
+                />
+
+                <InfoCard
+                    title="Network Influence"
+                    value={`${Math.round(selectedNode.networkInfluencePercent)}%`}
+                />
+
+                <InfoCard
+                    title="Reach"
+                    value={selectedNode.reach}
+                />
+
+                <InfoCard
+                    title="Community"
+                    value={selectedNode.community}
+                />
+
+                <InfoCard
+                    title="PageRank"
+                    value={selectedNode.pageRank?.toFixed(4)}
+                />
+
+                <InfoCard
+                    title="Share Probability"
+                    value={`${Math.round(selectedNode.shareProbability * 100)}%`}
+                />
+
+                <InfoCard
+                    title="Platform"
+                    value={selectedNode.platform}
+                />
+
+                <InfoCard
+                    title="Verified"
+                    value={selectedNode.verified ? "Yes ✔" : "No"}
+                />
+
+                <InfoCard
+                    title="Bot"
+                    value={selectedNode.isBot ? "Yes 🤖" : "No"}
+                />
+
+                <InfoCard
+                    title="Created"
+                    value={new Date(selectedNode.createdAt).toLocaleString()}
+                />
+
+                <InfoCard
+                    title="Node ID"
+                    value={selectedNode.id}
+                />
+
+            </div>
+
+        </div>
+
+      )}
+
+      {/* Legend */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        <div className="bg-slate-800 rounded-xl p-6">
+
+          <h2 className="text-xl font-bold text-white mb-5">
+
+          Graph Analytics
+
+          </h2>
+
+          <div className="space-y-3 text-slate-300">
+
+          <p>Total Nodes : {analytics?.totalNodes}</p>
+
+          <p>Total Edges : {analytics?.totalEdges}</p>
+
+          <p>Average Influence : {analytics?.averageInfluence}</p>
+
+          <p>Graph Density : {analytics?.density}</p>
+
+          <p>Spread Efficiency : {analytics?.spreadEfficiency}</p>
+
+          <p>
+            <strong>Largest Community:</strong>{" "}
+            {analytics?.largestCommunity}
+        </p>
+
+        </div>
+        <div className="bg-slate-800 rounded-xl p-6">
+
+          <h2 className="text-xl font-bold text-white mb-5">
+
+          Top Influencers
+
+          </h2>
+
+          <div className="space-y-4">
+
+          {influencers.slice(0,5).map(node=>(
+
+          <div
+          key={node.id}
+          className="flex justify-between border-b border-slate-700 pb-2"
+          >
+
+          <div>
+
+          <div>
+
+              <div className="font-semibold text-white">
+                  {node.data.displayName}
+              </div>
+
+              <div className="text-xs text-slate-400">
+                  {node.data.label}
+              </div>
+
+              <div className="text-xs text-slate-500">
+                  {node.data.formattedFollowers} followers
+              </div>
+
+          </div>
+
+          </div>
+
+          <div className="text-yellow-400 font-bold">
+
+          {Math.round(node.data.networkInfluencePercent)}%
+
+          </div>
+
+          </div>
+
+          ))}
+
+        </div>
+
+      </div>
+    </div>
+  </div>
 
     </div>
   );

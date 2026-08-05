@@ -1,22 +1,42 @@
+import { useState } from "react";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 
 export default function Layout({ children }) {
-  return (
-    <div className="flex">
 
-      <Sidebar />
+    const [collapsed, setCollapsed] = useState(false);
 
-      <div className="flex-1 bg-slate-900 min-h-screen">
+    return (
 
-        <Navbar />
+        <div className="flex overflow-x-hidden">
 
-        <div className="p-8">
-          {children}
+            <Sidebar
+                collapsed={collapsed}
+                setCollapsed={setCollapsed}
+            />
+
+            <div
+                className="
+                    flex-1
+                    bg-slate-900
+                    min-h-screen
+                    transition-all
+                    duration-300
+                "
+            >
+
+                <Navbar />
+
+                <div className="px-4 py-6 md:px-6 lg:px-8 xl:px-10">
+                  <div className="mx-auto max-w-[1700px]">
+                      {children}
+                  </div>
+              </div>
+
+            </div>
+
         </div>
 
-      </div>
+    );
 
-    </div>
-  );
 }

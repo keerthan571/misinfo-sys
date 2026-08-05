@@ -114,8 +114,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-
-
+       
         <Route
           path="/history/:id"
           element={

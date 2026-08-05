@@ -1,76 +1,116 @@
 import { Handle, Position } from "reactflow";
 import "./GraphNode.css";
 
-const TYPE_ICON = {
-  origin: "📢",
-  influencer: "⭐",
-  media: "📰",
-  user: "👤",
-  bot: "🤖",
+const ICONS = {
+    claim: "📢",
+    origin: "📢",
+    influencer: "⭐",
+    media: "📰",
+    user: "👤",
+    bot: "🤖"
 };
 
 export default function GraphNode({ data }) {
-  const {
-    label,
-    type,
-    followers,
-    influenceScore,
-    shareProbability,
-    verified,
-    cluster,
-  } = data;
 
-  return (
-    <>
-      <Handle type="target" position={Position.Top} />
+    const {
+        label,
+        displayName,
+        nodeType,
+        followers,
+        formattedFollowers,
+        influenceScore,
+        networkInfluencePercent,
+        verified,
+        community,
+        reach,
+        isBot
+    } = data;
 
-      <div className={`graph-node ${type}`}>
-        <div className="graph-node-header">
-          <span className="graph-node-icon">
-            {TYPE_ICON[type] || "👤"}
-          </span>
+    const icon =
+        ICONS[nodeType] ||
+        ICONS.user;
 
-          <span className="graph-node-title">
-            {label}
-          </span>
+    return (
+        <>
+            <Handle
+                type="target"
+                position={Position.Top}
+            />
 
-          {verified && (
-            <span className="verified">✔</span>
-          )}
-        </div>
+            <div
+                className={`graph-node ${nodeType} ${
+                    verified ? "verified-node" : ""
+                } ${
+                    isBot ? "bot-node" : ""
+                }`}
+            >
+                <div className="graph-node-header">
 
-        <div className="graph-node-body">
-          <div>
-            <strong>Followers</strong>
-            <span>{followers}</span>
-          </div>
+                    <span className="graph-node-icon">
+                        {icon}
+                    </span>
 
-          <div>
-            <strong>Influence</strong>
-            <span>{influenceScore}</span>
-          </div>
+                    <div className="graph-node-heading">
 
-          <div>
-            <strong>Share %</strong>
-            <span>
-              {Math.round(
-                shareProbability * 100
-              )}
-              %
-            </span>
-          </div>
+                        <div className="graph-node-title">
+                            {label}
+                        </div>
 
-          <div>
-            <strong>Cluster</strong>
-            <span>{cluster}</span>
-          </div>
-        </div>
-      </div>
+                        <div className="graph-node-subtitle">
+                            {displayName}
+                        </div>
 
-      <Handle
-        type="source"
-        position={Position.Bottom}
-      />
-    </>
-  );
+                    </div>
+
+                    {verified && (
+                        <span className="verified">
+                            ✔
+                        </span>
+                    )}
+
+                </div>
+
+                <div className="graph-node-body">
+
+                    <div className="metric">
+                        <span>👥 Followers</span>
+                        <strong>
+                            {formattedFollowers || followers}
+                        </strong>
+                    </div>
+
+                    <div className="metric">
+                        <span>⭐ Influence</span>
+                        <strong>
+                            {Math.round(
+                                networkInfluencePercent ??
+                                influenceScore
+                            )}
+                            %
+                        </strong>
+                    </div>
+
+                    <div className="metric">
+                        <span>🌐 Reach</span>
+                        <strong>
+                            {reach ?? 0}
+                        </strong>
+                    </div>
+
+                    <div className="metric">
+                        <span>🏷 Community</span>
+                        <strong>
+                            {community}
+                        </strong>
+                    </div>
+
+                </div>
+            </div>
+
+            <Handle
+                type="source"
+                position={Position.Bottom}
+            />
+        </>
+    );
 }

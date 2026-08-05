@@ -2,44 +2,87 @@ import ParameterEngine from "./ParameterEngine";
 import NodeGenerator from "./NodeGenerator";
 import EdgeGenerator from "./EdgeGenerator";
 import InfluenceDetector from "./InfluenceDetector";
+import PropagationSimulator from "./PropagationSimulator";
+import ELKLayoutEngine from "./ELKLayoutEngine";
 
 export default class GraphGenerator {
-  /**
-   * Public API
-   * Generates the complete graph from backend response.
-   */
-  static generate(apiResponse) {
-    // STEP 1: Extract graph parameters
-    const parameters = ParameterEngine.buildParameters(apiResponse);
 
-    // STEP 2: Generate nodes
-    const nodeGenerator = new NodeGenerator(parameters);
-    const nodes = nodeGenerator.generate();
+    static async generate(aiResult) {
 
-    // STEP 3: Generate edges
-    const edgeGenerator = new EdgeGenerator(nodes, parameters);
-    const edges = edgeGenerator.generate();
+        try {
 
-    // STEP 4: Detect influencers
-    const detector = new InfluenceDetector(nodes, edges);
-    const influencers = detector.detect();
+            // STEP 1: Generate blueprint
+            const blueprint =
+                new ParameterEngine(aiResult)
+                    .generate();
 
-    // STEP 5: Build analytics
-    const analytics = detector.getAnalytics();
+            // STEP 2: Simulate propagation
+            const events =
+                new PropagationSimulator(blueprint)
+                    .simulate();
 
-    return {
-      nodes,
-      edges,
-      influencers,
-      analytics,
-      parameters,
-    };
-  }
+            // STEP 3: Generate nodes
+            let nodes =
+                new NodeGenerator(
+                    events,
+                    blueprint
+                ).generate();
 
-  /**
-   * Convenience wrapper for React pages.
-   */
-  static build(apiResponse) {
-    return this.generate(apiResponse);
-  }
+            // STEP 4: Generate edges
+            let edges =
+                new EdgeGenerator(
+                    nodes,
+                    blueprint
+                ).generate();
+
+            // STEP 5: Analyze influence
+            const detector =
+                new InfluenceDetector(
+                    nodes,
+                    edges,
+                    blueprint
+                );
+
+            const influencers =
+                detector.detect();
+
+            const analytics =
+                detector.getAnalytics();
+
+            nodes =
+                detector.getNodes();
+
+            edges =
+                detector.getEdges();
+
+            // STEP 6: Apply ELK layout
+            nodes =
+                await ELKLayoutEngine.layout(
+                    nodes,
+                    edges
+                );
+
+            // STEP 7: Return graph
+            return {
+                blueprint,
+                nodes,
+                edges,
+                influencers,
+                analytics
+            };
+
+        } catch (error) {
+
+            console.error(
+                "Graph generation failed:",
+                error
+            );
+
+            throw error;
+        }
+    }
+
+    static async build(aiResult) {
+        return this.generate(aiResult);
+    }
 }
