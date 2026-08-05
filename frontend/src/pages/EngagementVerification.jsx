@@ -9,14 +9,25 @@ export default function EngagementVerification(){
 
   const analysis=state?.analysis || {};
 
-  const originalEngagement=
+  const originalEngagement =
     analysis.engagement || {};
 
-  const followers=
+
+  const platform =
+    (analysis.platform?.platform || "").toLowerCase();
+
+
+  const showFollowers =
+    platform === "instagram";
+
+
+  const followers =
     Number(originalEngagement.followers || 0);
 
 
+
   const [editMode,setEditMode]=useState(false);
+
 
 
   const [engagement,setEngagement]=useState(()=>{
@@ -25,7 +36,7 @@ export default function EngagementVerification(){
 
     Object.entries(originalEngagement)
     .filter(
-      ([key])=>
+      ([key]) =>
         key!=="followers" &&
         key!=="metrics"
     )
@@ -59,6 +70,7 @@ export default function EngagementVerification(){
 
   const continuePrediction=async()=>{
 
+
     const verifiedEngagement={};
 
 
@@ -66,9 +78,7 @@ export default function EngagementVerification(){
     .forEach(
       ([key,value])=>{
 
-        if(
-          typeof value==="number"
-        ){
+        if(typeof value==="number"){
 
           verifiedEngagement[key]=Number(value);
 
@@ -78,11 +88,14 @@ export default function EngagementVerification(){
     );
 
 
+
     try{
+
 
       const response=await apiClient.post(
         "/api/predict/",
         {
+
           engagement:verifiedEngagement,
 
           detection:
@@ -90,32 +103,42 @@ export default function EngagementVerification(){
 
           platform:
           analysis.platform?.platform || "Instagram"
+
         }
       );
+
 
 
       const updatedAnalysis={
 
         ...analysis,
 
+
         engagement:{
 
           ...originalEngagement,
 
-          followers
+
+          ...(showFollowers && {
+            followers
+          })
 
         },
+
 
         verified_engagement:
         verifiedEngagement,
 
+
         prediction:
         response.data.prediction,
+
 
         spread_analysis:
         response.data.spread_analysis
 
       };
+
 
 
       navigate(
@@ -174,26 +197,31 @@ export default function EngagementVerification(){
 
 
 
-        <div className="bg-slate-900 rounded-xl p-5 mb-5">
+        {
+          showFollowers && (
+
+          <div className="bg-slate-900 rounded-xl p-5 mb-5">
+
+            <p className="text-gray-400">
+              Followers
+            </p>
 
 
-          <p className="text-gray-400">
-            Followers
-          </p>
+            <h2 className="text-3xl font-bold text-purple-400 mt-3">
+
+              {followers.toLocaleString()}
+
+            </h2>
 
 
-          <h2 className="text-3xl font-bold text-purple-400 mt-3">
+          </div>
 
-            {followers.toLocaleString()}
-
-          </h2>
-
-
-        </div>
+          )
+        }
 
 
 
-        <div className="grid md:grid-cols-5 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
 
 
         {
@@ -207,11 +235,9 @@ export default function EngagementVerification(){
               className="bg-slate-900 rounded-xl p-5"
             >
 
-
               <p className="text-gray-400 capitalize">
                 {key}
               </p>
-
 
 
               {
@@ -234,16 +260,13 @@ export default function EngagementVerification(){
 
                 />
 
-
                 :
-
 
                 <h2 className="text-3xl font-bold text-blue-400 mt-3">
 
                   {Number(value).toLocaleString()}
 
                 </h2>
-
 
               }
 
@@ -276,7 +299,6 @@ export default function EngagementVerification(){
             Continue
 
           </button>
-
 
 
 

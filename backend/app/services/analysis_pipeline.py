@@ -10,6 +10,8 @@ import numpy as np
 
 from app.services.vision_engagement_detector import vision_engagement_detector
 from app.services.engagement_extractor import engagement_extractor
+from app.services.twitter_engagement_extractor import twitter_engagement_extractor
+from app.services.twitter_views_detector import twitter_views_detector
 
 from app.services.nlp_service import nlp_service
 from app.services.fact_verification_service import verify_claim
@@ -32,56 +34,38 @@ class AnalysisPipeline:
         ocr_values=None
     ):
 
+        start=time.time()
 
-        start = time.time()
-
-
-        analysis_id = str(uuid.uuid4())
-
+        analysis_id=str(uuid.uuid4())
 
 
         if ocr_values is None:
-
-            ocr_values = {}
-
+            ocr_values={}
 
 
-        extracted_text = ""
+        extracted_text=""
 
 
-
-        # ALWAYS KEEP ALL ENGAGEMENT FIELDS
-
-        engagement_values = {
+        engagement_values={
 
             "likes":0,
-
             "comments":0,
-
+            "replies":0,
             "reposts":0,
-
             "shares":0,
-
-            "bookmarks":0
+            "bookmarks":0,
+            "views":0
 
         }
 
 
 
-
-        # ============================
-        # IMAGE PROCESSING
-        # ============================
-
-
         if image:
 
-
-            image_bytes = await image.read()
-
+            image_bytes=await image.read()
 
 
-            pil_image = Image.open(
+            pil_image=Image.open(
                 io.BytesIO(image_bytes)
             )
 
@@ -89,71 +73,67 @@ class AnalysisPipeline:
             pil_image.load()
 
 
-
-            img = np.array(
+            img=np.array(
                 pil_image
             )
 
 
-            img = cv2.cvtColor(
+            img=cv2.cvtColor(
                 img,
                 cv2.COLOR_RGB2BGR
             )
 
 
 
-
-            # ============================
-            # OPENCV ICON DETECTION
-            # ============================
+            if platform.lower() in ["twitter","x"]:
 
 
-            opencv_engagement = engagement_extractor.analyze(
-                img
-            )
+                twitter_engagement=twitter_engagement_extractor.analyze(
+                    img
+                )
 
 
-            engagement_values.update(
-                opencv_engagement
-            )
+                twitter_views=twitter_views_detector.detect(
+                    img
+                )
 
 
-
-            print(
-                "========== OPENCV ENGAGEMENT =========="
-            )
-
-            print(
-                engagement_values
-            )
-
-            print(
-                "========================================"
-            )
+                twitter_engagement["views"]=twitter_views
 
 
+                engagement_values.update(
+                    twitter_engagement
+                )
 
 
+            else:
 
-            # ============================
-            # GEMINI TEXT EXTRACTION ONLY
-            # ============================
+
+                opencv_engagement=engagement_extractor.analyze(
+                    img
+                )
+
+
+                engagement_values.update(
+                    opencv_engagement
+                )
+
+
 
 
             try:
 
 
-                vision_result = vision_engagement_detector.analyze(
+                vision_result=vision_engagement_detector.analyze(
                     pil_image,
                     platform
                 )
 
 
-                extracted_text = vision_result.get(
+                extracted_text=vision_result.get(
                     "post_text",
                     ""
                 )
-
 
 
             except Exception as e:
@@ -165,18 +145,11 @@ class AnalysisPipeline:
                 )
 
 
-                extracted_text = ""
+                extracted_text=""
 
 
 
 
-
-
-
-        # ============================
-        # OCR FALLBACK
-        # ONLY UPDATE EXISTING VALUES
-        # ============================
 
 
         if ocr_values:
@@ -186,60 +159,49 @@ class AnalysisPipeline:
 
 
                 if key not in engagement_values:
-
                     continue
 
 
-
-                if engagement_values[key] == 0:
+                if engagement_values[key]==0:
 
 
                     try:
 
-
-                        clean = str(value).replace(
+                        clean=str(value).replace(
                             ",",
                             ""
                         )
 
 
-                        clean = clean.lower()
-
+                        clean=clean.lower()
 
 
                         if "k" in clean:
-
 
                             number=float(
                                 clean.replace(
                                     "k",
                                     ""
                                 )
-                            ) * 1000
-
+                            )*1000
 
 
                         elif "m" in clean:
-
 
                             number=float(
                                 clean.replace(
                                     "m",
                                     ""
                                 )
-                            ) * 1000000
-
+                            )*1000000
 
 
                         else:
 
-
                             number=int(clean)
 
 
-
                         engagement_values[key]=int(number)
-
 
 
                     except:
@@ -251,69 +213,30 @@ class AnalysisPipeline:
 
 
 
-
-        final_text = text.strip() if text else extracted_text
-
+        final_text=text.strip() if text else extracted_text
 
 
-        detection = nlp_service.analyze_text(
+
+        detection=nlp_service.analyze_text(
             final_text
         )
 
 
-
-        claim = detection.get(
+        claim=detection.get(
             "claim",
             final_text
         )
 
 
-
-        fact_result = verify_claim(
+        fact_result=verify_claim(
             claim
         )
 
 
 
-
-
-        print(
-            "========== FINAL DEBUG =========="
-        )
-
-
-        print(
-            "PLATFORM:",
-            platform
-        )
-
-
-        print(
-            "TEXT:",
-            extracted_text
-        )
-
-
-        print(
-            "ENGAGEMENT:",
-            engagement_values
-        )
-
-
-        print(
-            "================================="
-        )
-
-
-
-
-
-
-        engagement = {
-
+        engagement={
 
             **engagement_values,
-
 
             "metrics":[]
 
@@ -321,41 +244,28 @@ class AnalysisPipeline:
 
 
 
-
         for key,value in engagement_values.items():
 
+            if value>0:
 
-            if value > 0:
+                engagement["metrics"].append({
 
+                    "label":key.title(),
 
-                engagement["metrics"].append(
+                    "value":value
 
-                    {
-
-                        "label":key.title(),
-
-                        "value":value
-
-                    }
-
-                )
-
-
-
+                })
 
 
 
         if platform.lower()=="instagram" and followers:
-
 
             engagement["followers"]=followers
 
 
 
 
-
-
-        spread_analysis = spread_factor_service.analyze(
+        spread_analysis=spread_factor_service.analyze(
 
             engagement,
 
@@ -367,21 +277,14 @@ class AnalysisPipeline:
 
 
 
-
-
-
-
-        prediction = prediction_service.predict_spread(
+        prediction=prediction_service.predict_spread(
 
             {
 
-
                 **engagement,
-
 
                 "spread_score":
                 spread_analysis["metrics"]["spread_score"],
-
 
                 "risk_score":
                 detection.get(
@@ -389,12 +292,9 @@ class AnalysisPipeline:
                     0
                 ),
 
-
                 "emotion_score":0,
 
-
                 "manipulation_score":0
-
 
             }
 
@@ -402,12 +302,7 @@ class AnalysisPipeline:
 
 
 
-
-
-
-
-
-        final_result = {
+        final_result={
 
 
             "label":
@@ -415,7 +310,6 @@ class AnalysisPipeline:
                 "verdict",
                 "Insufficient Evidence"
             ),
-
 
 
             "confidence":
@@ -427,10 +321,8 @@ class AnalysisPipeline:
             ),
 
 
-
             "risk_level":
             prediction["data"]["risk_level"],
-
 
 
             "summary":
@@ -440,17 +332,10 @@ class AnalysisPipeline:
 
 
 
-
-
-
-
-
-
-        response = {
+        response={
 
 
             "analysis_id":analysis_id,
-
 
 
             "platform":{
@@ -460,20 +345,15 @@ class AnalysisPipeline:
             },
 
 
-
             "vision":{
-
 
                 "used":bool(image),
 
-
                 "post_text":extracted_text,
-
 
                 "engagement_values":engagement_values
 
             },
-
 
 
             "detection":detection,
@@ -494,15 +374,11 @@ class AnalysisPipeline:
             "final_result":final_result,
 
 
-
             "metadata":{
-
 
                 "analysis_id":analysis_id,
 
-
                 "processing_status":"completed",
-
 
                 "processing_time":round(
                     time.time()-start,
@@ -515,16 +391,11 @@ class AnalysisPipeline:
 
 
 
-
-
-
-
         analysis_collection.insert_one(
 
             {
 
                 **response,
-
 
                 "user":current_user.get(
                     "email"
@@ -535,10 +406,7 @@ class AnalysisPipeline:
         )
 
 
-
-
         return {
-
 
             "analysis":response
 
@@ -547,26 +415,14 @@ class AnalysisPipeline:
 
 
 
+    def convert_confidence(self,value):
 
-
-
-    def convert_confidence(
-        self,
-        value
-    ):
-
-
-        if isinstance(
-            value,
-            (int,float)
-        ):
+        if isinstance(value,(int,float)):
 
             return value
 
 
-
         value=str(value).lower()
-
 
 
         if "high" in value:
@@ -574,11 +430,9 @@ class AnalysisPipeline:
             return 90
 
 
-
         if "medium" in value:
 
             return 70
-
 
 
         if "low" in value:
@@ -587,9 +441,7 @@ class AnalysisPipeline:
 
 
 
-
         try:
-
 
             return float(
                 value.replace(
@@ -601,11 +453,10 @@ class AnalysisPipeline:
 
         except:
 
-
             return 0
 
 
 
 
 
-analysis_pipeline = AnalysisPipeline()
+analysis_pipeline=AnalysisPipeline()
