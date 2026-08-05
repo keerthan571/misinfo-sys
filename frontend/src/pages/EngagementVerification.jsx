@@ -1,55 +1,55 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import apiClient from "../api/apiClient";
+import { useAnalysis } from "../context/AnalysisContext";
+export default function EngagementVerification() {
 
-export default function EngagementVerification(){
+  const { state } = useLocation();
+  const navigate = useNavigate();
+  const { setAnalysis } = useAnalysis();
+  const analysis = state?.analysis || {};
 
-  const {state}=useLocation();
-  const navigate=useNavigate();
-
-  const analysis=state?.analysis || {};
-
-  const originalEngagement=
+  const originalEngagement =
     analysis.engagement || {};
 
-  const followers=
+  const followers =
     Number(originalEngagement.followers || 0);
 
 
-  const [editMode,setEditMode]=useState(false);
+  const [editMode, setEditMode] = useState(false);
 
 
-  const [engagement,setEngagement]=useState(()=>{
+  const [engagement, setEngagement] = useState(() => {
 
-    const data={};
+    const data = {};
 
     Object.entries(originalEngagement)
-    .filter(
-      ([key])=>
-        key!=="followers" &&
-        key!=="metrics"
-    )
-    .forEach(
-      ([key,value])=>{
+      .filter(
+        ([key]) =>
+          key !== "followers" &&
+          key !== "metrics"
+      )
+      .forEach(
+        ([key, value]) => {
 
-        if(key==="shares"){
+          if (key === "shares") {
 
-          data["bookmarks"]=Number(value);
+            data["bookmarks"] = Number(value);
+
+          }
+          else if (key === "bookmarks") {
+
+            data["shares"] = Number(value);
+
+          }
+          else {
+
+            data[key] = Number(value);
+
+          }
 
         }
-        else if(key==="bookmarks"){
-
-          data["shares"]=Number(value);
-
-        }
-        else{
-
-          data[key]=Number(value);
-
-        }
-
-      }
-    );
+      );
 
     return data;
 
@@ -57,48 +57,49 @@ export default function EngagementVerification(){
 
 
 
-  const continuePrediction=async()=>{
+  const continuePrediction = async () => {
 
-    const verifiedEngagement={};
+    const verifiedEngagement = {};
 
 
     Object.entries(engagement)
-    .forEach(
-      ([key,value])=>{
+      .forEach(
+        ([key, value]) => {
 
-        if(
-          typeof value==="number"
-        ){
+          if (
+            typeof value === "number"
+          ) {
 
-          verifiedEngagement[key]=Number(value);
+            verifiedEngagement[key] = Number(value);
 
-        }
+          }
 
-      }
-    );
-
-
-    try{
-
-      const response=await apiClient.post(
-        "/api/predict/",
-        {
-          engagement:verifiedEngagement,
-
-          detection:
-          analysis.detection || {},
-
-          platform:
-          analysis.platform?.platform || "Instagram"
         }
       );
 
 
-      const updatedAnalysis={
+    try {
+
+      const response = await apiClient.post(
+        "/api/predict/",
+        {
+          engagement: verifiedEngagement,
+
+          detection:
+            analysis.detection || {},
+
+          platform:
+            analysis.platform?.platform || "Instagram"
+        }
+      );
+      console.log("========== PREDICT RESPONSE ==========");
+      console.log(response.data);
+      console.log("======================================");
+      const updatedAnalysis = {
 
         ...analysis,
 
-        engagement:{
+        engagement: {
 
           ...originalEngagement,
 
@@ -107,29 +108,36 @@ export default function EngagementVerification(){
         },
 
         verified_engagement:
-        verifiedEngagement,
+          verifiedEngagement,
 
         prediction:
-        response.data.prediction,
+          response.data.prediction,
 
         spread_analysis:
-        response.data.spread_analysis
+          response.data.spread_analysis
 
       };
+      console.log("UPDATED ANALYSIS");
+      console.log(updatedAnalysis);
 
+      setAnalysis({
+        result: {
+          analysis: updatedAnalysis
+        },
+        news: analysis.text || "",
+        platform: analysis.platform?.platform || "",
+        followers,
+      });
 
-      navigate(
-        "/prediction",
-        {
-          state:{
-            analysis:updatedAnalysis
-          }
-        }
-      );
+      navigate("/prediction", {
+        state: {
+          analysis: updatedAnalysis,
+        },
+      });
 
 
     }
-    catch(error){
+    catch (error) {
 
       console.log(
         "Prediction Error:",
@@ -142,13 +150,13 @@ export default function EngagementVerification(){
 
 
 
-  const handleChange=(key,value)=>{
+  const handleChange = (key, value) => {
 
     setEngagement({
 
       ...engagement,
 
-      [key]:Number(value)
+      [key]: Number(value)
 
     });
 
@@ -156,7 +164,7 @@ export default function EngagementVerification(){
 
 
 
-  return(
+  return (
 
     <div className="space-y-8">
 
@@ -196,66 +204,66 @@ export default function EngagementVerification(){
         <div className="grid md:grid-cols-5 gap-5">
 
 
-        {
-          Object.entries(engagement)
-          .map(
-            ([key,value])=>(
+          {
+            Object.entries(engagement)
+              .map(
+                ([key, value]) => (
 
 
-            <div
-              key={key}
-              className="bg-slate-900 rounded-xl p-5"
-            >
+                  <div
+                    key={key}
+                    className="bg-slate-900 rounded-xl p-5"
+                  >
 
 
-              <p className="text-gray-400 capitalize">
-                {key}
-              </p>
+                    <p className="text-gray-400 capitalize">
+                      {key}
+                    </p>
 
 
 
-              {
-                editMode ?
+                    {
+                      editMode ?
 
-                <input
+                        <input
 
-                  type="number"
+                          type="number"
 
-                  value={value}
+                          value={value}
 
-                  onChange={(e)=>
-                    handleChange(
-                      key,
-                      e.target.value
-                    )
-                  }
+                          onChange={(e) =>
+                            handleChange(
+                              key,
+                              e.target.value
+                            )
+                          }
 
-                  className="mt-3 w-full bg-slate-700 p-3 rounded-lg text-white"
+                          className="mt-3 w-full bg-slate-700 p-3 rounded-lg text-white"
 
-                />
-
-
-                :
+                        />
 
 
-                <h2 className="text-3xl font-bold text-blue-400 mt-3">
-
-                  {Number(value).toLocaleString()}
-
-                </h2>
+                        :
 
 
-              }
+                        <h2 className="text-3xl font-bold text-blue-400 mt-3">
+
+                          {Number(value).toLocaleString()}
+
+                        </h2>
 
 
-            </div>
+                    }
 
 
-            )
+                  </div>
 
-          )
 
-        }
+                )
+
+              )
+
+          }
 
 
         </div>
@@ -282,7 +290,7 @@ export default function EngagementVerification(){
 
           <button
 
-            onClick={()=>
+            onClick={() =>
               setEditMode(!editMode)
             }
 
@@ -292,10 +300,10 @@ export default function EngagementVerification(){
 
             {
               editMode
-              ?
-              "Save Changes"
-              :
-              "Edit Values"
+                ?
+                "Save Changes"
+                :
+                "Edit Values"
             }
 
           </button>

@@ -15,9 +15,9 @@ export default class ELKLayoutEngine {
 
                 "elk.direction": "DOWN",
 
-                "elk.spacing.nodeNode": "70",
+                "elk.spacing.nodeNode": "110",
 
-                "elk.layered.spacing.nodeNodeBetweenLayers": "140",
+                "elk.layered.spacing.nodeNodeBetweenLayers": "190",
 
                 "elk.edgeRouting": "ORTHOGONAL",
 

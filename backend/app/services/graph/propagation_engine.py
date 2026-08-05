@@ -447,43 +447,57 @@ class PropagationEngine:
                 bridge_users.append(users[1])
 
         for i in range(len(bridge_users) - 1):
+    
+            src = bridge_users[i]
+            dst = bridge_users[i + 1]
+
+            if nx.has_path(self.graph, dst, src):
+                continue
+
             self.graph.add_edge(
-                bridge_users[i],
-                bridge_users[i + 1],
+                src,
+                dst,
                 weight=weight,
                 interaction=self.config.BRIDGE_EDGE,
-            ) 
-    def _random_cross_links(self, per_community: int):
-        
-        users = [
+            )
+            weight=weight,
+            interaction=self.config.BRIDGE_EDGE,
+    
+    def _random_cross_links(self, per_community):
+    
+        users=[
             node
-            for node, data in self.graph.nodes(data=True)
-            if data["node_type"] == self.config.USER_NODE
+            for node,data in self.graph.nodes(data=True)
+            if data["node_type"]==self.config.USER_NODE
         ]
 
-        if len(users) < 2:
+        if len(users)<2:
             return
 
         for node in users:
 
-            community = self.graph.nodes[node]["community"]
+            community=self.graph.nodes[node]["community"]
 
-            others = [
+            others=[
                 u
                 for u in users
-                if self.graph.nodes[u]["community"] != community
+                if self.graph.nodes[u]["community"]>community
             ]
 
             random.shuffle(others)
 
             for neighbour in others[:per_community]:
-
-                self.graph.add_edge(
-                    node,
-                    neighbour,
-                    weight=round(self._edge_weight()*0.7,3),
-                    interaction="cross_share",
-                )
+                if (
+                    not nx.has_path(self.graph, neighbour, node)
+                    and not nx.has_path(self.graph, node, neighbour)
+                ):
+                    self.graph.add_edge(
+                        node,
+                        neighbour,
+                        weight=round(self._edge_weight()*0.7,3),
+                        interaction="cross_share",
+                    )
+    
     def _edge_weight(self) -> float:
         confidence = self.confidence
         engagement = self.engagement_score
@@ -513,47 +527,54 @@ class PropagationEngine:
         return max(minimum, min(maximum, value))
 
     def _amplify_bots(self):
-        multiplier = self.config.bot_edge_multiplier(
-        self.analysis.get("risk_level", "Low")
-    )
+        multiplier=self.config.bot_edge_multiplier(
+            self.analysis.get("risk_level","Low")
+        )
 
-        bots = [
+        bots=[
             node
-            for node, data in self.graph.nodes(data=True)
-            if data.get("is_bot", False)
+            for node,data in self.graph.nodes(data=True)
+            if data.get("is_bot",False)
         ]
 
         for bot in bots:
 
-            community = self.graph.nodes[bot]["community"]
+            community=self.graph.nodes[bot]["community"]
 
-            neighbours = [
+            neighbours=[
                 node
-                for node, data in self.graph.nodes(data=True)
-                if (
-                    data["node_type"] == self.config.USER_NODE
-                    and data["community"] == community
-                    and node != bot
+                for node,data in self.graph.nodes(data=True)
+                if(
+                    data["node_type"]==self.config.USER_NODE
+                    and data["community"]==community
+                    and node!=bot
                 )
             ]
 
             neighbours.sort(
-                key=lambda node: self.graph.nodes[node]["followers"],
+                key=lambda node:self.graph.nodes[node]["followers"],
                 reverse=True,
             )
 
             for neighbour in neighbours[:3]:
 
+                # Don't create cycles
+                if (
+                    nx.has_path(self.graph, neighbour, bot)
+                    or nx.has_path(self.graph, bot, neighbour)
+                ):
+                    continue
+
                 self.graph.add_edge(
                     bot,
                     neighbour,
                     weight=round(
-                        self._edge_weight() * multiplier,
+                        self._edge_weight()*multiplier,
                         3,
                     ),
                     interaction=self.config.BOT_EDGE,
-                )
-
+                )    
+    
     def _ensure_connectivity(self):
     
         for node, data in self.graph.nodes(data=True):
@@ -576,7 +597,11 @@ class PropagationEngine:
 
             if leaders:
 
-                self.graph.add_edge(
+                if (
+                    not nx.has_path(self.graph, node, leaders[0])
+                    and not nx.has_path(self.graph, leaders[0], node)
+                ):
+                    self.graph.add_edge(
                     leaders[0],
                     node,
                     weight=self._edge_weight(),
@@ -587,7 +612,12 @@ class PropagationEngine:
     def _validate_graph(self):
         self._ensure_connectivity()
         self._amplify_bots()
-
+        print("NODES:", self.graph.number_of_nodes())
+        print("EDGES:", self.graph.number_of_edges())
+        print(list(self.graph.edges()))
+        print("Cycles:")
+        for cycle in nx.simple_cycles(self.graph):
+            print(cycle)
         if not nx.is_directed_acyclic_graph(self.graph):
             raise ValueError(
                 "Propagation graph contains cycles."

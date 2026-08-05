@@ -24,7 +24,7 @@ export default class EdgeGenerator {
 
         this.levelMap = this.groupNodesByLevel();
 
-        this.communityMap =this.groupNodesByCommunity();
+        this.communityMap = this.groupNodesByCommunity();
     }
 
     generate() {
@@ -37,8 +37,7 @@ export default class EdgeGenerator {
             this.buildCommunityEdges();
 
         if (
-            this.blueprint.propagation
-                .spreadProbability > 0.55
+            this.blueprint.propagation.spreadProbability > 0.55
         )
             this.buildReshareEdges();
 
@@ -101,27 +100,26 @@ export default class EdgeGenerator {
 
         const probability =
             Math.min(
-                0.30,
-                0.10 +
-                this.blueprint.propagation
-                    .spreadProbability * 0.25
+                0.15,
+                0.05 +
+                this.blueprint.propagation.spreadProbability * 0.10
             );
 
         this.nodes.forEach(target => {
 
-            if (
-                target.data.level <= 1 ||
-                this.random() > probability
-            )
+            // Skip root node
+            if (target.data.level <= 0)
+                return;
+
+            // Random chance of creating a cross edge
+            if (this.random() > probability)
                 return;
 
             const candidates =
-                this.nodes.filter(source =>
-                    source.data.level >= target.data.level - 1 &&
-                    source.data.level <= target.data.level &&
-                    source.data.community === target.data.community &&
-                    source.id !== target.id &&
-                    source.id !== target.data.parentId
+                this.nodes.filter(node =>
+                    node.data.level === target.data.level - 1 &&
+                    node.id !== target.id &&
+                    node.id !== target.data.parentId
                 );
 
             if (!candidates.length)
@@ -129,21 +127,11 @@ export default class EdgeGenerator {
 
             candidates.sort(
                 (a, b) =>
-                    b.data.networkInfluence -
-                    a.data.networkInfluence
+                    b.data.influenceScore -
+                    a.data.influenceScore
             );
 
-            const source =
-                candidates[
-                    randomInt(
-                        this.random,
-                        0,
-                        Math.min(
-                            2,
-                            candidates.length - 1
-                        )
-                    )
-                ];
+            const source = candidates[0];
 
             this.createEdge(
                 source,
@@ -185,11 +173,11 @@ export default class EdgeGenerator {
 
                 const hub =
                     nodes[
-                        randomInt(
-                            this.random,
-                            0,
-                            Math.min(2, i - 1)
-                        )
+                    randomInt(
+                        this.random,
+                        0,
+                        Math.min(2, i - 1)
+                    )
                     ];
 
                 this.createEdge(
@@ -205,7 +193,9 @@ export default class EdgeGenerator {
     }
 
     buildReshareEdges() {
+
         this.nodes.forEach(source => {
+
             if (source.data.level === 0)
                 return;
 
@@ -215,17 +205,17 @@ export default class EdgeGenerator {
             )
                 return;
 
+
             const communityNodes =
                 this.communityMap.get(
-                    target.data.community
+                    source.data.community
                 ) || [];
 
             const candidates =
-                communityNodes.filter(source =>
-                    source.data.level >= target.data.level - 1 &&
-                    source.data.level <= target.data.level &&
-                    source.id !== target.id &&
-                    source.id !== target.data.parentId
+                communityNodes.filter(node =>
+                    node.data.level === source.data.level - 1 &&
+                    node.id !== source.id &&
+                    node.id !== source.data.parentId
                 );
 
             if (!candidates.length)
@@ -237,30 +227,19 @@ export default class EdgeGenerator {
                     a.data.influenceScore
             );
 
-            const limit =
-                Math.min(
-                    3,
-                    candidates.length
-                );
-
-            const target =
-                candidates[
-                    randomInt(
-                        this.random,
-                        0,
-                        limit - 1
-                    )
-                ];
+            const target = candidates[0];
 
             this.createEdge(
                 source,
                 target,
                 "reshare"
             );
+
         });
+
     }
 
-   createEdge(source, target, type) {
+    createEdge(source, target, type) {
 
         if (!source || !target)
             return;
@@ -330,18 +309,22 @@ export default class EdgeGenerator {
                     "#94a3b8",
 
                 strokeWidth:
-                    weight,
+                    type === "reshare"
+                        ? 1.2
+                        : weight,
 
                 opacity:
                     type === "tree"
                         ? 0.95
-                        : 0.70
+                        : type === "reshare"
+                            ? 0.35
+                            : 0.60
 
             }
 
         });
 
-    } 
+    }
 
     calculateWeight(source, target) {
         const probability =

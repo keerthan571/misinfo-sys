@@ -4,9 +4,7 @@ import App from "./App.jsx";
 import "./App.css";
 import "./index.css";
 
-import {
-  AnalysisProvider
-} from "./context/AnalysisContext.jsx";
+import { AnalysisProvider } from "./context/AnalysisContext";
 
 
 ReactDOM.createRoot(

@@ -28,3 +28,5 @@ class GraphGenerator:
             influence=influence,
             communities=communities,
         )
+        
+graph_generator = GraphGenerator()

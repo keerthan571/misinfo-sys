@@ -6,10 +6,26 @@ import {
 
 export default class ParameterEngine {
     constructor(apiResponse = {}) {
-        this.analysisData = apiResponse.analysis ?? {};
-        this.engagement = apiResponse.engagement ?? {};
-        this.spread = apiResponse.spread_prediction ?? {};
-        this.metadata = apiResponse.metadata ?? {};
+
+        this.analysisData = apiResponse.final_result ?? {};
+
+        this.engagement =
+            apiResponse.verified_engagement ??
+            apiResponse.engagement ??
+            {};
+
+        this.spread =
+            apiResponse.prediction?.data ??
+            apiResponse.prediction ??
+            {};
+
+        this.metadata =
+            apiResponse.metadata ??
+            {};
+
+        this.platform =
+            apiResponse.platform?.platform ??
+            "Unknown";
     }
 
     clamp(value, min, max) {
@@ -358,7 +374,7 @@ export default class ParameterEngine {
 
     metadataInfo() {
         return {
-            platform: this.engagement.platform ?? "Unknown",
+            platform: this.platform,
             verification: this.analysisData.verification_status ?? "Unknown",
             seed: this.generateSeed()
         };
