@@ -1,121 +1,103 @@
 import { useLocation } from "react-router-dom";
 
-export default function Prediction() {
+export default function Prediction(){
 
-  const { state } = useLocation();
+  const {state}=useLocation();
 
-  const latestAnalysis = state || {};
-
-  console.log(
-    "PREDICTION PAGE DATA:",
-    latestAnalysis
-  );
+  const latestAnalysis=state || {};
 
 
-  const analysis =
+  const analysis=
     latestAnalysis.analysis || {};
 
 
 
-  const prediction =
+  const prediction=
     analysis.prediction?.data ||
     analysis.prediction ||
     {};
 
 
 
-  const analysisSummary =
+  const analysisSummary=
     analysis.prediction?.analysis_summary ||
     "";
 
 
 
-  const spread =
-    analysis.spread_analysis ||
-    {};
+  const spread=
+    analysis.spread_analysis || {};
 
 
 
-  // FINAL USER VERIFIED ENGAGEMENT
-  const engagement =
+  const engagement=
     analysis.verified_engagement ||
     analysis.engagement ||
     {};
 
 
-  console.log(
-    "FINAL VERIFIED ENGAGEMENT USED:",
-    engagement
-  );
 
-
-
-  const platform =
-    engagement.platform ||
+  const platform=
     analysis.platform?.platform ||
     "Not Selected";
 
 
 
-  const engagementMetrics = [
+  const engagementMetrics=
+    Object.entries(
+      engagement
+    )
+    .filter(
+      ([key,value])=>
+        key!=="metrics" &&
+        typeof value==="number" &&
+        value>0
+    )
+    .map(
+      ([key,value])=>({
 
-    {
-      label:"Likes",
-      value:engagement.likes || 0
-    },
+        label:
+        key.charAt(0).toUpperCase()+key.slice(1),
 
-    {
-      label:"Comments",
-      value:engagement.comments || 0
-    },
+        value:value
 
-    {
-      label:"Reposts",
-      value:engagement.reposts || 0
-    },
-
-    {
-      label:"Shares",
-      value:engagement.shares || 0
-    },
-
-    {
-      label:"Bookmarks",
-      value:engagement.bookmarks || 0
-    }
-
-  ].filter(
-    item => item.value > 0
-  );
+      })
+    );
 
 
 
-  const reach =
+  const reach=
     prediction.predicted_reach
-    ? Math.round(
-        prediction.predicted_reach
-      ).toLocaleString()
-    : "Not Available";
+    ?
+    Math.round(
+      prediction.predicted_reach
+    ).toLocaleString()
+    :
+    "Not Available";
 
 
 
-  const probability =
-    prediction.spread_probability !== undefined &&
-    prediction.spread_probability !== null
-    ? `${prediction.spread_probability}%`
-    : "Not Available";
+  const probability=
+    prediction.spread_probability!==undefined &&
+    prediction.spread_probability!==null
+    ?
+    `${prediction.spread_probability}%`
+    :
+    "Not Available";
 
 
 
-  const virality =
-    prediction.virality_score !== undefined &&
-    prediction.virality_score !== null
-    ? `${prediction.virality_score}%`
-    : "Not Available";
+  const virality=
+    prediction.virality_score!==undefined &&
+    prediction.virality_score!==null
+    ?
+    `${prediction.virality_score}%`
+    :
+    "Not Available";
 
 
 
-  return (
+  return(
 
     <div className="space-y-8">
 
@@ -126,9 +108,11 @@ export default function Prediction() {
           Spread Prediction
         </h1>
 
+
         <p className="text-gray-400 mt-2">
           Predict how misinformation may spread in the future.
         </p>
+
 
       </div>
 
@@ -236,7 +220,7 @@ export default function Prediction() {
 
 
           {
-            engagementMetrics.length > 0
+            engagementMetrics.length>0
 
             ?
 
@@ -254,7 +238,9 @@ export default function Prediction() {
 
 
                   <h3 className="text-3xl font-bold mt-3 text-blue-400">
+
                     {metric.value.toLocaleString()}
+
                   </h3>
 
 

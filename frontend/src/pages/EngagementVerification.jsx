@@ -2,109 +2,115 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import apiClient from "../api/apiClient";
 
+export default function EngagementVerification(){
 
-export default function EngagementVerification() {
+  const {state}=useLocation();
+  const navigate=useNavigate();
 
+  const analysis=state?.analysis || {};
 
-  const { state } = useLocation();
-  const navigate = useNavigate();
+  const originalEngagement=
+    analysis.engagement || {};
 
-
-  const analysis = state?.analysis || {};
-
-
-
-  const originalEngagement =
-    analysis.engagement || {
-
-      likes:0,
-      comments:0,
-      reposts:0,
-      shares:0,
-      bookmarks:0
-
-    };
+  const followers=
+    Number(originalEngagement.followers || 0);
 
 
-
-  const [editMode,setEditMode] = useState(false);
-
+  const [editMode,setEditMode]=useState(false);
 
 
-  const [engagement,setEngagement] = useState({
+  const [engagement,setEngagement]=useState(()=>{
 
-    likes:originalEngagement.likes || 0,
+    const data={};
 
-    comments:originalEngagement.comments || 0,
+    Object.entries(originalEngagement)
+    .filter(
+      ([key])=>
+        key!=="followers" &&
+        key!=="metrics"
+    )
+    .forEach(
+      ([key,value])=>{
 
-    reposts:originalEngagement.reposts || 0,
+        if(key==="shares"){
 
-    shares:originalEngagement.shares || 0,
+          data["bookmarks"]=Number(value);
 
-    bookmarks:originalEngagement.bookmarks || 0
+        }
+        else if(key==="bookmarks"){
+
+          data["shares"]=Number(value);
+
+        }
+        else{
+
+          data[key]=Number(value);
+
+        }
+
+      }
+    );
+
+    return data;
 
   });
 
 
 
-  const continuePrediction = async()=>{
+  const continuePrediction=async()=>{
+
+    const verifiedEngagement={};
 
 
-    const verifiedEngagement={
+    Object.entries(engagement)
+    .forEach(
+      ([key,value])=>{
 
-      likes:Number(engagement.likes),
+        if(
+          typeof value==="number"
+        ){
 
-      comments:Number(engagement.comments),
+          verifiedEngagement[key]=Number(value);
 
-      reposts:Number(engagement.reposts),
+        }
 
-      shares:Number(engagement.shares),
-
-      bookmarks:Number(engagement.bookmarks),
-
-      views:0
-
-    };
-
+      }
+    );
 
 
     try{
 
-
-      const response = await apiClient.post(
+      const response=await apiClient.post(
         "/api/predict/",
         {
-
           engagement:verifiedEngagement,
 
-          detection:analysis.detection || {},
+          detection:
+          analysis.detection || {},
 
           platform:
-          analysis.platform?.platform ||
-          "Instagram"
-
+          analysis.platform?.platform || "Instagram"
         }
       );
-
 
 
       const updatedAnalysis={
 
         ...analysis,
 
+        engagement:{
 
-        // OCR values
-        engagement:originalEngagement,
+          ...originalEngagement,
 
+          followers
 
-        // User verified values
-        verified_engagement:verifiedEngagement,
+        },
 
+        verified_engagement:
+        verifiedEngagement,
 
-        // New prediction after verification
         prediction:
         response.data.prediction,
-
 
         spread_analysis:
         response.data.spread_analysis
@@ -112,15 +118,14 @@ export default function EngagementVerification() {
       };
 
 
-
-      navigate("/prediction",{
-
-        state:{
-          analysis:updatedAnalysis
+      navigate(
+        "/prediction",
+        {
+          state:{
+            analysis:updatedAnalysis
+          }
         }
-
-      });
-
+      );
 
 
     }
@@ -133,9 +138,7 @@ export default function EngagementVerification() {
 
     }
 
-
   };
-
 
 
 
@@ -153,10 +156,9 @@ export default function EngagementVerification() {
 
 
 
-  return (
+  return(
 
     <div className="space-y-8">
-
 
       <div className="bg-slate-800 rounded-2xl p-8 text-white">
 
@@ -167,72 +169,96 @@ export default function EngagementVerification() {
 
 
         <p className="text-gray-300 mb-6">
-          OCR detected the following engagement values.
-          Verify or edit before spread prediction.
+          Verify detected engagement values before spread prediction.
         </p>
+
+
+
+        <div className="bg-slate-900 rounded-xl p-5 mb-5">
+
+
+          <p className="text-gray-400">
+            Followers
+          </p>
+
+
+          <h2 className="text-3xl font-bold text-purple-400 mt-3">
+
+            {followers.toLocaleString()}
+
+          </h2>
+
+
+        </div>
 
 
 
         <div className="grid md:grid-cols-5 gap-5">
 
 
-          {
-            Object.entries(engagement).map(([key,value])=>(
-
-              <div
-                key={key}
-                className="bg-slate-900 rounded-xl p-5"
-              >
-
-                <p className="text-gray-400 capitalize">
-                  {key}
-                </p>
+        {
+          Object.entries(engagement)
+          .map(
+            ([key,value])=>(
 
 
-
-                {
-                  editMode ?
-
-
-                  <input
-
-                    type="number"
-
-                    value={value}
-
-                    onChange={(e)=>
-                      handleChange(
-                        key,
-                        e.target.value
-                      )
-                    }
-
-                    className="mt-3 w-full bg-slate-700 p-3 rounded-lg text-white"
-
-                  />
+            <div
+              key={key}
+              className="bg-slate-900 rounded-xl p-5"
+            >
 
 
-                  :
+              <p className="text-gray-400 capitalize">
+                {key}
+              </p>
 
 
-                  <h2 className="text-3xl font-bold text-blue-400 mt-3">
 
-                    {value.toLocaleString()}
+              {
+                editMode ?
 
-                  </h2>
+                <input
+
+                  type="number"
+
+                  value={value}
+
+                  onChange={(e)=>
+                    handleChange(
+                      key,
+                      e.target.value
+                    )
+                  }
+
+                  className="mt-3 w-full bg-slate-700 p-3 rounded-lg text-white"
+
+                />
 
 
-                }
+                :
 
 
-              </div>
+                <h2 className="text-3xl font-bold text-blue-400 mt-3">
 
-            ))
-          }
+                  {Number(value).toLocaleString()}
+
+                </h2>
+
+
+              }
+
+
+            </div>
+
+
+            )
+
+          )
+
+        }
 
 
         </div>
-
 
 
 
@@ -256,7 +282,9 @@ export default function EngagementVerification() {
 
           <button
 
-            onClick={()=>setEditMode(!editMode)}
+            onClick={()=>
+              setEditMode(!editMode)
+            }
 
             className="bg-yellow-600 hover:bg-yellow-700 px-8 py-3 rounded-xl font-bold"
 
@@ -269,7 +297,6 @@ export default function EngagementVerification() {
               :
               "Edit Values"
             }
-
 
           </button>
 
