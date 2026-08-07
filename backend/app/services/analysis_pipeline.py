@@ -244,15 +244,15 @@ class AnalysisPipeline:
 
 
 
-        for key,value in engagement_values.items():
+        for key, value in engagement_values.items():
 
-            if value>0:
+            if value is not None and value > 0:
 
                 engagement["metrics"].append({
 
-                    "label":key.title(),
+                    "label": key.title(),
 
-                    "value":value
+                    "value": value
 
                 })
 

@@ -39,7 +39,6 @@ class EngagementExtractor:
 
 
 
-
     def find_icon(self, image, template_name):
 
         template_path = os.path.join(
@@ -109,11 +108,11 @@ class EngagementExtractor:
             )
 
 
-
             if confidence > best_confidence:
 
                 best_confidence = confidence
                 best_location = location
+
 
 
 
@@ -128,6 +127,7 @@ class EngagementExtractor:
         if best_confidence >= 0.75:
 
             return best_location
+
 
 
         return None
@@ -173,14 +173,15 @@ class EngagementExtractor:
             number *= 1000
 
 
+
         elif unit == "m":
 
             number *= 1000000
 
 
 
-        return int(number)
 
+        return int(number)
 
 
 
@@ -222,9 +223,8 @@ class EngagementExtractor:
         for i, text in enumerate(data["text"]):
 
 
-            value = self.clean_number(
-                text
-            )
+            value = self.clean_number(text)
+
 
 
             if value > 0:
@@ -242,13 +242,16 @@ class EngagementExtractor:
 
 
 
+
         print(
             "NUMBERS:",
             numbers
         )
 
 
+
         return numbers
+
 
 
 
@@ -261,11 +264,11 @@ class EngagementExtractor:
 
         output = {
 
-            "likes": 0,
-            "comments": 0,
-            "reposts": 0,
-            "shares": 0,
-            "bookmarks": 0
+            "likes": None,
+            "comments": None,
+            "reposts": None,
+            "shares": None,
+            "bookmarks": None
 
         }
 
@@ -274,6 +277,7 @@ class EngagementExtractor:
         if image is None:
 
             return output
+
 
 
 
@@ -298,6 +302,7 @@ class EngagementExtractor:
                 icons[key] = {
 
                     "x": location[0],
+
                     "y": location[1]
 
                 }
@@ -306,8 +311,17 @@ class EngagementExtractor:
 
 
 
+
+
         numbers = self.extract_numbers(
             image
+        )
+
+
+
+        print(
+            "ALL DETECTED NUMBERS:",
+            numbers
         )
 
 
@@ -320,6 +334,7 @@ class EngagementExtractor:
 
 
             best_index = None
+
             best_distance = float("inf")
 
 
@@ -328,7 +343,9 @@ class EngagementExtractor:
 
 
                 if index in used:
+
                     continue
+
 
 
 
@@ -345,7 +362,9 @@ class EngagementExtractor:
                 if distance < best_distance:
 
                     best_distance = distance
+
                     best_index = index
+
 
 
 
@@ -362,14 +381,40 @@ class EngagementExtractor:
 
 
 
+
+
+        values = [
+
+            item["value"]
+
+            for item in numbers
+
+        ]
+
+
+
+        if len(values) >= 3:
+
+
+            output["likes"] = values[-3]
+
+            output["comments"] = values[-2]
+
+            output["shares"] = values[-1]
+            
+
+
+
+
+
         print(
             "FINAL ENGAGEMENT:",
             output
         )
 
 
-        return output
 
+        return output
 
 
 
