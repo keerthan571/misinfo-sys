@@ -15,7 +15,7 @@ groq_client = Groq(
 
 
 # Transformer NER model
-nlp_model = spacy.load("en_core_web_trf")
+nlp_model = spacy.load("en_core_web_sm")
 
 
 

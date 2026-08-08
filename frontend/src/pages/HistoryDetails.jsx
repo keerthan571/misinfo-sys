@@ -32,6 +32,11 @@ export default function HistoryDetails() {
   if (!analysis)
     return <div className="text-white text-xl">Analysis not found.</div>;
 
+  // Text-only analyses show verification/detection only.
+  // Social-media screenshot analyses additionally show engagement,
+  // spread prediction and propagation graph.
+  const isSocialAnalysis = Boolean(analysis.image?.path);
+
   const imageUrl = (() => {
     const path = analysis.image?.path;
 
@@ -683,7 +688,9 @@ export default function HistoryDetails() {
       ]);
 
 
-      /* ==========================================
+      if (isSocialAnalysis) {
+
+        /* ==========================================
          SPREAD PREDICTION
       ========================================== */
 
@@ -721,6 +728,7 @@ export default function HistoryDetails() {
             "-"
         }
       ]);
+      }
 
 
       /* ==========================================
@@ -747,7 +755,9 @@ export default function HistoryDetails() {
         }
       ]);
 
-      /* ==========================================
+      if (isSocialAnalysis) {
+
+        /* ==========================================
          PROPAGATION GRAPH
       ========================================== */
 
@@ -1048,6 +1058,8 @@ export default function HistoryDetails() {
         }
       }
 
+      }
+
       /* ==========================================
          SAVE
       ========================================== */
@@ -1147,7 +1159,11 @@ export default function HistoryDetails() {
 
         </div>
 
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-6">
+        <div
+          className={`grid grid-cols-2 ${
+            isSocialAnalysis ? "xl:grid-cols-4" : "xl:grid-cols-3"
+          } gap-6`}
+        >
 
           <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
             <p className="text-slate-400">
@@ -1179,17 +1195,19 @@ export default function HistoryDetails() {
             </h2>
           </div>
 
-          <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
-            <p className="text-slate-400">
-              Predicted Reach
-            </p>
+          {isSocialAnalysis && (
+            <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
+              <p className="text-slate-400">
+                Predicted Reach
+              </p>
 
-            <h2 className="text-4xl font-bold text-cyan-400 mt-2">
-              {Number(
-                analysis.prediction?.predicted_reach || 0
-              ).toLocaleString()}
-            </h2>
-          </div>
+              <h2 className="text-4xl font-bold text-cyan-400 mt-2">
+                {Number(
+                  analysis.prediction?.predicted_reach || 0
+                ).toLocaleString()}
+              </h2>
+            </div>
+          )}
 
         </div>
 
@@ -1554,6 +1572,9 @@ export default function HistoryDetails() {
 
       </div>
 
+      
+
+      {isSocialAnalysis && (
       <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
 
         <div className="flex items-center justify-between px-8 py-6 border-b border-slate-700">
@@ -1634,6 +1655,7 @@ export default function HistoryDetails() {
         </div>
 
       </div>
+      )}
 
     </div>
   );
