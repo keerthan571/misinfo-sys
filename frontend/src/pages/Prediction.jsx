@@ -1,116 +1,140 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAnalysis } from "../context/AnalysisContext";
 
-export default function Prediction(){
+export default function Prediction() {
 
-    const navigate = useNavigate();
-    const { state } = useLocation();
+  const navigate = useNavigate();
+  const { state } = useLocation();
 
-    const { analysis: contextAnalysis } = useAnalysis();
+  const { analysis: contextAnalysis } = useAnalysis();
 
-    const analysis =
-        state?.analysis ||
-        contextAnalysis?.result?.analysis ||
-        null;
 
-    if(!analysis){
+  const analysis =
+    state?.analysis ||
+    contextAnalysis?.result?.analysis ||
+    null;
 
-        return(
-            <div className="bg-slate-800 rounded-2xl p-12 text-center">
 
-                <h2 className="text-3xl font-bold text-white">
-                    No Prediction Available
-                </h2>
 
-                <p className="text-gray-400 mt-4">
-                    Analyze a post first.
-                </p>
+  if (!analysis) {
 
-            </div>
-        );
-    }
+    return (
+      <div className="bg-slate-800 rounded-2xl p-12 text-center text-white">
+
+        <h2 className="text-3xl font-bold">
+          No Prediction Available
+        </h2>
+
+        <p className="text-gray-400 mt-4">
+          Analyze a post first.
+        </p>
+
+      </div>
+    );
+
+  }
+
+
+
   const prediction =
     analysis.prediction?.data ||
     analysis.prediction ||
     {};
 
-  const analysisSummary =
-    analysis.prediction?.analysis_summary ||
-    "";
+
 
   const spread =
     analysis.spread_analysis || {};
+
+
 
   const engagement =
     analysis.verified_engagement ||
     analysis.engagement ||
     {};
 
+
+
   const platform =
     analysis.platform?.platform ||
     "Not Selected";
 
-  const engagementMetrics =
-    Object.entries(
-      engagement
+
+
+  const analysisSummary =
+    analysis.prediction?.analysis_summary ||
+    "";
+
+
+
+  const engagementMetrics = Object.entries(engagement)
+
+    .filter(
+      ([key,value]) =>
+        key !== "metrics" &&
+        key !== "followers" &&
+        typeof value === "number" &&
+        value > 0
     )
-      .filter(
-        ([key, value]) =>
-          key !== "metrics" &&
-          typeof value === "number" &&
-          value > 0
-      )
-      .map(
-        ([key, value]) => ({
 
-          label:
-            key.charAt(0).toUpperCase() + key.slice(1),
+    .map(
+      ([key,value]) => ({
 
-          value: value
+        label:
+          key.charAt(0).toUpperCase() +
+          key.slice(1),
 
-        })
-      );
+        value
+
+      })
+    );
+
+
 
   const reach =
     prediction.predicted_reach
-      ?
-      Math.round(
-        prediction.predicted_reach
-      ).toLocaleString()
-      :
-      "Not Available";
+      ? Math.round(
+          prediction.predicted_reach
+        ).toLocaleString()
+      : "Not Available";
+
+
 
   const probability =
     prediction.spread_probability !== undefined &&
-      prediction.spread_probability !== null
-      ?
-      `${prediction.spread_probability}%`
-      :
-      "Not Available";
+    prediction.spread_probability !== null
+      ? `${prediction.spread_probability}%`
+      : "Not Available";
+
+
 
   const virality =
     prediction.virality_score !== undefined &&
-      prediction.virality_score !== null
-      ?
-      `${prediction.virality_score}%`
-      :
-      "Not Available";
+    prediction.virality_score !== null
+      ? `${prediction.virality_score}%`
+      : "Not Available";
+
+
 
   return (
 
     <div className="space-y-8">
 
-      <div>
 
-        <h1 className="text-4xl font-bold text-white">
-          Spread Prediction
+      <div className="bg-slate-800 rounded-2xl p-6 text-white">
+
+        <h1 className="text-4xl font-bold">
+
+          🚀 Spread Prediction Analysis
+
         </h1>
 
 
         <p className="text-gray-400 mt-2">
-          Predict how misinformation may spread in the future.
-        </p>
 
+          Predict how misinformation may spread in the future.
+
+        </p>
 
       </div>
 
@@ -121,7 +145,9 @@ export default function Prediction(){
 
 
         <h2 className="text-3xl font-bold mb-6">
+
           🚀 Future Spread Prediction
+
         </h2>
 
 
@@ -164,7 +190,9 @@ export default function Prediction(){
             </p>
 
             <h3 className="text-3xl font-bold text-red-400 mt-3">
+
               {prediction.risk_level || "Not Available"}
+
             </h3>
 
           </div>
@@ -178,7 +206,9 @@ export default function Prediction(){
             </p>
 
             <h3 className="text-3xl font-bold text-green-400 mt-3">
+
               {virality}
+
             </h3>
 
           </div>
@@ -200,12 +230,16 @@ export default function Prediction(){
 
 
           <h2 className="text-3xl font-bold">
+
             📊 Verified Engagement Signals
+
           </h2>
 
 
-          <span className="bg-slate-900 px-4 py-2 rounded-xl text-gray-300">
+          <span className="bg-slate-900 px-4 py-2 rounded-xl">
+
             {platform}
+
           </span>
 
 
@@ -213,49 +247,47 @@ export default function Prediction(){
 
 
 
-
         <div className="grid md:grid-cols-4 sm:grid-cols-2 gap-6">
 
 
           {
-            engagementMetrics.length > 0
+            engagementMetrics.length > 0 ?
 
-              ?
+            engagementMetrics.map(
+              (metric,index)=>(
 
-              engagementMetrics.map(
-                (metric, index) => (
+                <div
+                  key={index}
+                  className="bg-slate-900 rounded-xl p-5"
+                >
 
-                  <div
-                    key={index}
-                    className="bg-slate-900 rounded-xl p-5"
-                  >
+                  <p className="text-gray-400">
 
-                    <p className="text-gray-400">
-                      📊 {metric.label}
-                    </p>
+                    📊 {metric.label}
 
-
-                    <h3 className="text-3xl font-bold mt-3 text-blue-400">
-
-                      {metric.value.toLocaleString()}
-
-                    </h3>
+                  </p>
 
 
-                  </div>
+                  <h3 className="text-3xl font-bold text-blue-400 mt-3">
 
-                )
+                    {metric.value.toLocaleString()}
+
+                  </h3>
+
+
+                </div>
+
               )
 
-              :
+            )
 
-              <div className="col-span-full bg-slate-900 rounded-xl p-6">
+            :
 
-                <p className="text-gray-300 text-lg">
-                  No visible engagement data detected.
-                </p>
+            <p className="text-gray-300">
 
-              </div>
+              No visible engagement data detected.
+
+            </p>
 
           }
 
@@ -264,34 +296,36 @@ export default function Prediction(){
 
 
       </div>
+
+
+
+
       <div className="mt-8 flex justify-end">
-         
+
         <button
-        
+
           onClick={() =>
-            navigate("/graph", {
+            navigate(
+              "/graph",
+              {
                 state:{
-                    analysis
+                  analysis
                 }
-            })
+              }
+            )
           }
-          className="
-      bg-blue-600
-      hover:bg-blue-700
-      px-6
-      py-3
-      rounded-xl
-      font-semibold
-      transition-all
-      duration-200
-      hover:scale-105
-      shadow-lg
-    "
+
+          className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-xl font-semibold"
+
         >
+
           📈 View Propagation Graph
+
         </button>
 
+
       </div>
+
 
 
 
@@ -300,11 +334,14 @@ export default function Prediction(){
 
 
         <h2 className="text-3xl font-bold mb-6">
+
           📈 Spread Factor Analysis
+
         </h2>
 
 
-        <p className="text-gray-300 text-lg">
+
+        <p className="text-gray-300">
 
           Spread Score:
 
@@ -313,6 +350,7 @@ export default function Prediction(){
             {spread.metrics?.spread_score ?? "Not Available"}
 
           </span>
+
 
         </p>
 
@@ -330,24 +368,30 @@ export default function Prediction(){
 
 
 
-
       {
         analysisSummary &&
 
         <div className="bg-slate-800 rounded-2xl p-8 text-white">
 
+
           <h2 className="text-3xl font-bold mb-4">
+
             🤖 Prediction Explanation
+
           </h2>
 
 
           <p className="text-gray-300">
+
             {analysisSummary}
+
           </p>
 
 
         </div>
+
       }
+
 
 
     </div>

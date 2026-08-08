@@ -1,16 +1,20 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import apiClient from "../api/apiClient";
-import { useAnalysis } from "../context/AnalysisContext";
+
 export default function EngagementVerification() {
 
   const { state } = useLocation();
   const navigate = useNavigate();
-  const { setAnalysis } = useAnalysis();
+
   const analysis = state?.analysis || {};
 
-  const originalEngagement =
-    analysis.engagement || {};
+  const originalEngagement = analysis.engagement || {};
+
+  const platform =
+    (analysis.platform?.platform || "").toLowerCase();
+
+  const showFollowers = platform === "instagram";
 
   const followers =
     Number(originalEngagement.followers || 0);
@@ -32,21 +36,7 @@ export default function EngagementVerification() {
       .forEach(
         ([key, value]) => {
 
-          if (key === "shares") {
-
-            data["bookmarks"] = Number(value);
-
-          }
-          else if (key === "bookmarks") {
-
-            data["shares"] = Number(value);
-
-          }
-          else {
-
-            data[key] = Number(value);
-
-          }
+          data[key] = Number(value);
 
         }
       );
@@ -64,15 +54,9 @@ export default function EngagementVerification() {
 
     Object.entries(engagement)
       .forEach(
-        ([key, value]) => {
+        ([key,value]) => {
 
-          if (
-            typeof value === "number"
-          ) {
-
-            verifiedEngagement[key] = Number(value);
-
-          }
+          verifiedEngagement[key] = Number(value);
 
         }
       );
@@ -92,19 +76,18 @@ export default function EngagementVerification() {
             analysis.platform?.platform || "Instagram"
         }
       );
-      console.log("========== PREDICT RESPONSE ==========");
-      console.log(response.data);
-      console.log("======================================");
+
+
       const updatedAnalysis = {
 
         ...analysis,
 
         engagement: {
-
           ...originalEngagement,
 
-          followers
-
+          ...(showFollowers && {
+            followers
+          })
         },
 
         verified_engagement:
@@ -117,27 +100,20 @@ export default function EngagementVerification() {
           response.data.spread_analysis
 
       };
-      console.log("UPDATED ANALYSIS");
-      console.log(updatedAnalysis);
 
-      setAnalysis({
-        result: {
-          analysis: updatedAnalysis
-        },
-        news: analysis.text || "",
-        platform: analysis.platform?.platform || "",
-        followers,
-      });
 
-      navigate("/prediction", {
-        state: {
-          analysis: updatedAnalysis,
-        },
-      });
+      navigate(
+        "/prediction",
+        {
+          state:{
+            analysis: updatedAnalysis
+          }
+        }
+      );
 
 
     }
-    catch (error) {
+    catch(error){
 
       console.log(
         "Prediction Error:",
@@ -150,13 +126,13 @@ export default function EngagementVerification() {
 
 
 
-  const handleChange = (key, value) => {
+  const handleChange = (key,value)=>{
 
     setEngagement({
 
       ...engagement,
 
-      [key]: Number(value)
+      [key]:Number(value)
 
     });
 
@@ -182,89 +158,72 @@ export default function EngagementVerification() {
 
 
 
-        <div className="bg-slate-900 rounded-xl p-5 mb-5">
+        {
+          showFollowers && (
+
+            <div className="bg-slate-900 rounded-xl p-5 mb-5">
+
+              <p className="text-gray-400">
+                Followers
+              </p>
+
+              <h2 className="text-3xl font-bold text-purple-400 mt-3">
+                {followers.toLocaleString()}
+              </h2>
+
+            </div>
+
+          )
+        }
 
 
-          <p className="text-gray-400">
-            Followers
-          </p>
 
-
-          <h2 className="text-3xl font-bold text-purple-400 mt-3">
-
-            {followers.toLocaleString()}
-
-          </h2>
-
-
-        </div>
-
-
-
-        <div className="grid md:grid-cols-5 gap-5">
-
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
 
           {
             Object.entries(engagement)
               .map(
-                ([key, value]) => (
-
+                ([key,value]) => (
 
                   <div
                     key={key}
                     className="bg-slate-900 rounded-xl p-5"
                   >
 
-
                     <p className="text-gray-400 capitalize">
                       {key}
                     </p>
 
 
-
                     {
                       editMode ?
 
-                        <input
+                      <input
+                        type="number"
+                        value={value}
+                        onChange={(e)=>
+                          handleChange(
+                            key,
+                            e.target.value
+                          )
+                        }
+                        className="mt-3 w-full bg-slate-700 p-3 rounded-lg text-white"
+                      />
 
-                          type="number"
+                      :
 
-                          value={value}
-
-                          onChange={(e) =>
-                            handleChange(
-                              key,
-                              e.target.value
-                            )
-                          }
-
-                          className="mt-3 w-full bg-slate-700 p-3 rounded-lg text-white"
-
-                        />
-
-
-                        :
-
-
-                        <h2 className="text-3xl font-bold text-blue-400 mt-3">
-
-                          {Number(value).toLocaleString()}
-
-                        </h2>
-
+                      <h2 className="text-3xl font-bold text-blue-400 mt-3">
+                        {Number(value).toLocaleString()}
+                      </h2>
 
                     }
 
 
                   </div>
 
-
                 )
-
               )
-
           }
-
 
         </div>
 
@@ -274,40 +233,28 @@ export default function EngagementVerification() {
 
 
           <button
-
             onClick={continuePrediction}
-
             className="bg-green-600 hover:bg-green-700 px-8 py-3 rounded-xl font-bold"
-
           >
-
             Continue
-
           </button>
-
 
 
 
           <button
-
-            onClick={() =>
-              setEditMode(!editMode)
-            }
-
+            onClick={() => setEditMode(!editMode)}
             className="bg-yellow-600 hover:bg-yellow-700 px-8 py-3 rounded-xl font-bold"
-
           >
 
             {
               editMode
-                ?
-                "Save Changes"
-                :
-                "Edit Values"
+              ?
+              "Save Changes"
+              :
+              "Edit Values"
             }
 
           </button>
-
 
 
         </div>

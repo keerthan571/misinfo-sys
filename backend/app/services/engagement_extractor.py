@@ -2,6 +2,7 @@ import cv2
 import pytesseract
 import os
 import re
+import math
 
 
 BASE_DIR = os.path.dirname(
@@ -28,13 +29,9 @@ class EngagementExtractor:
         self.templates = {
 
             "likes": "heart.png",
-
             "comments": "comment.png",
-
             "reposts": "repost.png",
-
             "shares": "share.png",
-
             "bookmarks": "bookmark.png"
 
         }
@@ -42,13 +39,7 @@ class EngagementExtractor:
 
 
 
-
-    def find_icon(
-        self,
-        image,
-        template_name
-    ):
-
+    def find_icon(self, image, template_name):
 
         template_path = os.path.join(
             TEMPLATE_DIR,
@@ -63,12 +54,6 @@ class EngagementExtractor:
 
 
         if template is None:
-
-            print(
-                "Template missing:",
-                template_path
-            )
-
             return None
 
 
@@ -80,7 +65,6 @@ class EngagementExtractor:
 
 
         best_confidence = 0
-
         best_location = None
 
 
@@ -95,7 +79,7 @@ class EngagementExtractor:
         ]:
 
 
-            resized_template = cv2.resize(
+            resized = cv2.resize(
                 template,
                 None,
                 fx=scale,
@@ -104,23 +88,19 @@ class EngagementExtractor:
             )
 
 
-            th, tw = resized_template.shape[:2]
-
-            gh, gw = gray.shape[:2]
+            th, tw = resized.shape[:2]
 
 
-            if th > gh or tw > gw:
-
+            if th > gray.shape[0] or tw > gray.shape[1]:
                 continue
 
 
 
             result = cv2.matchTemplate(
                 gray,
-                resized_template,
+                resized,
                 cv2.TM_CCOEFF_NORMED
             )
-
 
 
             _, confidence, _, location = cv2.minMaxLoc(
@@ -128,11 +108,9 @@ class EngagementExtractor:
             )
 
 
-
             if confidence > best_confidence:
 
                 best_confidence = confidence
-
                 best_location = location
 
 
@@ -146,7 +124,7 @@ class EngagementExtractor:
 
 
 
-        if best_confidence >= 0.80:
+        if best_confidence >= 0.75:
 
             return best_location
 
@@ -159,14 +137,9 @@ class EngagementExtractor:
 
 
 
-    def clean_number(
-        self,
-        text
-    ):
-
+    def clean_number(self, text):
 
         text = text.lower()
-
 
         text = text.replace(
             ",",
@@ -174,12 +147,10 @@ class EngagementExtractor:
         )
 
 
-
         match = re.search(
             r"(\d+\.?\d*)\s*([km]?)",
             text
         )
-
 
 
         if not match:
@@ -202,9 +173,11 @@ class EngagementExtractor:
             number *= 1000
 
 
+
         elif unit == "m":
 
             number *= 1000000
+
 
 
 
@@ -216,46 +189,17 @@ class EngagementExtractor:
 
 
 
-    def extract_number(
-        self,
-        image,
-        location
-    ):
+    def extract_numbers(self, image):
 
 
-        if location is None:
-
-            return 0
-
-
-
-        x, y = location
+        gray = cv2.cvtColor(
+            image,
+            cv2.COLOR_BGR2GRAY
+        )
 
 
-        h, w = image.shape[:2]
-
-
-
-        crop = image[
-
-            max(0,y-15):
-            min(h,y+70),
-
-            max(0,x+20):
-            min(w,x+180)
-
-        ]
-
-
-
-        if crop.size == 0:
-
-            return 0
-
-
-
-        crop = cv2.resize(
-            crop,
+        gray = cv2.resize(
+            gray,
             None,
             fx=5,
             fy=5,
@@ -264,64 +208,81 @@ class EngagementExtractor:
 
 
 
-        gray = cv2.cvtColor(
-            crop,
-            cv2.COLOR_BGR2GRAY
+        data = pytesseract.image_to_data(
+            gray,
+            config="--psm 11",
+            output_type=pytesseract.Output.DICT
         )
 
 
 
-        gray = cv2.threshold(
-            gray,
-            0,
-            255,
-            cv2.THRESH_BINARY +
-            cv2.THRESH_OTSU
-        )[1]
+        numbers = []
 
 
 
-        text = pytesseract.image_to_string(
-            gray,
-            config="--psm 7"
-        )
+        for i, text in enumerate(data["text"]):
+
+
+            value = self.clean_number(text)
+
+
+
+            if value > 0:
+
+
+                numbers.append({
+
+                    "value": value,
+
+                    "x": data["left"][i] / 5,
+
+                    "y": data["top"][i] / 5
+
+                })
+
+
 
 
         print(
-            "OCR:",
-            text.strip()
-        )
-
-
-        return self.clean_number(
-            text
+            "NUMBERS:",
+            numbers
         )
 
 
 
+        return numbers
 
 
 
 
 
-    def analyze(
-        self,
-        image
-    ):
+
+
+
+    def analyze(self, image):
+
+        output = {
+
+            "likes": 0,
+            "comments": 0,
+            "reposts": 0,
+            "shares": 0,
+            "bookmarks": 0
+
+        }
 
 
         if image is None:
-
-            return {}
-
-
-
-        output = {}
+            return output
 
 
 
+        icons = {}
+
+
+
+        # Detect icons
         for key, template in self.templates.items():
-
 
             location = self.find_icon(
                 image,
@@ -329,22 +290,174 @@ class EngagementExtractor:
             )
 
 
-            if location is None:
+            if location is not None:
 
-                continue
+                icons[key] = {
+
+                    "x": location[0],
+                    "y": location[1]
+
+                }
 
 
 
-            value = self.extract_number(
-                image,
-                location
+
+        numbers = self.extract_numbers(image)
+
+
+        print(
+            "ALL DETECTED NUMBERS:",
+            numbers
+        )
+
+
+
+        used = set()
+
+
+
+        # -----------------------------
+        # PRIMARY ICON BASED MATCHING
+        # Works for Instagram/Twitter
+        # -----------------------------
+
+        for key, icon in icons.items():
+
+            best_index = None
+            best_distance = float("inf")
+
+
+
+            for index, num in enumerate(numbers):
+
+                if index in used:
+                    continue
+
+
+
+                distance = math.sqrt(
+
+                    (icon["x"] - num["x"]) ** 2 +
+
+                    (icon["y"] - num["y"]) ** 2
+
+                )
+
+
+
+                if distance < best_distance:
+
+                    best_distance = distance
+                    best_index = index
+
+
+
+
+            if best_index is not None and best_distance < 350:
+
+                output[key] = numbers[best_index]["value"]
+
+                used.add(best_index)
+
+
+
+
+        # ---------------------------------
+        # Instagram fix:
+        # share/bookmark are close sometimes
+        # ---------------------------------
+
+        if (
+            output["shares"] > 0 and
+            output["bookmarks"] > 0
+        ):
+
+            share_x = icons.get(
+                "shares",
+                {}
+            ).get(
+                "x",
+                0
+            )
+
+
+            bookmark_x = icons.get(
+                "bookmarks",
+                {}
+            ).get(
+                "x",
+                0
             )
 
 
 
-            if value > 0:
+            if share_x > bookmark_x:
 
-                output[key] = value
+                output["shares"], output["bookmarks"] = (
+
+                    output["bookmarks"],
+
+                    output["shares"]
+
+                )
+
+
+
+
+
+        # ---------------------------------
+        # If bookmark icon missing
+        # Use remaining unused number
+        # ---------------------------------
+
+        if output["bookmarks"] == 0:
+
+            remaining = []
+
+
+            for index,num in enumerate(numbers):
+
+                if index not in used:
+
+                    remaining.append(num["value"])
+
+
+
+            if remaining:
+
+                # Instagram last icon normally bookmark
+
+                output["bookmarks"] = remaining[-1]
+
+
+
+
+
+        # ---------------------------------
+        # Facebook fallback ONLY
+        # No icons detected
+        # ---------------------------------
+
+        if len(icons) == 0:
+
+
+            values = [
+
+                x["value"]
+
+                for x in numbers
+
+            ]
+
+
+            if len(values) >= 3:
+
+                output["likes"] = values[-3]
+
+                output["comments"] = values[-2]
+
+                output["shares"] = values[-1]
+
 
 
 
@@ -356,7 +469,6 @@ class EngagementExtractor:
 
 
         return output
-
 
 
 
