@@ -1,20 +1,16 @@
 import time
 import uuid
 import io
+import os
 
 from PIL import Image
-
 import cv2
 import numpy as np
 
-
 from app.services.vision_engagement_detector import vision_engagement_detector
 from app.services.engagement_extractor import engagement_extractor
-
 from app.services.twitter_engagement_extractor import twitter_engagement_extractor
 from app.services.twitter_views_detector import twitter_views_detector
-
-
 from app.services.graph.graph_generator import graph_generator
 
 from app.services.nlp_service import nlp_service
@@ -27,15 +23,19 @@ from app.database.mongodb import analysis_collection
 class AnalysisPipeline:
 
     async def run(
-        self, text, image, platform, current_user, followers=0, ocr_values=None
+        self,
+        text,
+        image,
+        platform,
+        current_user,
+        followers=0,
+        ocr_values=None
     ):
 
         start = time.time()
-
         analysis_id = str(uuid.uuid4())
 
         if ocr_values is None:
-
             ocr_values = {}
 
         extracted_text = ""
@@ -50,46 +50,101 @@ class AnalysisPipeline:
             "views": 0,
         }
 
+        image_path = None
+
         if image:
 
             image_bytes = await image.read()
 
-            pil_image = Image.open(io.BytesIO(image_bytes))
+            upload_dir = "uploads"
+            os.makedirs(upload_dir, exist_ok=True)
+
+            filename = (
+                f"{analysis_id}_"
+                f"{os.path.basename(image.filename)}"
+            )
+
+            image_path = os.path.join(
+                upload_dir,
+                filename
+            )
+
+            with open(image_path, "wb") as file:
+                file.write(image_bytes)
+
+            pil_image = Image.open(
+                io.BytesIO(image_bytes)
+            )
 
             pil_image.load()
 
             img = np.array(pil_image)
 
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            img = cv2.cvtColor(
+                img,
+                cv2.COLOR_RGB2BGR
+            )
 
+            # Platform-specific engagement extraction
             if platform.lower() in ["twitter", "x"]:
 
-                twitter_engagement = twitter_engagement_extractor.analyze(img)
+                twitter_engagement = (
+                    twitter_engagement_extractor.analyze(
+                        img
+                    )
+                )
 
-                twitter_views = twitter_views_detector.detect(img)
+                twitter_views = (
+                    twitter_views_detector.detect(
+                        img
+                    )
+                )
 
-                twitter_engagement["views"] = twitter_views
+                twitter_engagement["views"] = (
+                    twitter_views
+                )
 
-                engagement_values.update(twitter_engagement)
+                engagement_values.update(
+                    twitter_engagement
+                )
 
             else:
 
-                opencv_engagement = engagement_extractor.analyze(img)
+                opencv_engagement = (
+                    engagement_extractor.analyze(
+                        img
+                    )
+                )
 
-                engagement_values.update(opencv_engagement)
+                engagement_values.update(
+                    opencv_engagement
+                )
 
+            # Vision text extraction
             try:
 
-                vision_result = vision_engagement_detector.analyze(pil_image, platform)
+                vision_result = (
+                    vision_engagement_detector.analyze(
+                        pil_image,
+                        platform
+                    )
+                )
 
-                extracted_text = vision_result.get("post_text", "")
+                extracted_text = vision_result.get(
+                    "post_text",
+                    ""
+                )
 
             except Exception as e:
 
-                print("VISION TEXT ERROR:", e)
+                print(
+                    "VISION TEXT ERROR:",
+                    e
+                )
 
                 extracted_text = ""
 
+        # OCR engagement values
         if ocr_values:
 
             for key, value in ocr_values.items():
@@ -101,122 +156,288 @@ class AnalysisPipeline:
 
                     try:
 
-                        clean = str(value).replace(",", "").lower()
+                        clean = (
+                            str(value)
+                            .replace(",", "")
+                            .lower()
+                        )
 
                         if "k" in clean:
 
-                            number = float(clean.replace("k", "")) * 1000
+                            number = (
+                                float(
+                                    clean.replace(
+                                        "k",
+                                        ""
+                                    )
+                                )
+                                * 1000
+                            )
 
                         elif "m" in clean:
 
-                            number = float(clean.replace("m", "")) * 1000000
+                            number = (
+                                float(
+                                    clean.replace(
+                                        "m",
+                                        ""
+                                    )
+                                )
+                                * 1000000
+                            )
 
                         else:
 
                             number = int(clean)
 
-                        engagement_values[key] = int(number)
+                        engagement_values[key] = int(
+                            number
+                        )
 
                     except Exception as e:
-                        print(e)
 
-        final_text = text.strip() if text else extracted_text
+                        print(
+                            "OCR VALUE ERROR:",
+                            e
+                        )
 
-        detection = nlp_service.analyze_text(final_text)
+        final_text = (
+            text.strip()
+            if text
+            else extracted_text
+        )
 
-        claim = detection.get("claim", final_text)
+        detection = nlp_service.analyze_text(
+            final_text
+        )
 
-        fact_result = verify_claim(claim)
+        claim = detection.get(
+            "claim",
+            final_text
+        )
 
-        print("========== FINAL DEBUG ==========")
+        fact_result = verify_claim(
+            claim
+        )
 
-        print("PLATFORM:", platform)
+        print(
+            "========== FINAL DEBUG =========="
+        )
 
-        print("TEXT:", extracted_text)
+        print(
+            "PLATFORM:",
+            platform
+        )
 
-        print("ENGAGEMENT:", engagement_values)
+        print(
+            "TEXT:",
+            extracted_text
+        )
 
-        print("=================================")
+        print(
+            "ENGAGEMENT:",
+            engagement_values
+        )
 
-        engagement = {**engagement_values, "metrics": []}
+        print(
+            "IMAGE PATH:",
+            image_path
+        )
+
+        print(
+            "================================="
+        )
+
+        engagement = {
+            **engagement_values,
+            "metrics": []
+        }
 
         for key, value in engagement_values.items():
 
             if value is not None and value > 0:
 
-                engagement["metrics"].append({"label": key.title(), "value": value})
+                engagement["metrics"].append(
+                    {
+                        "label": key.title(),
+                        "value": value
+                    }
+                )
 
-        if platform.lower() == "instagram" and followers:
+        if (
+            platform.lower() == "instagram"
+            and followers
+        ):
 
             engagement["followers"] = followers
 
-        spread_analysis = spread_factor_service.analyze(engagement, detection, platform)
+        spread_analysis = (
+            spread_factor_service.analyze(
+                engagement,
+                detection,
+                platform
+            )
+        )
 
-        prediction = prediction_service.predict_spread(
-            {
-                **engagement,
-                "spread_score": spread_analysis["metrics"]["spread_score"],
-                "risk_score": detection.get("risk_score", 0),
-                "emotion_score": 0,
-                "manipulation_score": 0,
-            }
+        prediction = (
+            prediction_service.predict_spread(
+                {
+                    **engagement,
+                    "spread_score":
+                        spread_analysis[
+                            "metrics"
+                        ][
+                            "spread_score"
+                        ],
+                    "risk_score":
+                        detection.get(
+                            "risk_score",
+                            0
+                        ),
+                    "emotion_score": 0,
+                    "manipulation_score": 0
+                }
+            )
         )
 
         graph = graph_generator.generate(
             {
-                "analysis": {"text": final_text, "platform": platform},
+                "analysis": {
+                    "text": final_text,
+                    "platform": platform
+                },
                 "engagement": engagement,
-                "spread_prediction": prediction["data"],
+                "spread_prediction":
+                    prediction["data"]
             }
         )
 
         final_result = {
-            "label": fact_result.get("verdict", "Insufficient Evidence"),
-            "confidence": self.convert_confidence(fact_result.get("confidence", "0%")),
-            "risk_level": prediction["data"]["risk_level"],
-            "summary": spread_analysis["summary"],
+            "label": fact_result.get(
+                "verdict",
+                "Insufficient Evidence"
+            ),
+            "confidence":
+                self.convert_confidence(
+                    fact_result.get(
+                        "confidence",
+                        "0%"
+                    )
+                ),
+            "risk_level":
+                prediction["data"]["risk_level"],
+            "summary":
+                spread_analysis["summary"]
         }
 
         response = {
             "analysis_id": analysis_id,
-            "platform": {"platform": platform},
+
+            "platform": {
+                "platform": platform
+            },
+
+            # Required for History/PDF image display
+            "image": {
+                "path": image_path.replace(
+                    "\\",
+                    "/"
+                )
+            } if image_path else None,
+
             "vision": {
                 "used": bool(image),
                 "post_text": extracted_text,
-                "engagement_values": engagement_values,
+                "engagement_values":
+                    engagement_values
             },
+
             "detection": detection,
-            "fact_verification": fact_result,
-            "engagement": engagement,
-            "spread_analysis": spread_analysis,
-            "prediction": prediction["data"],
-            "graph": graph,
-            "final_result": final_result,
+
+            "fact_verification":
+                fact_result,
+
+            "engagement":
+                engagement,
+
+            "spread_analysis":
+                spread_analysis,
+
+            "prediction":
+                prediction["data"],
+
+            "graph":
+                graph,
+
+            "final_result":
+                final_result,
+
             "metadata": {
-                "analysis_id": analysis_id,
-                "processing_status": "completed",
-                "processing_time": round(time.time() - start, 2),
-            },
+                "analysis_id":
+                    analysis_id,
+
+                "processing_status":
+                    "completed",
+
+                "processing_time":
+                    round(
+                        time.time() - start,
+                        2
+                    )
+            }
         }
 
-        analysis_collection.insert_one({**response, "user": current_user.get("email")})
+        analysis_collection.insert_one(
+            {
+                **response,
+                "email":
+                    current_user.get(
+                        "email"
+                    ),
+                "analysis_time":
+                    time.strftime(
+                        "%Y-%m-%dT%H:%M:%S"
+                    )
+            }
+        )
 
-        return {"analysis": response}
+        return {
+            "analysis": response
+        }
 
+    def convert_confidence(
+        self,
+        value
+    ):
 
-    def convert_confidence(self, value):
-        if isinstance(value, (int, float)):
+        if isinstance(
+            value,
+            (int, float)
+        ):
             return value
+
         value = str(value).lower()
+
         if "high" in value:
             return 90
+
         if "medium" in value:
             return 70
+
         if "low" in value:
             return 40
+
         try:
-            return float(value.replace("%", ""))
+
+            return float(
+                value.replace(
+                    "%",
+                    ""
+                )
+            )
+
         except:
+
             return 0
 
 

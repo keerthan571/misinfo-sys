@@ -9,7 +9,8 @@ export default function History() {
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
+  const [searchType, setSearchType] = useState("content");
+  const [searchValue, setSearchValue] = useState("");
 
   const navigate = useNavigate();
 
@@ -37,20 +38,36 @@ export default function History() {
 
 
   const filteredHistory = history.filter((item) => {
-    const query = search.toLowerCase();
+    switch (searchType) {
+      case "content":
+        return (item.text || "")
+          .toLowerCase()
+          .includes(searchValue.toLowerCase());
 
-    return (
-      (item.text || "").toLowerCase().includes(query) ||
-      (item.platform?.platform || "").toLowerCase().includes(query) ||
-      (item.final_result?.label || "").toLowerCase().includes(query) ||
-      new Date(item.analysis_time)
-        .toLocaleDateString()
-        .toLowerCase()
-        .includes(query)
-    );
+      case "platform":
+        return (
+          item.platform?.platform === searchValue ||
+          searchValue === ""
+        );
+
+      case "result":
+        return (
+          item.final_result?.label === searchValue ||
+          searchValue === ""
+        );
+
+      case "date":
+        return (
+          new Date(item.analysis_time)
+            .toISOString()
+            .slice(0, 10) === searchValue ||
+          searchValue === ""
+        );
+
+      default:
+        return true;
+    }
   });
-
-
 
   if (loading) {
 
@@ -65,8 +82,6 @@ export default function History() {
     );
 
   }
-
-
 
   return (
 
@@ -90,8 +105,6 @@ export default function History() {
 
       </div>
 
-
-
       {
         error && (
 
@@ -103,14 +116,74 @@ export default function History() {
 
         )
       }
-      <div className="bg-slate-800 rounded-2xl p-4">
-        <input
-          type="text"
-          placeholder="🔍 Search by content, platform, result or date..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-slate-900 text-white rounded-xl px-4 py-3 outline-none border border-slate-700 focus:border-blue-500"
-        />
+      <div className="bg-slate-800 rounded-2xl p-6 flex flex-wrap gap-4 items-end">
+
+        <div>
+          <label className="text-gray-400 text-sm block mb-2">
+            Search By
+          </label>
+
+          <select
+            value={searchType}
+            onChange={(e) => {
+              setSearchType(e.target.value);
+              setSearchValue("");
+            }}
+            className="bg-slate-900 text-white border border-slate-700 rounded-xl px-4 py-3"
+          >
+            <option value="content">Content</option>
+            <option value="platform">Platform</option>
+            <option value="result">Result</option>
+            <option value="date">Date</option>
+          </select>
+        </div>
+
+        {searchType === "content" && (
+          <input
+            type="text"
+            placeholder="Enter content..."
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            className="bg-slate-900 text-white border border-slate-700 rounded-xl px-4 py-3 w-96"
+          />
+        )}
+
+        {searchType === "platform" && (
+          <select
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            className="bg-slate-900 text-white border border-slate-700 rounded-xl px-4 py-3"
+          >
+            <option value="">All Platforms</option>
+            <option>Instagram</option>
+            <option>Facebook</option>
+            <option>Twitter</option>
+          </select>
+        )}
+
+        {searchType === "result" && (
+          <select
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            className="bg-slate-900 text-white border border-slate-700 rounded-xl px-4 py-3"
+          >
+            <option value="">All Results</option>
+            <option>Verified Information</option>
+            <option>False Information</option>
+            <option>Potential Misinformation</option>
+            <option>Needs Verification</option>
+          </select>
+        )}
+
+        {searchType === "date" && (
+          <input
+            type="date"
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            className="bg-slate-900 text-white border border-slate-700 rounded-xl px-4 py-3"
+          />
+        )}
+
       </div>
 
 

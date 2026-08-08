@@ -21,6 +21,9 @@ class PropagationEngine:
         spread_prediction: dict[str, Any],
     ) -> nx.DiGraph:
 
+        # Create a fresh graph for every analysis
+        self.graph = nx.DiGraph()
+
         self.analysis = analysis
         self.engagement = engagement
         self.prediction = spread_prediction
@@ -422,24 +425,29 @@ class PropagationEngine:
                         interaction=self.config.SHARE_EDGE,
                     )
 
-
     def _connect_bridges(self):
+    
         weight = self._edge_weight()
 
         communities = {}
 
         for node, data in self.graph.nodes(data=True):
+
             if data["node_type"] != self.config.USER_NODE:
                 continue
 
-            communities.setdefault(data["community"], []).append(node)
+            communities.setdefault(
+                data["community"],
+                []
+            ).append(node)
 
         bridge_users = []
 
         for users in communities.values():
 
             users.sort(
-                key=lambda node: self.graph.nodes[node]["followers"],
+                key=lambda node:
+                    self.graph.nodes[node]["followers"],
                 reverse=True,
             )
 
@@ -447,7 +455,7 @@ class PropagationEngine:
                 bridge_users.append(users[1])
 
         for i in range(len(bridge_users) - 1):
-    
+
             src = bridge_users[i]
             dst = bridge_users[i + 1]
 
@@ -460,8 +468,6 @@ class PropagationEngine:
                 weight=weight,
                 interaction=self.config.BRIDGE_EDGE,
             )
-            weight=weight,
-            interaction=self.config.BRIDGE_EDGE,
     
     def _random_cross_links(self, per_community):
     

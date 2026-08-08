@@ -3,7 +3,6 @@ import {
   BarChart3,
   ShieldCheck,
   ShieldAlert,
-  ScanLine,
   Target,
 } from "lucide-react";
 
@@ -89,13 +88,6 @@ export default function Dashboard() {
       valueColor: "text-red-500",
     },
     {
-      title: "OCR Uploads",
-      value: dashboard.ocrUploads,
-      subtitle: "Images processed using OCR",
-      icon: ScanLine,
-      valueColor: "text-purple-500",
-    },
-    {
       title: "AI Confidence",
       value: `${dashboard.avgConfidence}%`,
       subtitle: "Average AI confidence",
@@ -128,7 +120,7 @@ export default function Dashboard() {
     <div className="space-y-8">
       <DashboardHeader userName={userName} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         {stats.map((stat) => (
           <StatCard
             key={stat.title}

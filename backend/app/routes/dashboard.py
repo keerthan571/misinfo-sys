@@ -201,83 +201,29 @@ def get_recent_activity(
 
     )
 
-
-
     recent = []
 
-
-
-    for analysis in analyses:
-
-
-        text = analysis.get(
-            "text",
-            ""
-        )
-
-
-        if len(text) > 60:
-
-            text = (
-                text[:60]
-                +
-                "..."
-            )
-
-
-
-        raw_verdict = (
-
-            analysis
-            .get("fact_verification", {})
-            .get("verdict", "")
-
-        )
-
-
+    for doc in analyses:
+    
+        analysis = doc.get("analysis", {})
 
         verdict = normalize_verdict(
-            raw_verdict
+            analysis.get("fact_verification", {}).get("verdict", "")
         )
 
+        if verdict == "Verified True":
+            verified_true += 1
+        elif verdict == "Verified False":
+            verified_false += 1
 
+        confidence = analysis.get("detection", {}).get("confidence")
 
-        print(
-            "RECENT:",
-            text,
-            "=>",
-            raw_verdict,
-            "=>",
-            verdict
-        )
+        if isinstance(confidence, (int, float)):
+            confidence_values.append(confidence)
 
+        vision = analysis.get("vision", {})
 
-
-        recent.append(
-
-            {
-
-                "text": text,
-
-                "verdict": verdict,
-
-                "confidence":
-                analysis
-                .get("detection", {})
-                .get(
-                    "confidence",
-                    0
-                ),
-
-                "analysis_time":
-                analysis.get(
-                    "analysis_time"
-                )
-
-            }
-
-        )
-
-
+        if vision.get("used"):
+            ocr_uploads += 1
 
     return recent
