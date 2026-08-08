@@ -289,10 +289,6 @@ export default function AnalyzeInput({
             Twitter / X
           </option>
 
-          <option value="YouTube">
-            YouTube
-          </option>
-
         </select>
 
         {/* Instagram Followers */}

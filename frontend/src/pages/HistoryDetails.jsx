@@ -14,6 +14,8 @@ export default function HistoryDetails() {
     fetchAnalysis();
   }, []);
 
+  
+
   const fetchAnalysis = async () => {
     try {
       const response = await apiClient.get(`/api/history/${id}`);
@@ -32,10 +34,14 @@ export default function HistoryDetails() {
   if (!analysis)
     return <div className="text-white text-xl">Analysis not found.</div>;
 
+
+  const isSocialAnalysis = Boolean(
+    analysis?.image?.path
+  );
   // Text-only analyses show verification/detection only.
   // Social-media screenshot analyses additionally show engagement,
   // spread prediction and propagation graph.
-  const isSocialAnalysis = Boolean(analysis.image?.path);
+
 
   const imageUrl = (() => {
     const path = analysis.image?.path;
@@ -321,11 +327,13 @@ export default function HistoryDetails() {
         analysis.analysis_id
       );
 
-      addLabelValue(
-        "Platform",
-        analysis.platform?.platform ||
-        "Unknown"
-      );
+      if (isSocialAnalysis) {
+        addLabelValue(
+          "Platform",
+          analysis.platform?.platform ||
+          "Unknown"
+        );
+      }
 
       addLabelValue(
         "Date",
@@ -354,7 +362,7 @@ export default function HistoryDetails() {
         "Result Summary"
       );
 
-      addCardRow([
+      const summaryCards = [
         {
           label: "Verification",
           value:
@@ -373,16 +381,21 @@ export default function HistoryDetails() {
           value:
             analysis.final_result?.risk_level ||
             "-"
-        },
-        {
+        }
+      ];
+
+      if (isSocialAnalysis) {
+        summaryCards.push({
           label: "Predicted Reach",
           value:
             Number(
               analysis.prediction?.predicted_reach ??
               0
             ).toLocaleString()
-        }
-      ]);
+        });
+      }
+
+      addCardRow(summaryCards);
 
       /* ==========================================
    ORIGINAL CONTENT
@@ -562,7 +575,7 @@ export default function HistoryDetails() {
        * IMPORTANT:
        * Do NOT print OCR / vision extracted text.
        */
-      if (analysis.text) {
+      if (analysis.text?.trim()) {
 
         addPageIfNeeded(15);
 
@@ -638,54 +651,58 @@ export default function HistoryDetails() {
 
 
       /* ==========================================
-         ENGAGEMENT
-      ========================================== */
+   ENGAGEMENT
+========================================== */
 
-      addSectionTitle(
-        "Engagement Metrics"
-      );
+      if (isSocialAnalysis) {
 
-      addCardRow([
-        {
-          label: "Likes",
-          value:
-            analysis.engagement?.likes ??
-            0
-        },
-        {
-          label: "Comments",
-          value:
-            analysis.engagement?.comments ??
-            0
-        },
-        {
-          label: "Shares",
-          value:
-            analysis.engagement?.shares ??
-            0
-        },
-        {
-          label: "Reposts",
-          value:
-            analysis.engagement?.reposts ??
-            0
-        }
-      ]);
+        addSectionTitle(
+          "Engagement Metrics"
+        );
 
-      addCardRow([
-        {
-          label: "Bookmarks",
-          value:
-            analysis.engagement?.bookmarks ??
-            0
-        },
-        {
-          label: "Followers",
-          value:
-            analysis.engagement?.followers ??
-            0
-        }
-      ]);
+        addCardRow([
+          {
+            label: "Likes",
+            value:
+              analysis.engagement?.likes ??
+              0
+          },
+          {
+            label: "Comments",
+            value:
+              analysis.engagement?.comments ??
+              0
+          },
+          {
+            label: "Shares",
+            value:
+              analysis.engagement?.shares ??
+              0
+          },
+          {
+            label: "Reposts",
+            value:
+              analysis.engagement?.reposts ??
+              0
+          }
+        ]);
+
+        addCardRow([
+          {
+            label: "Bookmarks",
+            value:
+              analysis.engagement?.bookmarks ??
+              0
+          },
+          {
+            label: "Followers",
+            value:
+              analysis.engagement?.followers ??
+              0
+          }
+        ]);
+
+      }
 
 
       if (isSocialAnalysis) {
@@ -694,369 +711,371 @@ export default function HistoryDetails() {
          SPREAD PREDICTION
       ========================================== */
 
-      addSectionTitle(
-        "Spread Prediction"
-      );
+        addSectionTitle(
+          "Spread Prediction"
+        );
 
-      addCardRow([
-        {
-          label: "Predicted Reach",
-          value:
-            Number(
-              analysis.prediction?.predicted_reach ??
+        addCardRow([
+          {
+            label: "Predicted Reach",
+            value:
+              Number(
+                analysis.prediction?.predicted_reach ??
+                0
+              ).toLocaleString()
+          },
+          {
+            label: "Spread Probability",
+            value:
+              `${analysis.prediction?.spread_probability ??
               0
-            ).toLocaleString()
-        },
-        {
-          label: "Spread Probability",
-          value:
-            `${analysis.prediction?.spread_probability ??
-            0
-            }%`
-        },
-        {
-          label: "Virality Score",
-          value:
-            `${analysis.prediction?.virality_score ??
-            0
-            }%`
-        },
-        {
-          label: "Risk Level",
-          value:
-            analysis.prediction?.risk_level ||
-            "-"
-        }
-      ]);
+              }%`
+          },
+          {
+            label: "Virality Score",
+            value:
+              `${analysis.prediction?.virality_score ??
+              0
+              }%`
+          },
+          {
+            label: "Risk Level",
+            value:
+              analysis.prediction?.risk_level ||
+              "-"
+          }
+        ]);
       }
 
+/* ==========================================
+   PLATFORM
+========================================== */
 
-      /* ==========================================
-         PLATFORM
-      ========================================== */
+      if (isSocialAnalysis) {
 
-      addSectionTitle(
-        "Platform Information"
-      );
+        addSectionTitle(
+          "Platform Information"
+        );
 
-      addCardRow([
-        {
-          label: "Platform",
-          value:
-            analysis.platform?.platform ||
-            "Unknown"
-        },
-        {
-          label: "Confidence",
-          value:
-            `${analysis.platform?.confidence ??
-            100
-            }%`
-        }
-      ]);
+        addCardRow([
+          {
+            label: "Platform",
+            value:
+              analysis.platform?.platform ||
+              "Unknown"
+          },
+          {
+            label: "Confidence",
+            value:
+              `${analysis.platform?.confidence ??
+              100
+              }%`
+          }
+        ]);
 
+      }
       if (isSocialAnalysis) {
 
         /* ==========================================
          PROPAGATION GRAPH
       ========================================== */
 
-      addSectionTitle(
-        "Propagation Network"
-      );
-
-      addLabelValue(
-        "Nodes",
-        analysis.graph?.nodes?.length ?? 0
-      );
-
-      addLabelValue(
-        "Edges",
-        analysis.graph?.edges?.length ?? 0
-      );
-
-      addLabelValue(
-        "Platform",
-        analysis.platform?.platform || "-"
-      );
-
-      const graphWrapper =
-        document.getElementById(
-          "pdf-graph-container"
+        addSectionTitle(
+          "Propagation Network"
         );
 
-      const graphContainer =
-        graphWrapper?.querySelector(
-          "#graph-container"
+        addLabelValue(
+          "Nodes",
+          analysis.graph?.nodes?.length ?? 0
         );
 
-      if (graphContainer) {
+        addLabelValue(
+          "Edges",
+          analysis.graph?.edges?.length ?? 0
+        );
 
-        try {
+        addLabelValue(
+          "Platform",
+          analysis.platform?.platform || "-"
+        );
 
-          // Give React Flow enough time to finish
-          // rendering and fit the complete graph.
-          await new Promise(
-            resolve =>
-              setTimeout(resolve, 1800)
+        const graphWrapper =
+          document.getElementById(
+            "pdf-graph-container"
           );
 
-          const graphImage =
-            await toPng(
-              graphContainer,
-              {
-                cacheBust: true,
-                pixelRatio: 2,
-                backgroundColor: "#1e293b",
+        const graphContainer =
+          graphWrapper?.querySelector(
+            "#graph-container"
+          );
 
-                width:
-                  graphContainer.clientWidth,
+        if (graphContainer) {
 
-                height:
-                  graphContainer.clientHeight,
+          try {
 
-                style: {
+            // Give React Flow enough time to finish
+            // rendering and fit the complete graph.
+            await new Promise(
+              resolve =>
+                setTimeout(resolve, 1800)
+            );
+
+            const graphImage =
+              await toPng(
+                graphContainer,
+                {
+                  cacheBust: true,
+                  pixelRatio: 2,
+                  backgroundColor: "#1e293b",
+
                   width:
-                    `${graphContainer.clientWidth}px`,
+                    graphContainer.clientWidth,
 
                   height:
-                    `${graphContainer.clientHeight}px`,
-                },
-              }
+                    graphContainer.clientHeight,
+
+                  style: {
+                    width:
+                      `${graphContainer.clientWidth}px`,
+
+                    height:
+                      `${graphContainer.clientHeight}px`,
+                  },
+                }
+              );
+
+            const graphImg =
+              await new Promise(
+                (resolve, reject) => {
+
+                  const img =
+                    new Image();
+
+                  img.onload = () =>
+                    resolve(img);
+
+                  img.onerror = reject;
+
+                  img.src = graphImage;
+                }
+              );
+
+            /*
+             * ==========================================
+             * LANDSCAPE GRAPH PAGE
+             * ==========================================
+             */
+
+            pdf.addPage(
+              "a4",
+              "landscape"
             );
 
-          const graphImg =
-            await new Promise(
-              (resolve, reject) => {
+            const landscapeWidth =
+              pdf.internal.pageSize.getWidth();
 
-                const img =
-                  new Image();
+            const landscapeHeight =
+              pdf.internal.pageSize.getHeight();
 
-                img.onload = () =>
-                  resolve(img);
+            const graphMargin = 12;
 
-                img.onerror = reject;
+            /*
+             * Title
+             */
 
-                img.src = graphImage;
-              }
+            pdf.setFont(
+              "helvetica",
+              "bold"
             );
 
-          /*
-           * ==========================================
-           * LANDSCAPE GRAPH PAGE
-           * ==========================================
-           */
+            pdf.setFontSize(20);
 
-          pdf.addPage(
-            "a4",
-            "landscape"
-          );
+            pdf.setTextColor(
+              25,
+              45,
+              75
+            );
 
-          const landscapeWidth =
-            pdf.internal.pageSize.getWidth();
+            pdf.text(
+              "Propagation Network",
+              graphMargin,
+              16
+            );
 
-          const landscapeHeight =
-            pdf.internal.pageSize.getHeight();
+            /*
+             * Statistics
+             */
 
-          const graphMargin = 12;
+            pdf.setFont(
+              "helvetica",
+              "normal"
+            );
 
-          /*
-           * Title
-           */
+            pdf.setFontSize(10);
 
-          pdf.setFont(
-            "helvetica",
-            "bold"
-          );
+            pdf.setTextColor(
+              90
+            );
 
-          pdf.setFontSize(20);
+            pdf.text(
+              `Nodes: ${analysis.graph?.nodes?.length ?? 0
+              }`,
+              graphMargin,
+              25
+            );
 
-          pdf.setTextColor(
-            25,
-            45,
-            75
-          );
+            pdf.text(
+              `Edges: ${analysis.graph?.edges?.length ?? 0
+              }`,
+              graphMargin + 45,
+              25
+            );
 
-          pdf.text(
-            "Propagation Network",
-            graphMargin,
-            16
-          );
+            pdf.text(
+              `Platform: ${analysis.platform?.platform || "-"
+              }`,
+              graphMargin + 90,
+              25
+            );
 
-          /*
-           * Statistics
-           */
+            /*
+             * ==========================================
+             * AVAILABLE GRAPH AREA
+             * ==========================================
+             */
 
-          pdf.setFont(
-            "helvetica",
-            "normal"
-          );
+            const availableWidth =
+              landscapeWidth -
+              graphMargin * 2;
 
-          pdf.setFontSize(10);
+            const availableHeight =
+              landscapeHeight -
+              40;
 
-          pdf.setTextColor(
-            90
-          );
+            const graphRatio =
+              graphImg.width /
+              graphImg.height;
 
-          pdf.text(
-            `Nodes: ${analysis.graph?.nodes?.length ?? 0
-            }`,
-            graphMargin,
-            25
-          );
+            let graphWidth =
+              availableWidth;
 
-          pdf.text(
-            `Edges: ${analysis.graph?.edges?.length ?? 0
-            }`,
-            graphMargin + 45,
-            25
-          );
-
-          pdf.text(
-            `Platform: ${analysis.platform?.platform || "-"
-            }`,
-            graphMargin + 90,
-            25
-          );
-
-          /*
-           * ==========================================
-           * AVAILABLE GRAPH AREA
-           * ==========================================
-           */
-
-          const availableWidth =
-            landscapeWidth -
-            graphMargin * 2;
-
-          const availableHeight =
-            landscapeHeight -
-            40;
-
-          const graphRatio =
-            graphImg.width /
-            graphImg.height;
-
-          let graphWidth =
-            availableWidth;
-
-          let graphHeight =
-            graphWidth /
-            graphRatio;
-
-          /*
-           * Never allow graph to exceed
-           * the available page height.
-           */
-
-          if (
-            graphHeight >
-            availableHeight
-          ) {
-
-            graphHeight =
-              availableHeight;
-
-            graphWidth =
-              graphHeight *
+            let graphHeight =
+              graphWidth /
               graphRatio;
-          }
 
-          /*
-           * Center horizontally.
-           */
+            /*
+             * Never allow graph to exceed
+             * the available page height.
+             */
 
-          const graphX =
-            graphMargin +
-            (
-              availableWidth -
-              graphWidth
-            ) / 2;
+            if (
+              graphHeight >
+              availableHeight
+            ) {
 
-          /*
-           * Center vertically.
-           */
+              graphHeight =
+                availableHeight;
 
-          const graphY =
-            32 +
-            (
-              availableHeight -
-              graphHeight
-            ) / 2;
-
-          /*
-           * Graph border
-           */
-
-          pdf.setDrawColor(
-            190,
-            195,
-            205
-          );
-
-          pdf.roundedRect(
-            graphX - 2,
-            graphY - 2,
-            graphWidth + 4,
-            graphHeight + 4,
-            2,
-            2
-          );
-
-          /*
-           * FULL GRAPH
-           */
-
-          pdf.addImage(
-            graphImage,
-            "PNG",
-            graphX,
-            graphY,
-            graphWidth,
-            graphHeight
-          );
-
-          /*
-           * Footer
-           */
-
-          pdf.setFontSize(8);
-
-          pdf.setTextColor(
-            120
-          );
-
-          pdf.text(
-            "Generated by AI Misinformation Analysis System",
-            landscapeWidth / 2,
-            landscapeHeight - 7,
-            {
-              align: "center",
+              graphWidth =
+                graphHeight *
+                graphRatio;
             }
-          );
 
-        } catch (graphError) {
+            /*
+             * Center horizontally.
+             */
 
-          console.error(
-            "GRAPH PDF ERROR:",
-            graphError
-          );
+            const graphX =
+              graphMargin +
+              (
+                availableWidth -
+                graphWidth
+              ) / 2;
 
-          pdf.setFontSize(10);
+            /*
+             * Center vertically.
+             */
 
-          pdf.setTextColor(
-            180,
-            50,
-            50
-          );
+            const graphY =
+              32 +
+              (
+                availableHeight -
+                graphHeight
+              ) / 2;
 
-          pdf.text(
-            "Propagation graph could not be embedded.",
-            margin,
-            y
-          );
+            /*
+             * Graph border
+             */
+
+            pdf.setDrawColor(
+              190,
+              195,
+              205
+            );
+
+            pdf.roundedRect(
+              graphX - 2,
+              graphY - 2,
+              graphWidth + 4,
+              graphHeight + 4,
+              2,
+              2
+            );
+
+            /*
+             * FULL GRAPH
+             */
+
+            pdf.addImage(
+              graphImage,
+              "PNG",
+              graphX,
+              graphY,
+              graphWidth,
+              graphHeight
+            );
+
+            /*
+             * Footer
+             */
+
+            pdf.setFontSize(8);
+
+            pdf.setTextColor(
+              120
+            );
+
+            pdf.text(
+              "Generated by AI Misinformation Analysis System",
+              landscapeWidth / 2,
+              landscapeHeight - 7,
+              {
+                align: "center",
+              }
+            );
+
+          } catch (graphError) {
+
+            console.error(
+              "GRAPH PDF ERROR:",
+              graphError
+            );
+
+            pdf.setFontSize(10);
+
+            pdf.setTextColor(
+              180,
+              50,
+              50
+            );
+
+            pdf.text(
+              "Propagation graph could not be embedded.",
+              margin,
+              y
+            );
+          }
         }
-      }
 
       }
 
@@ -1112,15 +1131,17 @@ export default function HistoryDetails() {
                   </p>
                 </div>
 
-                <div>
-                  <span className="text-slate-500">
-                    Platform
-                  </span>
+                {isSocialAnalysis && (
+                  <div>
+                    <span className="text-slate-500">
+                      Platform
+                    </span>
 
-                  <p className="text-white font-medium">
-                    {analysis.platform?.platform || "Unknown"}
-                  </p>
-                </div>
+                    <p className="text-white font-medium">
+                      {analysis.platform?.platform || "Unknown"}
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <span className="text-slate-500">
@@ -1160,9 +1181,8 @@ export default function HistoryDetails() {
         </div>
 
         <div
-          className={`grid grid-cols-2 ${
-            isSocialAnalysis ? "xl:grid-cols-4" : "xl:grid-cols-3"
-          } gap-6`}
+          className={`grid grid-cols-2 ${isSocialAnalysis ? "xl:grid-cols-4" : "xl:grid-cols-3"
+            } gap-6`}
         >
 
           <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
@@ -1219,7 +1239,7 @@ export default function HistoryDetails() {
           Original Content
         </h2>
 
-        {imageUrl && analysis.text && (
+        {imageUrl && analysis.text?.trim() && (
           <div className="grid lg:grid-cols-2 gap-6">
 
             <div>
@@ -1257,7 +1277,7 @@ export default function HistoryDetails() {
           </div>
         )}
 
-        {imageUrl && !analysis.text && (
+        {imageUrl && !analysis.text?.trim() && (
           <div>
 
             <h3 className="text-lg font-semibold text-slate-300 mb-4">
@@ -1277,7 +1297,7 @@ export default function HistoryDetails() {
           </div>
         )}
 
-        {!imageUrl && analysis.text && (
+        {!imageUrl && analysis.text?.trim()?.trim() && (
           <div>
 
             <h3 className="text-lg font-semibold text-slate-300 mb-4">
@@ -1402,129 +1422,74 @@ export default function HistoryDetails() {
 
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-
-        <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
-
-          <h2 className="text-2xl font-bold text-white mb-6">
-            Engagement Metrics
-          </h2>
-
-          <div className="grid grid-cols-2 gap-4">
-
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
-              <p className="text-slate-400 text-sm">
-                Likes
-              </p>
-
-              <h3 className="text-2xl font-bold text-pink-400 mt-2">
-                {analysis.engagement?.likes ?? 0}
-              </h3>
-            </div>
-
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
-              <p className="text-slate-400 text-sm">
-                Comments
-              </p>
-
-              <h3 className="text-2xl font-bold text-blue-400 mt-2">
-                {analysis.engagement?.comments ?? 0}
-              </h3>
-            </div>
-
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
-              <p className="text-slate-400 text-sm">
-                Shares
-              </p>
-
-              <h3 className="text-2xl font-bold text-green-400 mt-2">
-                {analysis.engagement?.shares ?? 0}
-              </h3>
-            </div>
-
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
-              <p className="text-slate-400 text-sm">
-                Reposts
-              </p>
-
-              <h3 className="text-2xl font-bold text-orange-400 mt-2">
-                {analysis.engagement?.reposts ?? 0}
-              </h3>
-            </div>
-
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
-              <p className="text-slate-400 text-sm">
-                Bookmarks
-              </p>
-
-              <h3 className="text-2xl font-bold text-yellow-400 mt-2">
-                {analysis.engagement?.bookmarks ?? 0}
-              </h3>
-            </div>
-
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
-              <p className="text-slate-400 text-sm">
-                Followers
-              </p>
-
-              <h3 className="text-2xl font-bold text-cyan-400 mt-2">
-                {analysis.engagement?.followers ?? 0}
-              </h3>
-            </div>
-
-          </div>
-
-        </div>
-
-        <div className="space-y-6">
+      {isSocialAnalysis && (
+        <div className="grid lg:grid-cols-2 gap-6">
 
           <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
 
             <h2 className="text-2xl font-bold text-white mb-6">
-              Spread Prediction
+              Engagement Metrics
             </h2>
 
             <div className="grid grid-cols-2 gap-4">
 
               <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
                 <p className="text-slate-400 text-sm">
-                  Reach
+                  Likes
                 </p>
 
-                <h3 className="text-2xl font-bold text-cyan-400 mt-2">
-                  {Number(
-                    analysis.prediction?.predicted_reach ?? 0
-                  ).toLocaleString()}
+                <h3 className="text-2xl font-bold text-pink-400 mt-2">
+                  {analysis.engagement?.likes ?? 0}
                 </h3>
               </div>
 
               <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
                 <p className="text-slate-400 text-sm">
-                  Probability
+                  Comments
                 </p>
 
                 <h3 className="text-2xl font-bold text-blue-400 mt-2">
-                  {analysis.prediction?.spread_probability ?? 0}%
+                  {analysis.engagement?.comments ?? 0}
                 </h3>
               </div>
 
               <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
                 <p className="text-slate-400 text-sm">
-                  Virality
+                  Shares
                 </p>
 
-                <h3 className="text-2xl font-bold text-purple-400 mt-2">
-                  {analysis.prediction?.virality_score ?? 0}%
+                <h3 className="text-2xl font-bold text-green-400 mt-2">
+                  {analysis.engagement?.shares ?? 0}
                 </h3>
               </div>
 
               <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
                 <p className="text-slate-400 text-sm">
-                  Risk Level
+                  Reposts
                 </p>
 
-                <h3 className="text-2xl font-bold text-red-400 mt-2">
-                  {analysis.prediction?.risk_level || "-"}
+                <h3 className="text-2xl font-bold text-orange-400 mt-2">
+                  {analysis.engagement?.reposts ?? 0}
+                </h3>
+              </div>
+
+              <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+                <p className="text-slate-400 text-sm">
+                  Bookmarks
+                </p>
+
+                <h3 className="text-2xl font-bold text-yellow-400 mt-2">
+                  {analysis.engagement?.bookmarks ?? 0}
+                </h3>
+              </div>
+
+              <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+                <p className="text-slate-400 text-sm">
+                  Followers
+                </p>
+
+                <h3 className="text-2xl font-bold text-cyan-400 mt-2">
+                  {analysis.engagement?.followers ?? 0}
                 </h3>
               </div>
 
@@ -1532,34 +1497,152 @@ export default function HistoryDetails() {
 
           </div>
 
-          <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
+          <div className="space-y-6">
 
-            <h2 className="text-2xl font-bold text-white mb-5">
-              Platform Information
-            </h2>
+            <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
 
-            <div className="grid grid-cols-2 gap-4">
+              <h2 className="text-2xl font-bold text-white mb-6">
+                Spread Prediction
+              </h2>
 
-              <div>
+              <div className="grid grid-cols-2 gap-4">
 
-                <p className="text-slate-400 text-sm">
+                <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+                  <p className="text-slate-400 text-sm">
+                    Reach
+                  </p>
+
+                  <h3 className="text-2xl font-bold text-cyan-400 mt-2">
+                    {Number(
+                      analysis.prediction?.predicted_reach ?? 0
+                    ).toLocaleString()}
+                  </h3>
+                </div>
+
+                <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+                  <p className="text-slate-400 text-sm">
+                    Probability
+                  </p>
+
+                  <h3 className="text-2xl font-bold text-blue-400 mt-2">
+                    {analysis.prediction?.spread_probability ?? 0}%
+                  </h3>
+                </div>
+
+                <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+                  <p className="text-slate-400 text-sm">
+                    Virality
+                  </p>
+
+                  <h3 className="text-2xl font-bold text-purple-400 mt-2">
+                    {analysis.prediction?.virality_score ?? 0}%
+                  </h3>
+                </div>
+
+                <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+                  <p className="text-slate-400 text-sm">
+                    Risk Level
+                  </p>
+
+                  <h3 className="text-2xl font-bold text-red-400 mt-2">
+                    {analysis.prediction?.risk_level || "-"}
+                  </h3>
+                </div>
+
+              </div>
+
+            </div>
+
+            <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
+
+              <h2 className="text-2xl font-bold text-white mb-5">
+                Platform Information
+              </h2>
+
+              <div className="grid grid-cols-2 gap-4">
+
+                <div>
+                  <p className="text-slate-400 text-sm">
+                    Platform
+                  </p>
+
+                  <p className="text-white text-xl font-semibold mt-2">
+                    {analysis.platform?.platform || "Unknown"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-slate-400 text-sm">
+                    Confidence
+                  </p>
+
+                  <p className="text-white text-xl font-semibold mt-2">
+                    {analysis.platform?.confidence ?? 100}%
+                  </p>
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+
+
+      {isSocialAnalysis && (
+        <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+
+          <div className="flex items-center justify-between px-8 py-6 border-b border-slate-700">
+
+            <div>
+
+              <h2 className="text-3xl font-bold text-white">
+                Propagation Network
+              </h2>
+
+              <p className="text-slate-400 mt-2">
+                AI-generated misinformation propagation graph.
+              </p>
+
+            </div>
+
+            <div className="flex gap-6 text-sm">
+
+              <div className="text-center">
+
+                <p className="text-slate-400">
+                  Nodes
+                </p>
+
+                <p className="text-2xl font-bold text-blue-400">
+                  {analysis.graph?.nodes?.length ?? 0}
+                </p>
+
+              </div>
+
+              <div className="text-center">
+
+                <p className="text-slate-400">
+                  Edges
+                </p>
+
+                <p className="text-2xl font-bold text-green-400">
+                  {analysis.graph?.edges?.length ?? 0}
+                </p>
+
+              </div>
+
+              <div className="text-center">
+
+                <p className="text-slate-400">
                   Platform
                 </p>
 
-                <p className="text-white text-xl font-semibold mt-2">
-                  {analysis.platform?.platform || "Unknown"}
-                </p>
-
-              </div>
-
-              <div>
-
-                <p className="text-slate-400 text-sm">
-                  Confidence
-                </p>
-
-                <p className="text-white text-xl font-semibold mt-2">
-                  {analysis.platform?.confidence ?? 100}%
+                <p className="text-xl font-semibold text-cyan-400">
+                  {analysis.platform?.platform}
                 </p>
 
               </div>
@@ -1568,93 +1651,28 @@ export default function HistoryDetails() {
 
           </div>
 
-        </div>
+          <div className="p-6">
 
-      </div>
-
-      
-
-      {isSocialAnalysis && (
-      <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
-
-        <div className="flex items-center justify-between px-8 py-6 border-b border-slate-700">
-
-          <div>
-
-            <h2 className="text-3xl font-bold text-white">
-              Propagation Network
-            </h2>
-
-            <p className="text-slate-400 mt-2">
-              AI-generated misinformation propagation graph.
-            </p>
-
-          </div>
-
-          <div className="flex gap-6 text-sm">
-
-            <div className="text-center">
-
-              <p className="text-slate-400">
-                Nodes
-              </p>
-
-              <p className="text-2xl font-bold text-blue-400">
-                {analysis.graph?.nodes?.length ?? 0}
-              </p>
-
-            </div>
-
-            <div className="text-center">
-
-              <p className="text-slate-400">
-                Edges
-              </p>
-
-              <p className="text-2xl font-bold text-green-400">
-                {analysis.graph?.edges?.length ?? 0}
-              </p>
-
-            </div>
-
-            <div className="text-center">
-
-              <p className="text-slate-400">
-                Platform
-              </p>
-
-              <p className="text-xl font-semibold text-cyan-400">
-                {analysis.platform?.platform}
-              </p>
-
+            <div
+              id="pdf-graph-container"
+              className="rounded-xl overflow-hidden border border-slate-700"
+              style={{
+                height: "560px",
+                width: "100%",
+              }}
+            >
+              <GraphViewer
+                analysis={analysis}
+                interactive={false}
+                pdfMode={true}
+                showControls={false}
+                graphHeight="560px"
+              />
             </div>
 
           </div>
 
         </div>
-
-        <div className="p-6">
-
-          <div
-            id="pdf-graph-container"
-            className="rounded-xl overflow-hidden border border-slate-700"
-            style={{
-              height: "560px",
-              width: "100%",
-            }}
-          >
-            <GraphViewer
-              analysis={analysis}
-              interactive={false}
-              pdfMode={true}
-              showControls={false}
-              graphHeight="560px"
-            />
-          </div>
-
-        </div>
-
-      </div>
       )}
 
     </div>

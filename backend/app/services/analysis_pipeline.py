@@ -332,7 +332,7 @@ class AnalysisPipeline:
 
         response = {
             "analysis_id": analysis_id,
-
+            "text": final_text,
             "platform": {
                 "platform": platform
             },

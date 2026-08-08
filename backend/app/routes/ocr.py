@@ -1,127 +1,192 @@
-from datetime import datetime, timezone
-from time import perf_counter
-import uuid
+from __future__ import annotations
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    File,
-    HTTPException,
-    UploadFile,
-    status,
+import io
+import re
+
+import pytesseract
+
+from PIL import Image, ImageEnhance, ImageFilter
+
+
+pytesseract.pytesseract.tesseract_cmd = (
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 )
 
-from app.auth.dependencies import get_current_user
-from ..database.mongodb import ocr_history_collection
-from ..services.ocr_service import ocr_service
 
-router=APIRouter()
+class OCRService:
 
-MAX_FILE_SIZE=10*1024*1024
+    def __init__(self):
+        pass
 
+    def preprocess_image(self, image):
 
-@router.post("/")
-async def extract_text(
-    file:UploadFile=File(...),
-    current_user=Depends(get_current_user),
-):
+        image = image.convert("L")
 
-    start_time=perf_counter()
-
-    if file is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No image uploaded."
+        image = image.resize(
+            (
+                image.width * 4,
+                image.height * 4
+            )
         )
 
-    if (
-        not file.content_type
-        or not file.content_type.startswith("image/")
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Please upload a valid image."
+        image = ImageEnhance.Contrast(
+            image
+        ).enhance(2)
+
+        image = ImageEnhance.Sharpness(
+            image
+        ).enhance(3)
+
+        image = image.filter(
+            ImageFilter.SHARPEN
         )
 
-    image_bytes=await file.read()
+        return image
 
-    if not image_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Uploaded image is empty."
+    def clean_text(self, text):
+
+        text = re.sub(
+            r"[^\w\s.,!?@#%:/\-]",
+            " ",
+            text
         )
 
-    if len(image_bytes)>MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="Image size exceeds 10 MB."
+        text = re.sub(
+            r"\s+",
+            " ",
+            text
         )
 
-    try:
+        return text.strip()
 
-        ocr_result=ocr_service.extract_text_from_image(
-            image_bytes
+    def detect_publisher(self, text: str) -> dict:
+        """
+        Detect publisher only when the publisher name
+        is explicitly present in OCR text.
+
+        The system never guesses a publisher.
+        """
+
+        if not text:
+            return {
+                "publisher": None,
+                "confidence": 0,
+                "method": None,
+            }
+
+        normalized = text.lower()
+
+        publishers = {
+            "ndtv": "NDTV",
+            "rvcj": "RVCJ",
+            "bbc": "BBC",
+            "cnn": "CNN",
+            "reuters": "Reuters",
+            "times of india": "Times of India",
+            "the times of india": "Times of India",
+            "india today": "India Today",
+            "hindustan times": "Hindustan Times",
+            "the hindu": "The Hindu",
+            "news18": "News18",
+            "aaj tak": "Aaj Tak",
+            "zee news": "Zee News",
+            "abp news": "ABP News",
+            "republic tv": "Republic TV",
+            "republic bharat": "Republic Bharat",
+            "the indian express": "The Indian Express",
+            "indian express": "The Indian Express",
+        }
+
+        candidates = sorted(
+            publishers.items(),
+            key=lambda item: len(item[0]),
+            reverse=True
         )
 
-    except Exception as e:
+        for keyword, publisher in candidates:
 
-        print("OCR Error:",e)
+            if keyword in normalized:
 
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="OCR processing failed."
-        )
+                return {
+                    "publisher": publisher,
+                    "confidence": 95,
+                    "method": "ocr_text",
+                }
 
-    processing_time=round(
-        perf_counter()-start_time,
-        2
-    )
+        return {
+            "publisher": None,
+            "confidence": 0,
+            "method": None,
+        }
 
-    ocr_document={
-        "analysis_id":str(uuid.uuid4()),
-        "userId":current_user["email"],
-        "image_name":file.filename,
-        "content_type":file.content_type,
-        "image_size":len(image_bytes),
-        "extracted_text":ocr_result.get(
-            "extracted_text",
-            ""
-        ),
-        "confidence":ocr_result.get(
-            "confidence",
-            0
-        ),
-        "word_count":ocr_result.get(
-            "word_count",
-            0
-        ),
-        "language":ocr_result.get(
-            "language",
-            "Unknown"
-        ),
-        "processing_time":processing_time,
-        "timestamp":datetime.now(
-            timezone.utc
-        ).isoformat()
-    }
+    def extract_text_from_image(self, image_bytes):
 
-    try:
+        try:
 
-        result=ocr_history_collection.insert_one(
-            ocr_document
-        )
+            image = Image.open(
+                io.BytesIO(image_bytes)
+            )
 
-        print(f"OCR Saved | ID={result.inserted_id}")
+            processed = self.preprocess_image(
+                image
+            )
 
-    except Exception as db_error:
+            raw_text = pytesseract.image_to_string(
+                processed,
+                config="--psm 6"
+            )
 
-        print(f"OCR MongoDB Error: {db_error}")
+            cleaned = self.clean_text(
+                raw_text
+            )
 
-    print("OCR RESULT:")
-    print(ocr_result)
+            publisher_info = self.detect_publisher(
+                cleaned
+            )
 
-    return {
-        **ocr_result,
-        "processing_time":processing_time,
-        "analysis_id":ocr_document["analysis_id"],
-    }
+            return {
+
+                "status": "success",
+
+                "extracted_text": cleaned,
+
+                "post_text": cleaned,
+
+                "engagement_text": "",
+
+                "ordered_values": {},
+
+                "raw_text": raw_text,
+
+                "confidence": 90,
+
+                "publisher":
+                    publisher_info["publisher"],
+
+                "publisher_confidence":
+                    publisher_info["confidence"],
+
+                "publisher_detection_method":
+                    publisher_info["method"],
+
+                "word_count":
+                    len(cleaned.split()),
+
+                "language": "Unknown",
+
+                "ready_for_analysis": True
+
+            }
+
+        except Exception as e:
+
+            return {
+
+                "status": "error",
+
+                "message": str(e)
+
+            }
+
+
+ocr_service = OCRService()
