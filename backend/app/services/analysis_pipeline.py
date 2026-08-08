@@ -204,28 +204,20 @@ class AnalysisPipeline:
         return {"analysis": response}
 
 
-        def convert_confidence(self, value):
-
-            if isinstance(value, (int, float)):
-
-                return value
-
-            value = str(value).lower()
-
-            if "high" in value:
-                return 90
-
-            if "medium" in value:
-                return 70
-
-            if "low" in value:
-                return 40
-
-            try:
-                return float(value.replace("%", ""))
-
-            except:
-                return 0
+    def convert_confidence(self, value):
+        if isinstance(value, (int, float)):
+            return value
+        value = str(value).lower()
+        if "high" in value:
+            return 90
+        if "medium" in value:
+            return 70
+        if "low" in value:
+            return 40
+        try:
+            return float(value.replace("%", ""))
+        except:
+            return 0
 
 
 analysis_pipeline = AnalysisPipeline()
