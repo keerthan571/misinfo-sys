@@ -261,24 +261,19 @@ class EngagementExtractor:
 
     def analyze(self, image):
 
-
         output = {
 
-            "likes": None,
-            "comments": None,
-            "reposts": None,
-            "shares": None,
-            "bookmarks": None
+            "likes": 0,
+            "comments": 0,
+            "reposts": 0,
+            "shares": 0,
+            "bookmarks": 0
 
         }
 
 
-
         if image is None:
-
             return output
-
-
 
 
 
@@ -286,8 +281,8 @@ class EngagementExtractor:
 
 
 
+        # Detect icons
         for key, template in self.templates.items():
-
 
             location = self.find_icon(
                 image,
@@ -295,14 +290,11 @@ class EngagementExtractor:
             )
 
 
-
             if location is not None:
-
 
                 icons[key] = {
 
                     "x": location[0],
-
                     "y": location[1]
 
                 }
@@ -310,13 +302,7 @@ class EngagementExtractor:
 
 
 
-
-
-
-        numbers = self.extract_numbers(
-            image
-        )
-
+        numbers = self.extract_numbers(image)
 
 
         print(
@@ -330,22 +316,22 @@ class EngagementExtractor:
 
 
 
+        # -----------------------------
+        # PRIMARY ICON BASED MATCHING
+        # Works for Instagram/Twitter
+        # -----------------------------
+
         for key, icon in icons.items():
 
-
             best_index = None
-
             best_distance = float("inf")
 
 
 
             for index, num in enumerate(numbers):
 
-
                 if index in used:
-
                     continue
-
 
 
 
@@ -362,16 +348,12 @@ class EngagementExtractor:
                 if distance < best_distance:
 
                     best_distance = distance
-
                     best_index = index
 
 
 
 
-
-
-            if best_index is not None and best_distance < 300:
-
+            if best_index is not None and best_distance < 350:
 
                 output[key] = numbers[best_index]["value"]
 
@@ -380,28 +362,101 @@ class EngagementExtractor:
 
 
 
+        # ---------------------------------
+        # Instagram fix:
+        # share/bookmark are close sometimes
+        # ---------------------------------
+
+        if (
+            output["shares"] > 0 and
+            output["bookmarks"] > 0
+        ):
+
+            share_x = icons.get(
+                "shares",
+                {}
+            ).get(
+                "x",
+                0
+            )
+
+
+            bookmark_x = icons.get(
+                "bookmarks",
+                {}
+            ).get(
+                "x",
+                0
+            )
 
 
 
-        values = [
+            if share_x > bookmark_x:
 
-            item["value"]
+                output["shares"], output["bookmarks"] = (
 
-            for item in numbers
+                    output["bookmarks"],
 
-        ]
+                    output["shares"]
 
-
-
-        if len(values) >= 3:
+                )
 
 
-            output["likes"] = values[-3]
 
-            output["comments"] = values[-2]
 
-            output["shares"] = values[-1]
-            
+
+        # ---------------------------------
+        # If bookmark icon missing
+        # Use remaining unused number
+        # ---------------------------------
+
+        if output["bookmarks"] == 0:
+
+            remaining = []
+
+
+            for index,num in enumerate(numbers):
+
+                if index not in used:
+
+                    remaining.append(num["value"])
+
+
+
+            if remaining:
+
+                # Instagram last icon normally bookmark
+
+                output["bookmarks"] = remaining[-1]
+
+
+
+
+
+        # ---------------------------------
+        # Facebook fallback ONLY
+        # No icons detected
+        # ---------------------------------
+
+        if len(icons) == 0:
+
+
+            values = [
+
+                x["value"]
+
+                for x in numbers
+
+            ]
+
+
+            if len(values) >= 3:
+
+                output["likes"] = values[-3]
+
+                output["comments"] = values[-2]
+
+                output["shares"] = values[-1]
 
 
 
@@ -411,7 +466,6 @@ class EngagementExtractor:
             "FINAL ENGAGEMENT:",
             output
         )
-
 
 
         return output
