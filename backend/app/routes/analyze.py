@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, Form, File, UploadFile
 
 from app.auth.dependencies import get_current_user
 from app.services.analysis_pipeline import analysis_pipeline
@@ -18,9 +18,22 @@ async def analyze(
     import json
 
     try:
-        ocr_values = json.loads(ocr_engagement)
-    except:
+        ocr_values = json.loads(
+            ocr_engagement
+        )
+    except Exception:
         ocr_values = {}
+
+    # Publisher is already inside ocr_values
+    # because AnalyzeInput.jsx preserves it.
+    #
+    # Example:
+    #
+    # {
+    #   "publisher": "TV9 Kannada",
+    #   "publisher_confidence": 95,
+    #   "publisher_detection_method": "ocr_known_publisher"
+    # }
 
     return await analysis_pipeline.run(
         text=text,
@@ -29,4 +42,17 @@ async def analyze(
         current_user=current_user,
         followers=followers,
         ocr_values=ocr_values,
+
+        ocr_publisher=ocr_values.get(
+            "publisher"
+        ),
+
+        ocr_publisher_confidence=ocr_values.get(
+            "publisher_confidence",
+            0
+        ),
+
+        ocr_publisher_method=ocr_values.get(
+            "publisher_detection_method"
+        ),
     )

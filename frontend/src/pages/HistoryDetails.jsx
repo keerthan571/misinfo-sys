@@ -14,7 +14,7 @@ export default function HistoryDetails() {
     fetchAnalysis();
   }, []);
 
-  
+
 
   const fetchAnalysis = async () => {
     try {
@@ -747,9 +747,9 @@ export default function HistoryDetails() {
         ]);
       }
 
-/* ==========================================
-   PLATFORM
-========================================== */
+      /* ==========================================
+         PLATFORM
+      ========================================== */
 
       if (isSocialAnalysis) {
 
@@ -1663,6 +1663,7 @@ export default function HistoryDetails() {
             >
               <GraphViewer
                 analysis={analysis}
+                graph={analysis.graph}
                 interactive={false}
                 pdfMode={true}
                 showControls={false}

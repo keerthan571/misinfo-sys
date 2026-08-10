@@ -1,54 +1,115 @@
 import { EDGE_STYLE } from "./constants";
+
 import {
-    uuid,
     createSeededRandom,
     randomFloat,
     randomInt
 } from "./GraphUtils";
 
 export default class EdgeGenerator {
+
     constructor(nodes, blueprint) {
-        this.nodes = nodes;
+
+        this.nodes =
+            [...nodes].sort(
+                (a, b) =>
+                    String(a.id).localeCompare(
+                        String(b.id)
+                    )
+            );
+
         this.blueprint = blueprint;
 
         this.edges = [];
+
         this.edgeSet = new Set();
 
-        this.random = createSeededRandom(
-            blueprint.metadata.seed + "_edges"
-        );
+        this.random =
+            createSeededRandom(
+                blueprint.metadata.seed +
+                "_edges"
+            );
 
-        this.nodeMap = new Map(
-            nodes.map(node => [node.id, node])
-        );
+        this.nodeMap =
+            new Map(
+                this.nodes.map(
+                    node => [
+                        node.id,
+                        node
+                    ]
+                )
+            );
 
-        this.levelMap = this.groupNodesByLevel();
+        this.levelMap =
+            this.groupNodesByLevel();
 
-        this.communityMap = this.groupNodesByCommunity();
+        this.communityMap =
+            this.groupNodesByCommunity();
+
+        this.branchColors =
+            new Map();
+
+        this.branchColorIndex = 0;
+
+        this.branchPalette = [
+            "#3b82f6",
+            "#22c55e",
+            "#f59e0b",
+            "#a855f7",
+            "#ef4444",
+            "#06b6d4",
+            "#ec4899",
+            "#84cc16",
+            "#f97316",
+            "#6366f1"
+        ];
+
+        this.randomEdgeColors = [
+            "#14b8a6",
+            "#e879f9",
+            "#fb7185",
+            "#38bdf8",
+            "#c084fc",
+            "#fbbf24"
+        ];
     }
 
     generate() {
+
         this.buildTreeEdges();
 
-        if (this.blueprint.graph.density > 0.35)
+        if (
+            this.blueprint.graph.density >
+            0.35
+        ) {
             this.buildCrossEdges();
-
-        if (this.blueprint.composition.communities > 1)
-            this.buildCommunityEdges();
+        }
 
         if (
-            this.blueprint.propagation.spreadProbability > 0.55
-        )
+            this.blueprint.composition.communities >
+            1
+        ) {
+            this.buildCommunityEdges();
+        }
+
+        if (
+            this.blueprint.propagation.spreadProbability >
+            0.55
+        ) {
             this.buildReshareEdges();
+        }
 
         return this.edges;
     }
 
     groupNodesByLevel() {
+
         const map = new Map();
 
         this.nodes.forEach(node => {
-            const level = node.data.level;
+
+            const level =
+                node.data.level;
 
             if (!map.has(level)) {
                 map.set(level, []);
@@ -80,13 +141,21 @@ export default class EdgeGenerator {
     }
 
     buildTreeEdges() {
+
         this.nodes.forEach(node => {
-            if (!node.data.parentId) return;
+
+            if (!node.data.parentId) {
+                return;
+            }
 
             const parent =
-                this.nodeMap.get(node.data.parentId);
+                this.nodeMap.get(
+                    node.data.parentId
+                );
 
-            if (!parent) return;
+            if (!parent) {
+                return;
+            }
 
             this.createEdge(
                 parent,
@@ -96,51 +165,137 @@ export default class EdgeGenerator {
         });
     }
 
+    getBranchKey(node) {
+
+        let current = node;
+
+        while (
+            current &&
+            current.data.level > 1 &&
+            current.data.parentId
+        ) {
+
+            const parent =
+                this.nodeMap.get(
+                    current.data.parentId
+                );
+
+            if (!parent) {
+                break;
+            }
+
+            current = parent;
+        }
+
+        return current?.id || node.id;
+    }
+
+    getBranchColor(node) {
+
+        const branchKey =
+            this.getBranchKey(node);
+
+        if (
+            this.branchColors.has(
+                branchKey
+            )
+        ) {
+            return this.branchColors.get(
+                branchKey
+            );
+        }
+
+        const color =
+            this.branchPalette[
+                this.branchColorIndex %
+                this.branchPalette.length
+            ];
+
+        this.branchColorIndex++;
+
+        this.branchColors.set(
+            branchKey,
+            color
+        );
+
+        return color;
+    }
+
+    getRandomEdgeColor() {
+
+        const index =
+            Math.floor(
+                this.random() *
+                this.randomEdgeColors.length
+            );
+
+        return this.randomEdgeColors[
+            index
+        ];
+    }
+
     buildCrossEdges() {
 
         const probability =
             Math.min(
                 0.15,
                 0.05 +
-                this.blueprint.propagation.spreadProbability * 0.10
+                this.blueprint
+                    .propagation
+                    .spreadProbability *
+                0.10
             );
 
-        this.nodes.forEach(target => {
+        this.nodes.forEach(
+            target => {
 
-            // Skip root node
-            if (target.data.level <= 0)
-                return;
+                if (
+                    target.data.level <= 0
+                ) {
+                    return;
+                }
 
-            // Random chance of creating a cross edge
-            if (this.random() > probability)
-                return;
+                if (
+                    this.random() >
+                    probability
+                ) {
+                    return;
+                }
 
-            const candidates =
-                this.nodes.filter(node =>
-                    node.data.level === target.data.level - 1 &&
-                    node.id !== target.id &&
-                    node.id !== target.data.parentId
+                const candidates =
+                    this.nodes.filter(
+                        node =>
+                            node.data.level ===
+                                target.data.level - 1 &&
+                            node.id !== target.id &&
+                            node.id !==
+                                target.data.parentId
+                    );
+
+                if (
+                    !candidates.length
+                ) {
+                    return;
+                }
+
+                candidates.sort(
+                    (a, b) =>
+                        (
+                            b.data.influenceScore -
+                            a.data.influenceScore
+                        ) ||
+                        String(a.id).localeCompare(
+                            String(b.id)
+                        )
                 );
 
-            if (!candidates.length)
-                return;
-
-            candidates.sort(
-                (a, b) =>
-                    b.data.influenceScore -
-                    a.data.influenceScore
-            );
-
-            const source = candidates[0];
-
-            this.createEdge(
-                source,
-                target,
-                "cross"
-            );
-
-        });
-
+                this.createEdge(
+                    candidates[0],
+                    target,
+                    "cross"
+                );
+            }
+        );
     }
 
     buildCommunityEdges() {
@@ -149,111 +304,157 @@ export default class EdgeGenerator {
 
         this.nodes.forEach(node => {
 
-            const community = node.data.community;
+            const community =
+                node.data.community;
 
-            if (!groups[community])
+            if (!groups[community]) {
                 groups[community] = [];
-
-            groups[community].push(node);
-
-        });
-
-        Object.values(groups).forEach(nodes => {
-
-            nodes.sort(
-                (a, b) =>
-                    b.data.influenceScore -
-                    a.data.influenceScore
-            );
-
-            for (let i = 1; i < nodes.length; i++) {
-
-                if (this.random() > 0.35)
-                    continue;
-
-                const hub =
-                    nodes[
-                    randomInt(
-                        this.random,
-                        0,
-                        Math.min(2, i - 1)
-                    )
-                    ];
-
-                this.createEdge(
-                    hub,
-                    nodes[i],
-                    "community"
-                );
-
             }
 
+            groups[community].push(node);
         });
 
+        Object.keys(groups)
+            .sort()
+            .forEach(key => {
+
+                const nodes =
+                    groups[key];
+
+                nodes.sort(
+                    (a, b) =>
+                        (
+                            b.data.influenceScore -
+                            a.data.influenceScore
+                        ) ||
+                        String(a.id).localeCompare(
+                            String(b.id)
+                        )
+                );
+
+                for (
+                    let i = 1;
+                    i < nodes.length;
+                    i++
+                ) {
+
+                    if (
+                        this.random() >
+                        0.35
+                    ) {
+                        continue;
+                    }
+
+                    const hub =
+                        nodes[
+                            randomInt(
+                                this.random,
+                                0,
+                                Math.min(
+                                    2,
+                                    i - 1
+                                )
+                            )
+                        ];
+
+                    this.createEdge(
+                        hub,
+                        nodes[i],
+                        "community"
+                    );
+                }
+            });
     }
 
     buildReshareEdges() {
 
-        this.nodes.forEach(source => {
+        this.nodes.forEach(
+            source => {
 
-            if (source.data.level === 0)
-                return;
+                if (
+                    source.data.level === 0
+                ) {
+                    return;
+                }
 
-            if (
-                this.random() >
-                source.data.shareProbability
-            )
-                return;
+                if (
+                    this.random() >
+                    source.data
+                        .shareProbability
+                ) {
+                    return;
+                }
 
+                const communityNodes =
+                    this.communityMap.get(
+                        source.data.community
+                    ) || [];
 
-            const communityNodes =
-                this.communityMap.get(
-                    source.data.community
-                ) || [];
+                const candidates =
+                    communityNodes.filter(
+                        node =>
+                            node.data.level ===
+                                source.data.level - 1 &&
+                            node.id !== source.id &&
+                            node.id !==
+                                source.data.parentId
+                    );
 
-            const candidates =
-                communityNodes.filter(node =>
-                    node.data.level === source.data.level - 1 &&
-                    node.id !== source.id &&
-                    node.id !== source.data.parentId
+                if (
+                    !candidates.length
+                ) {
+                    return;
+                }
+
+                candidates.sort(
+                    (a, b) =>
+                        (
+                            b.data.influenceScore -
+                            a.data.influenceScore
+                        ) ||
+                        String(a.id).localeCompare(
+                            String(b.id)
+                        )
                 );
 
-            if (!candidates.length)
-                return;
-
-            candidates.sort(
-                (a, b) =>
-                    b.data.influenceScore -
-                    a.data.influenceScore
-            );
-
-            const target = candidates[0];
-
-            this.createEdge(
-                source,
-                target,
-                "reshare"
-            );
-
-        });
-
+                this.createEdge(
+                    source,
+                    candidates[0],
+                    "reshare"
+                );
+            }
+        );
     }
 
-    createEdge(source, target, type) {
+    createEdge(
+        source,
+        target,
+        type
+    ) {
 
-        if (!source || !target)
+        if (!source || !target) {
             return;
+        }
 
-        if (source.id === target.id)
+        if (
+            source.id === target.id
+        ) {
             return;
+        }
 
         const key =
-            [source.id, target.id]
+            [
+                source.id,
+                target.id
+            ]
                 .sort()
                 .join("-");
 
-        if (this.edgeSet.has(key))
+        if (
+            this.edgeSet.has(key)
+        ) {
             return;
+        }
 
         this.edgeSet.add(key);
 
@@ -264,29 +465,74 @@ export default class EdgeGenerator {
             );
 
         const delay =
-            this.calculateDelay(source);
+            this.calculateDelay(
+                source
+            );
 
-        const colors = {
+        let color;
 
-            tree: "#3b82f6",
+        if (type === "tree") {
 
-            cross: "#10b981",
+            color =
+                this.getBranchColor(
+                    target
+                );
 
-            community: "#8b5cf6",
+        } else {
 
-            reshare: "#f59e0b"
+            color =
+                this.getRandomEdgeColor();
+        }
 
-        };
+        let opacity = 0.75;
+
+        let strokeWidth =
+            Math.max(
+                1.8,
+                weight
+            );
+
+        if (type === "tree") {
+
+            opacity = 0.95;
+
+            strokeWidth =
+                Math.max(
+                    2.4,
+                    weight
+                );
+        }
+
+        if (type === "reshare") {
+
+            opacity = 0.55;
+
+            strokeWidth = 1.8;
+        }
+
+        if (
+            type === "cross" ||
+            type === "community"
+        ) {
+
+            opacity = 0.45;
+
+            strokeWidth = 1.5;
+        }
 
         this.edges.push({
 
-            id: uuid("edge"),
+            id:
+                `edge-${source.id}-${target.id}-${type}`,
 
-            source: source.id,
+            source:
+                source.id,
 
-            target: target.id,
+            target:
+                target.id,
 
-            type: "smoothstep",
+            type:
+                "smoothstep",
 
             animated:
                 type === "tree" ||
@@ -294,39 +540,31 @@ export default class EdgeGenerator {
 
             data: {
 
-                interaction: type,
+                interaction:
+                    type,
 
                 weight,
 
                 delay
-
             },
 
             style: {
 
                 stroke:
-                    colors[type] ||
-                    "#94a3b8",
+                    color,
 
-                strokeWidth:
-                    type === "reshare"
-                        ? 1.2
-                        : weight,
+                strokeWidth,
 
-                opacity:
-                    type === "tree"
-                        ? 0.95
-                        : type === "reshare"
-                            ? 0.35
-                            : 0.60
-
+                opacity
             }
-
         });
-
     }
 
-    calculateWeight(source, target) {
+    calculateWeight(
+        source,
+        target
+    ) {
+
         const probability =
             (
                 source.data.shareProbability +
@@ -355,6 +593,7 @@ export default class EdgeGenerator {
     }
 
     calculateDelay(source) {
+
         const base =
             randomFloat(
                 this.random,
@@ -370,7 +609,8 @@ export default class EdgeGenerator {
                     source.data.level * 10
                 ) /
                 Math.max(
-                    source.data.shareProbability,
+                    source.data
+                        .shareProbability,
                     0.1
                 )
             )

@@ -66,9 +66,13 @@ export default function AnalyzeInput({
       if (data.status === "success") {
         setNews(data.extracted_text || "");
 
-        setOcrEngagement(
-          data.ordered_values || {}
-        );
+        setOcrEngagement({
+          ...(data.ordered_values || {}),
+          publisher: data.publisher || null,
+          publisher_confidence: data.publisher_confidence || 0,
+          publisher_detection_method:
+            data.publisher_detection_method || null,
+        });
 
         setOcrConfidence(
           data.confidence ?? 0

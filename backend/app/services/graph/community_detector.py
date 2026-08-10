@@ -81,9 +81,13 @@ class CommunityDetector:
             for node in community["nodes"]:
                 data = self.graph.nodes[node["id"]]
 
-                followers.append(
-                    data.get("followers", 0)
-                )
+                follower_value = data.get("followers")
+
+                # Only use follower counts that are actually available.
+                if follower_value is not None:
+                    followers.append(
+                        follower_value
+                    )
 
                 if data.get("is_bot"):
                     bots += 1
@@ -131,7 +135,7 @@ class CommunityDetector:
         )
 
         return summary
-
+    
     def _risk_score(
         self,
         bots: int,

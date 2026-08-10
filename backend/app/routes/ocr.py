@@ -4,8 +4,11 @@ import io
 import re
 
 import pytesseract
-
+from fastapi import APIRouter, UploadFile, File, HTTPException
 from PIL import Image, ImageEnhance, ImageFilter
+
+
+router = APIRouter()
 
 
 pytesseract.pytesseract.tesseract_cmd = (
@@ -60,65 +63,183 @@ class OCRService:
         return text.strip()
 
     def detect_publisher(self, text: str) -> dict:
-        """
-        Detect publisher only when the publisher name
-        is explicitly present in OCR text.
+            """
+        Detect the visible publisher/source from OCR text.
 
-        The system never guesses a publisher.
+        Priority:
+        1. Known publisher names
+        2. Social-media handles
+        3. Generic visible source name
+
+        Never invent a publisher when there is no reliable signal.
         """
 
-        if not text:
+            if not text:
+                return {
+                    "publisher": None,
+                    "confidence": 0,
+                    "method": None,
+                }
+
+            normalized = text.lower()
+
+            # =========================================================
+            # 1. KNOWN PUBLISHERS
+            # =========================================================
+
+            publishers = {
+                "tv9 kannada": "TV9 Kannada",
+                "tv9kannada": "TV9 Kannada",
+                "tv9": "TV9",
+
+                "rvcj": "RVCJ",
+
+                "ndtv": "NDTV",
+                "bbc news": "BBC News",
+                "bbc": "BBC",
+                "cnn": "CNN",
+                "reuters": "Reuters",
+
+                "times of india": "Times of India",
+                "the times of india": "Times of India",
+
+                "india today": "India Today",
+                "india tv": "India TV",
+
+                "hindustan times": "Hindustan Times",
+                "the hindu": "The Hindu",
+
+                "news18": "News18",
+                "aaj tak": "Aaj Tak",
+                "zee news": "Zee News",
+                "abp news": "ABP News",
+
+                "republic tv": "Republic TV",
+                "republic bharat": "Republic Bharat",
+
+                "the indian express": "The Indian Express",
+                "indian express": "The Indian Express",
+            }
+
+            candidates = sorted(
+                publishers.items(),
+                key=lambda item: len(item[0]),
+                reverse=True,
+            )
+
+            for keyword, publisher in candidates:
+
+                if keyword in normalized:
+
+                    return {
+                        "publisher": publisher,
+                        "confidence": 95,
+                        "method": "ocr_known_publisher",
+                    }
+
+            # =========================================================
+            # 2. SOCIAL MEDIA HANDLE
+            # =========================================================
+
+            handles = re.findall(
+                r"@([A-Za-z0-9_.]{3,40})",
+                text,
+            )
+
+            ignored_handles = {
+                "user",
+                "gmail",
+                "instagram",
+                "twitter",
+                "facebook",
+            }
+
+            for handle in handles:
+
+                if handle.lower() in ignored_handles:
+                    continue
+
+                publisher = handle.replace(
+                    "_",
+                    " ",
+                ).strip()
+
+                if publisher:
+
+                    return {
+                        "publisher": publisher,
+                        "confidence": 80,
+                        "method": "ocr_social_handle",
+                    }
+
+            # =========================================================
+            # 3. GENERIC VISIBLE SOURCE
+            # =========================================================
+
+            lines = [
+                line.strip()
+                for line in text.splitlines()
+                if line.strip()
+            ]
+
+            ignored_phrases = (
+                "breaking",
+                "live",
+                "exclusive",
+                "watch live",
+                "subscribe",
+                "suggested for you",
+                "follow",
+                "share",
+                "comment",
+                "like",
+                "repost",
+                "reply",
+                "views",
+            )
+
+            for line in lines[:12]:
+
+                clean = re.sub(
+                    r"[^A-Za-z0-9&.'@ _-]",
+                    "",
+                    line,
+                ).strip()
+
+                if len(clean) < 4:
+                    continue
+
+                if len(clean) > 50:
+                    continue
+
+                lower = clean.lower()
+
+                if any(
+                    phrase in lower
+                    for phrase in ignored_phrases
+                ):
+                    continue
+
+                words = clean.split()
+
+                if 1 <= len(words) <= 6:
+
+                    return {
+                        "publisher": clean,
+                        "confidence": 65,
+                        "method": "ocr_visible_source",
+                    }
+
+            # =========================================================
+            # 4. NOTHING RELIABLE FOUND
+            # =========================================================
+
             return {
                 "publisher": None,
                 "confidence": 0,
                 "method": None,
             }
-
-        normalized = text.lower()
-
-        publishers = {
-            "ndtv": "NDTV",
-            "rvcj": "RVCJ",
-            "bbc": "BBC",
-            "cnn": "CNN",
-            "reuters": "Reuters",
-            "times of india": "Times of India",
-            "the times of india": "Times of India",
-            "india today": "India Today",
-            "hindustan times": "Hindustan Times",
-            "the hindu": "The Hindu",
-            "news18": "News18",
-            "aaj tak": "Aaj Tak",
-            "zee news": "Zee News",
-            "abp news": "ABP News",
-            "republic tv": "Republic TV",
-            "republic bharat": "Republic Bharat",
-            "the indian express": "The Indian Express",
-            "indian express": "The Indian Express",
-        }
-
-        candidates = sorted(
-            publishers.items(),
-            key=lambda item: len(item[0]),
-            reverse=True
-        )
-
-        for keyword, publisher in candidates:
-
-            if keyword in normalized:
-
-                return {
-                    "publisher": publisher,
-                    "confidence": 95,
-                    "method": "ocr_text",
-                }
-
-        return {
-            "publisher": None,
-            "confidence": 0,
-            "method": None,
-        }
-
+    
     def extract_text_from_image(self, image_bytes):
 
         try:
@@ -127,25 +248,20 @@ class OCRService:
                 io.BytesIO(image_bytes)
             )
 
-            processed = self.preprocess_image(
-                image
-            )
+            processed = self.preprocess_image(image)
 
             raw_text = pytesseract.image_to_string(
                 processed,
                 config="--psm 6"
             )
 
-            cleaned = self.clean_text(
-                raw_text
-            )
+            cleaned = self.clean_text(raw_text)
 
             publisher_info = self.detect_publisher(
                 cleaned
             )
 
             return {
-
                 "status": "success",
 
                 "extracted_text": cleaned,
@@ -160,8 +276,7 @@ class OCRService:
 
                 "confidence": 90,
 
-                "publisher":
-                    publisher_info["publisher"],
+                "publisher": publisher_info["publisher"],
 
                 "publisher_confidence":
                     publisher_info["confidence"],
@@ -174,19 +289,69 @@ class OCRService:
 
                 "language": "Unknown",
 
-                "ready_for_analysis": True
-
+                "ready_for_analysis": True,
             }
 
         except Exception as e:
 
             return {
-
                 "status": "error",
-
-                "message": str(e)
-
+                "message": str(e),
             }
 
 
 ocr_service = OCRService()
+
+
+# ============================================================
+# OCR API ENDPOINT
+# ============================================================
+
+@router.post("/")
+async def extract_ocr(
+    file: UploadFile = File(...)
+):
+
+    if not file.filename:
+
+        raise HTTPException(
+            status_code=400,
+            detail="No file provided."
+        )
+
+    try:
+
+        image_bytes = await file.read()
+
+        if not image_bytes:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded file is empty."
+            )
+
+        result = ocr_service.extract_text_from_image(
+            image_bytes
+        )
+
+        if result.get("status") == "error":
+
+            raise HTTPException(
+                status_code=500,
+                detail=result.get(
+                    "message",
+                    "OCR processing failed."
+                )
+            )
+
+        return result
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )

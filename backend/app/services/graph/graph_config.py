@@ -29,7 +29,7 @@ class GraphConfig:
     # ==========================
 
     MIN_NODES = 25
-    MAX_NODES = 200
+    MAX_NODES = 100
 
     MIN_INFLUENCERS = 2
     MAX_INFLUENCER_RATIO = 0.20

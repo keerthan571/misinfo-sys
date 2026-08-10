@@ -2,8 +2,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAnalysis } from "../context/AnalysisContext";
 
 export default function Prediction() {
-  const navigate = useNavigate();
 
+  const navigate = useNavigate();
   const { state } = useLocation();
 
   const { analysis: contextAnalysis } = useAnalysis();
@@ -13,13 +13,11 @@ export default function Prediction() {
     contextAnalysis?.result?.analysis ||
     null;
 
-  /*
-   * Prediction is available only for social-media
-   * screenshot analysis.
-   *
-   * Text / General analysis must NOT show
-   * spread prediction.
-   */
+
+  /* =========================================================
+     VALIDATION
+  ========================================================= */
+
   const platform =
     analysis?.platform?.platform ||
     analysis?.platform ||
@@ -41,29 +39,28 @@ export default function Prediction() {
       hasSocialEvidence
     );
 
-  /*
-   * No valid social-media analysis
-   */
+
+  /* =========================================================
+     INVALID STATE
+  ========================================================= */
+
   if (!hasSocialAnalysis) {
+
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
 
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-12 text-center text-white max-w-2xl w-full">
+        <div className="max-w-xl w-full bg-slate-800 border border-slate-700 rounded-3xl p-10 text-white text-center">
 
-          <div className="text-6xl mb-6">
-            📊
-          </div>
-
-          <h2 className="text-3xl font-bold">
+          <h1 className="text-3xl font-bold">
             No Spread Prediction Available
-          </h2>
+          </h1>
 
-          <p className="text-gray-400 mt-4 leading-7">
+          <p className="text-slate-400 mt-4 leading-7">
             Spread prediction is available only for
             social-media screenshot analysis.
           </p>
 
-          <p className="text-gray-500 mt-2 text-sm">
+          <p className="text-slate-500 mt-3 text-sm leading-6">
             Analyze an Instagram, Facebook or Twitter/X
             screenshot first to generate propagation
             and spread prediction results.
@@ -71,9 +68,9 @@ export default function Prediction() {
 
           <button
             onClick={() => navigate("/analyze")}
-            className="mt-8 bg-blue-600 hover:bg-blue-700 px-7 py-3 rounded-xl text-white font-semibold transition"
+            className="mt-8 bg-blue-600 hover:bg-blue-500 px-7 py-3 rounded-xl text-white font-semibold transition"
           >
-            🔍 Go to Analyze
+            Go to Analyze
           </button>
 
         </div>
@@ -82,9 +79,11 @@ export default function Prediction() {
     );
   }
 
-  /*
-   * Existing prediction data
-   */
+
+  /* =========================================================
+     DATA
+  ========================================================= */
+
   const prediction =
     analysis.prediction?.data ||
     analysis.prediction ||
@@ -101,297 +100,718 @@ export default function Prediction() {
 
   const platformName =
     analysis.platform?.platform ||
-    "Not Selected";
+    "Unknown";
 
   const analysisSummary =
     analysis.prediction?.analysis_summary ||
     "";
 
-  /*
-   * Engagement metrics
-   */
+
+  /* =========================================================
+     VALUES
+  ========================================================= */
+
+  const predictedReach =
+    prediction.predicted_reach !== undefined &&
+      prediction.predicted_reach !== null
+      ? Math.round(
+        Number(prediction.predicted_reach)
+      )
+      : null;
+
+  const spreadProbability =
+    prediction.spread_probability !== undefined &&
+      prediction.spread_probability !== null
+      ? Number(prediction.spread_probability)
+      : null;
+
+  const viralityScore =
+    prediction.virality_score !== undefined &&
+      prediction.virality_score !== null
+      ? Number(prediction.virality_score)
+      : null;
+
+  const riskLevel =
+    prediction.risk_level ||
+    "Unknown";
+
+  const spreadScore =
+    spread.metrics?.spread_score !== undefined &&
+      spread.metrics?.spread_score !== null
+      ? Number(spread.metrics.spread_score)
+      : null;
+
+
+  /* =========================================================
+     RISK STYLING
+  ========================================================= */
+
+  const normalizedRisk =
+    String(riskLevel).toLowerCase();
+
+  let riskClass =
+    "bg-slate-700 text-slate-200 border-slate-600";
+
+  if (normalizedRisk === "low") {
+    riskClass =
+      "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+  }
+
+  if (normalizedRisk === "medium") {
+    riskClass =
+      "bg-amber-500/10 text-amber-400 border-amber-500/30";
+  }
+
+  if (normalizedRisk === "high") {
+    riskClass =
+      "bg-red-500/10 text-red-400 border-red-500/30";
+  }
+
+
+  /* =========================================================
+     ENGAGEMENT
+  ========================================================= */
+
+  const engagementLabels = {
+    likes: "Likes",
+    comments: "Comments",
+    replies: "Replies",
+    reposts: "Reposts",
+    shares: "Shares",
+    bookmarks: "Bookmarks",
+    views: "Views"
+  };
+
   const engagementMetrics =
     Object.entries(engagement)
-
       .filter(
         ([key, value]) =>
           key !== "metrics" &&
           key !== "followers" &&
           typeof value === "number" &&
-          value > 0
+          value >= 0
       )
-
       .map(
         ([key, value]) => ({
+          key,
           label:
-            key.charAt(0).toUpperCase() +
-            key.slice(1),
-
-          value,
+            engagementLabels[key] ||
+            key
+              .replace(/_/g, " ")
+              .replace(/\b\w/g, c =>
+                c.toUpperCase()
+              ),
+          value
         })
       );
 
-  /*
-   * Predicted reach
-   */
-  const reach =
-    prediction.predicted_reach
-      ? Math.round(
-          prediction.predicted_reach
-        ).toLocaleString()
-      : "Not Available";
 
-  /*
-   * Spread probability
-   */
-  const probability =
-    prediction.spread_probability !==
-      undefined &&
-    prediction.spread_probability !== null
-      ? `${prediction.spread_probability}%`
-      : "Not Available";
+  /* =========================================================
+     FORMATTERS
+  ========================================================= */
 
-  /*
-   * Virality score
-   */
-  const virality =
-    prediction.virality_score !==
-      undefined &&
-    prediction.virality_score !== null
-      ? `${prediction.virality_score}%`
-      : "Not Available";
+  const formatNumber = (value) => {
+
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return "—";
+    }
+
+    return Number(value).toLocaleString();
+  };
+
+
+  const formatPercentage = (value) => {
+
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return "—";
+    }
+
+    return `${value}%`;
+  };
+
+
+  /* =========================================================
+     INTERPRETATION
+  ========================================================= */
+
+  let spreadInterpretation =
+    "The available signals indicate limited immediate spreading potential.";
+
+  if (
+    spreadProbability !== null &&
+    spreadProbability >= 70
+  ) {
+
+    spreadInterpretation =
+      "The content shows strong potential for continued spread and wider network exposure.";
+
+  } else if (
+    spreadProbability !== null &&
+    spreadProbability >= 40
+  ) {
+
+    spreadInterpretation =
+      "The content shows moderate potential for continued spread if engagement remains active.";
+
+  }
+
+
+  /* =========================================================
+     PAGE
+  ========================================================= */
 
   return (
-    <div className="space-y-8">
 
-      {/* =====================================================
-          PAGE HEADER
-      ===================================================== */}
+    <div className="space-y-6 pb-8">
 
-      <div className="bg-slate-800 rounded-2xl p-6 text-white">
 
-        <h1 className="text-4xl font-bold">
-          🚀 Spread Prediction Analysis
-        </h1>
+      {/* =================================================
+                PAGE HEADER
+            ================================================= */}
 
-        <p className="text-gray-400 mt-2">
-          Predict how misinformation may spread in
-          the future.
+      <section className="relative overflow-hidden bg-slate-800 border border-slate-700 rounded-3xl p-8">
+
+        <div className="absolute -right-24 -top-24 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl" />
+
+        <div className="relative">
+
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
+
+            <div>
+
+              <p className="text-blue-400 text-sm font-semibold uppercase tracking-wider">
+                AI Network Assessment
+              </p>
+
+              <h1 className="text-4xl font-bold text-white mt-2">
+                Spread Prediction
+              </h1>
+
+              <p className="text-slate-400 mt-3 max-w-3xl leading-7">
+                An estimate of how this social-media content
+                may propagate through the network based on
+                verified engagement signals and detected
+                content characteristics.
+              </p>
+
+            </div>
+
+
+            <div className="flex flex-col items-start md:items-end gap-2">
+
+              <span className="text-xs text-slate-500 uppercase tracking-wider">
+                Analysis Platform
+              </span>
+
+              <span className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-semibold">
+                {platformName}
+              </span>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      {/* =================================================
+                EXECUTIVE SUMMARY
+            ================================================= */}
+
+      <section className="bg-slate-800 border border-slate-700 rounded-3xl p-7">
+
+        <div className="flex items-center gap-3 mb-5">
+
+          <div className="w-1 h-8 bg-blue-500 rounded-full" />
+
+          <div>
+
+            <h2 className="text-xl font-bold text-white">
+              Prediction Summary
+            </h2>
+
+            <p className="text-sm text-slate-500">
+              Overall interpretation of the prediction
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div className="grid lg:grid-cols-3 gap-5">
+
+          <div className="lg:col-span-2 bg-slate-900 border border-slate-700 rounded-2xl p-6">
+
+            <p className="text-slate-300 leading-8">
+              {analysisSummary ||
+                spreadInterpretation}
+            </p>
+
+          </div>
+
+
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6">
+
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Overall Risk
+            </p>
+
+            <div className="flex items-center justify-between mt-4">
+
+              <span className="text-3xl font-bold text-white">
+                {riskLevel}
+              </span>
+
+              <span
+                className={`px-3 py-1.5 rounded-lg border text-sm font-semibold ${riskClass}`}
+              >
+                {normalizedRisk === "low"
+                  ? "Lower Risk"
+                  : normalizedRisk === "medium"
+                    ? "Moderate Risk"
+                    : normalizedRisk === "high"
+                      ? "High Risk"
+                      : "Unclassified"}
+              </span>
+
+            </div>
+
+            <p className="text-slate-500 text-sm mt-4 leading-6">
+              Risk represents the estimated potential
+              impact of continued content propagation.
+            </p>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      {/* =================================================
+                KEY PREDICTION METRICS
+            ================================================= */}
+
+      <section className="bg-slate-800 border border-slate-700 rounded-3xl p-7">
+
+        <div className="flex items-center gap-3 mb-2">
+
+          <div className="w-1 h-8 bg-indigo-500 rounded-full" />
+
+          <h2 className="text-xl font-bold text-white">
+            Key Prediction Metrics
+          </h2>
+
+        </div>
+
+        <p className="text-slate-500 text-sm mb-6">
+          The primary indicators produced by the spread
+          prediction model.
         </p>
 
-      </div>
+
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5">
 
 
-      {/* =====================================================
-          FUTURE SPREAD PREDICTION
-      ===================================================== */}
+          {/* Reach */}
 
-      <div className="bg-slate-800 rounded-2xl p-8 text-white">
+          <div className="relative overflow-hidden bg-slate-900 border border-slate-700 rounded-2xl p-6">
 
-        <h2 className="text-3xl font-bold mb-6">
-          🚀 Future Spread Prediction
-        </h2>
+            <div className="absolute right-4 top-4 w-2 h-2 rounded-full bg-blue-400" />
 
-        <div className="grid md:grid-cols-4 gap-6">
-
-          {/* Predicted Reach */}
-
-          <div className="bg-slate-900 rounded-xl p-6">
-
-            <p className="text-gray-400">
+            <p className="text-slate-500 text-sm">
               Predicted Reach
             </p>
 
-            <h3 className="text-3xl font-bold text-blue-400 mt-3">
-              {reach}
+            <h3 className="text-4xl font-bold text-blue-400 mt-4">
+              {formatNumber(predictedReach)}
             </h3>
+
+            <p className="text-slate-500 text-xs mt-4 leading-5">
+              Estimated number of users who may be
+              exposed if the current spreading pattern
+              continues.
+            </p>
 
           </div>
 
 
-          {/* Spread Probability */}
+          {/* Probability */}
 
-          <div className="bg-slate-900 rounded-xl p-6">
+          <div className="relative overflow-hidden bg-slate-900 border border-slate-700 rounded-2xl p-6">
 
-            <p className="text-gray-400">
+            <div className="absolute right-4 top-4 w-2 h-2 rounded-full bg-amber-400" />
+
+            <p className="text-slate-500 text-sm">
               Spread Probability
             </p>
 
-            <h3 className="text-3xl font-bold text-yellow-400 mt-3">
-              {probability}
+            <h3 className="text-4xl font-bold text-amber-400 mt-4">
+              {formatPercentage(spreadProbability)}
             </h3>
+
+            <div className="mt-4 h-2 bg-slate-800 rounded-full overflow-hidden">
+
+              <div
+                className="h-full bg-amber-400 rounded-full"
+                style={{
+                  width: `${Math.min(
+                    Math.max(
+                      spreadProbability || 0,
+                      0
+                    ),
+                    100
+                  )}%`
+                }}
+              />
+
+            </div>
+
+            <p className="text-slate-500 text-xs mt-3 leading-5">
+              Likelihood that the content will continue
+              spreading through the network.
+            </p>
 
           </div>
 
 
-          {/* Risk Level */}
+          {/* Risk */}
 
-          <div className="bg-slate-900 rounded-xl p-6">
+          <div className="relative overflow-hidden bg-slate-900 border border-slate-700 rounded-2xl p-6">
 
-            <p className="text-gray-400">
+            <div className="absolute right-4 top-4 w-2 h-2 rounded-full bg-red-400" />
+
+            <p className="text-slate-500 text-sm">
               Risk Level
             </p>
 
-            <h3 className="text-3xl font-bold text-red-400 mt-3">
-              {prediction.risk_level ||
-                "Not Available"}
+            <h3 className="text-4xl font-bold text-white mt-4">
+              {riskLevel}
             </h3>
+
+            <p className="text-slate-500 text-xs mt-4 leading-5">
+              Overall assessment of the potential
+              network-level impact of the content.
+            </p>
 
           </div>
 
 
           {/* Virality */}
 
-          <div className="bg-slate-900 rounded-xl p-6">
+          <div className="relative overflow-hidden bg-slate-900 border border-slate-700 rounded-2xl p-6">
 
-            <p className="text-gray-400">
+            <div className="absolute right-4 top-4 w-2 h-2 rounded-full bg-emerald-400" />
+
+            <p className="text-slate-500 text-sm">
               Virality Score
             </p>
 
-            <h3 className="text-3xl font-bold text-green-400 mt-3">
-              {virality}
+            <h3 className="text-4xl font-bold text-emerald-400 mt-4">
+              {formatPercentage(viralityScore)}
             </h3>
+
+            <div className="mt-4 h-2 bg-slate-800 rounded-full overflow-hidden">
+
+              <div
+                className="h-full bg-emerald-400 rounded-full"
+                style={{
+                  width: `${Math.min(
+                    Math.max(
+                      viralityScore || 0,
+                      0
+                    ),
+                    100
+                  )}%`
+                }}
+              />
+
+            </div>
+
+            <p className="text-slate-500 text-xs mt-3 leading-5">
+              Indicates the likelihood of attracting
+              additional sharing and interaction.
+            </p>
 
           </div>
 
         </div>
 
-      </div>
+      </section>
 
 
-      {/* =====================================================
-          VERIFIED ENGAGEMENT
-      ===================================================== */}
+      {/* =================================================
+                ENGAGEMENT SIGNALS
+            ================================================= */}
 
-      <div className="bg-slate-800 rounded-2xl p-8 text-white">
+      <section className="bg-slate-800 border border-slate-700 rounded-3xl p-7">
 
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-2">
 
-          <h2 className="text-3xl font-bold">
-            📊 Verified Engagement Signals
-          </h2>
+          <div className="flex items-center gap-3">
 
-          <span className="bg-slate-900 px-4 py-2 rounded-xl">
+            <div className="w-1 h-8 bg-cyan-500 rounded-full" />
+
+            <div>
+
+              <h2 className="text-xl font-bold text-white">
+                Verified Engagement Signals
+              </h2>
+
+              <p className="text-sm text-slate-500">
+                Values used as inputs for prediction
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <span className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-300">
             {platformName}
           </span>
 
         </div>
 
 
-        <div className="grid md:grid-cols-4 sm:grid-cols-2 gap-6">
+        <p className="text-slate-400 text-sm leading-6 mb-6">
+          These values were detected from the uploaded
+          social-media content and verified or corrected
+          before generating the prediction.
+        </p>
 
-          {engagementMetrics.length > 0 ? (
 
-            engagementMetrics.map(
-              (metric, index) => (
+        {engagementMetrics.length > 0 ? (
+
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+
+            {engagementMetrics.map(
+              (metric) => (
 
                 <div
-                  key={index}
-                  className="bg-slate-900 rounded-xl p-5"
+                  key={metric.key}
+                  className="bg-slate-900 border border-slate-700 rounded-2xl p-5"
                 >
 
-                  <p className="text-gray-400">
-                    📊 {metric.label}
+                  <p className="text-slate-500 text-sm">
+                    {metric.label}
                   </p>
 
-                  <h3 className="text-3xl font-bold text-blue-400 mt-3">
-                    {metric.value.toLocaleString()}
-                  </h3>
+                  <p className="text-2xl font-bold text-white mt-2">
+                    {formatNumber(metric.value)}
+                  </p>
+
+                  <div className="mt-4 flex items-center gap-2">
+
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+
+                    <span className="text-xs text-slate-500">
+                      Verified input
+                    </span>
+
+                  </div>
 
                 </div>
 
               )
-            )
+            )}
 
-          ) : (
+          </div>
 
-            <p className="text-gray-300">
-              No visible engagement data detected.
+        ) : (
+
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6">
+
+            <p className="text-slate-400">
+              No visible engagement data was detected.
             </p>
 
-          )}
+          </div>
+
+        )}
+
+      </section>
+
+
+      {/* =================================================
+                SPREAD FACTORS
+            ================================================= */}
+
+      <section className="bg-slate-800 border border-slate-700 rounded-3xl p-7">
+
+        <div className="flex items-center gap-3 mb-2">
+
+          <div className="w-1 h-8 bg-violet-500 rounded-full" />
+
+          <div>
+
+            <h2 className="text-xl font-bold text-white">
+              Spread Factor Analysis
+            </h2>
+
+            <p className="text-sm text-slate-500">
+              Understanding the factors behind the result
+            </p>
+
+          </div>
 
         </div>
 
-      </div>
 
-
-      {/* =====================================================
-          GRAPH BUTTON
-      ===================================================== */}
-
-      <div className="mt-8 flex justify-end">
-
-        <button
-          onClick={() =>
-            navigate(
-              "/graph",
-              {
-                state: {
-                  analysis,
-                },
-              }
-            )
-          }
-          className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-xl font-semibold text-white transition"
-        >
-          📈 View Propagation Graph
-        </button>
-
-      </div>
-
-
-      {/* =====================================================
-          SPREAD FACTOR ANALYSIS
-      ===================================================== */}
-
-      <div className="bg-slate-800 rounded-2xl p-8 text-white">
-
-        <h2 className="text-3xl font-bold mb-6">
-          📈 Spread Factor Analysis
-        </h2>
-
-        <p className="text-gray-300">
-
-          Spread Score:
-
-          <span className="ml-3 font-bold text-green-400">
-
-            {spread.metrics?.spread_score ??
-              "Not Available"}
-
-          </span>
-
+        <p className="text-slate-400 text-sm leading-6 mb-6">
+          This analysis combines the available engagement
+          and detection signals to estimate the potential
+          for further propagation.
         </p>
 
-        <p className="text-gray-300 mt-5">
-          {spread.summary ||
-            "No spread analysis available."}
-        </p>
 
-      </div>
+        <div className="grid lg:grid-cols-3 gap-5">
 
 
-      {/* =====================================================
-          PREDICTION EXPLANATION
-      ===================================================== */}
+          {/* Spread score */}
 
-      {analysisSummary && (
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6">
 
-        <div className="bg-slate-800 rounded-2xl p-8 text-white">
+            <p className="text-slate-500 text-sm">
+              Spread Score
+            </p>
 
-          <h2 className="text-3xl font-bold mb-4">
-            🤖 Prediction Explanation
-          </h2>
+            <p className="text-4xl font-bold text-violet-400 mt-3">
+              {spreadScore !== null
+                ? spreadScore
+                : "—"}
+            </p>
 
-          <p className="text-gray-300">
-            {analysisSummary}
+            <p className="text-slate-500 text-xs mt-4 leading-5">
+              Combined indicator representing the
+              estimated potential for continued spread.
+            </p>
+
+          </div>
+
+
+          {/* Interpretation */}
+
+          <div className="lg:col-span-2 bg-slate-900 border border-slate-700 rounded-2xl p-6">
+
+            <p className="text-slate-500 text-sm">
+              Interpretation
+            </p>
+
+            <p className="text-slate-300 leading-7 mt-3">
+              {spread.summary ||
+                spreadInterpretation}
+            </p>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      {/* =================================================
+                MODEL EXPLANATION
+            ================================================= */}
+
+      <section className="bg-slate-800 border border-slate-700 rounded-3xl p-7">
+
+        <div className="flex items-center gap-3 mb-2">
+
+          <div className="w-1 h-8 bg-emerald-500 rounded-full" />
+
+          <div>
+
+            <h2 className="text-xl font-bold text-white">
+              Model Interpretation
+            </h2>
+
+            <p className="text-sm text-slate-500">
+              Explanation of the prediction
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div className="mt-5 bg-slate-900 border border-slate-700 rounded-2xl p-6">
+
+          <p className="text-slate-300 leading-8">
+
+            {analysisSummary ||
+              "The model did not provide an additional explanation for this prediction. The result is based on the verified engagement and available content signals."}
+
           </p>
 
         </div>
 
-      )}
+      </section>
 
+
+      {/* =================================================
+    PROPAGATION ACTION
+================================================= */}
+
+      <section className="bg-slate-800 border border-blue-500/30 rounded-3xl p-7">
+
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+
+          <div className="min-w-0">
+
+            <p className="text-blue-400 text-xs font-semibold uppercase tracking-wider">
+              Network Analysis
+            </p>
+
+            <h2 className="text-2xl font-bold text-white mt-2">
+              Explore Content Propagation
+            </h2>
+
+            <p className="text-slate-400 mt-2 leading-6 max-w-2xl">
+              Visualize how this content can propagate through
+              users, influencers, communities and automated
+              accounts in the simulated social network.
+            </p>
+
+          </div>
+
+
+          <div className="lg:shrink-0">
+
+            <button
+              type="button"
+              onClick={() =>
+                navigate(
+                  "/graph",
+                  {
+                    state: {
+                      analysis
+                    }
+                  }
+                )
+              }
+              className="!w-auto whitespace-nowrap bg-blue-600 hover:bg-blue-500 px-8 py-3.5 rounded-xl text-white font-semibold transition shadow-lg shadow-blue-900/20"
+              style={{
+                width: "fit-content"
+              }}
+            >
+              View Propagation
+            </button>
+
+          </div>
+
+        </div>
+
+      </section>
     </div>
   );
 }
