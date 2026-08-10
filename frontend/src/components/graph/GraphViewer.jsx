@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import ReactFlow, {
   Background,
   Controls,
-  MiniMap,
   useNodesInitialized,
   useReactFlow,
 } from "reactflow";
@@ -15,12 +14,11 @@ import ELKLayoutEngine from "../../graph/ELKLayoutEngine";
 
 function InfoCard({ title, value }) {
   return (
-    <div>
-      <div className="text-sm text-slate-400">
+    <div className="bg-slate-800/70 border border-slate-700/70 rounded-xl p-4">
+      <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
         {title}
       </div>
-
-      <div className="text-lg font-semibold text-white mt-2 break-all">
+      <div className="text-base font-semibold text-slate-100 mt-2 break-all">
         {value ?? "-"}
       </div>
     </div>
@@ -157,6 +155,39 @@ function getNodeRole(data = {}) {
  * Automatically centers the complete graph
  * after ReactFlow has finished initializing nodes.
  */
+function GraphControls() {
+  const { zoomIn, zoomOut, fitView } = useReactFlow();
+
+  return (
+    <div className="absolute top-5 left-5 z-[1000] flex flex-col overflow-hidden rounded-xl border border-slate-600 bg-slate-900/95 shadow-2xl">
+      <button
+        type="button"
+        onClick={() => zoomIn({ duration: 200 })}
+        className="flex h-11 w-11 items-center justify-center border-b border-slate-700 text-2xl font-semibold text-white transition hover:bg-blue-600"
+        title="Zoom in"
+      >
+        +
+      </button>
+      <button
+        type="button"
+        onClick={() => zoomOut({ duration: 200 })}
+        className="flex h-11 w-11 items-center justify-center border-b border-slate-700 text-2xl font-semibold text-white transition hover:bg-blue-600"
+        title="Zoom out"
+      >
+        −
+      </button>
+      <button
+        type="button"
+        onClick={() => fitView({ padding: 0.08, duration: 300 })}
+        className="flex h-11 w-11 items-center justify-center text-lg font-semibold text-white transition hover:bg-blue-600"
+        title="Fit view"
+      >
+        ⛶
+      </button>
+    </div>
+  );
+}
+
 function GraphViewportController({ nodes, pdfMode }) {
   const {
     fitView,
@@ -186,32 +217,18 @@ function GraphViewportController({ nodes, pdfMode }) {
 
       fitView({
         nodes: currentNodes,
-        padding: pdfMode
-          ? 0.08
-          : 0.18,
+        padding: pdfMode ? 0.04 : 0.06,
         duration: 0,
-        minZoom: 0.08,
-        maxZoom: 1.2,
+        minZoom: pdfMode ? 0.02 : 0.12,
+        maxZoom: 1.5,
       });
     };
 
-    const timer1 =
-      setTimeout(
-        fitGraph,
-        100
-      );
+    const timer = setTimeout(fitGraph, 300);
 
-    const timer2 =
-      setTimeout(
-        fitGraph,
-        400
-      );
-
-    const timer3 =
-      setTimeout(
-        fitGraph,
-        800
-      );
+    return () => {
+      clearTimeout(timer);
+    };
 
     return () => {
 
@@ -1342,7 +1359,7 @@ export default function GraphViewer({
   interactive = true,
   pdfMode = false,
   showControls = true,
-  graphHeight = "760px",
+  graphHeight = "850px",
 }) {
 
   const [nodes, setNodes] = useState([]);
@@ -1655,53 +1672,112 @@ export default function GraphViewer({
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
 
-        <div className="bg-slate-800 rounded-xl p-5">
+        <div className="relative overflow-hidden bg-slate-800/90 border border-blue-500/20 rounded-2xl p-6 shadow-lg hover:border-blue-400/40 hover:-translate-y-0.5 transition-all duration-200">
 
-          <h3 className="text-slate-400 text-sm">
+          <div className="absolute right-5 top-5 w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+            <span className="text-blue-400 text-lg">✓</span>
+          </div>
+
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Prediction
           </h3>
 
-          <p className="text-2xl font-bold text-green-400">
+          <p className="text-2xl font-bold text-blue-400 mt-5 pr-12">
             {analysis?.final_result?.label || "-"}
           </p>
 
+          <div className="w-full h-px bg-slate-700/70 mt-5" />
+
+          <p className="text-xs text-slate-500 mt-3">
+            AI classification result
+          </p>
+
         </div>
 
 
-        <div className="bg-slate-800 rounded-xl p-5">
+        <div className="relative overflow-hidden bg-slate-800/90 border border-cyan-500/20 rounded-2xl p-6 shadow-lg hover:border-cyan-400/40 hover:-translate-y-0.5 transition-all duration-200">
 
-          <h3 className="text-slate-400 text-sm">
+          <div className="absolute right-5 top-5 w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
+            <span className="text-cyan-400 text-lg">◉</span>
+          </div>
+
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Confidence
           </h3>
 
-          <p className="text-2xl font-bold text-blue-400">
+          <p className="text-4xl font-bold text-cyan-400 mt-4">
             {analysis?.final_result?.confidence ?? 0}%
           </p>
 
-        </div>
+          <div className="mt-5 h-2 bg-slate-900 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-cyan-400 rounded-full"
+              style={{
+                width: `${Math.min(
+                  Math.max(
+                    Number(
+                      analysis?.final_result?.confidence ?? 0
+                    ),
+                    0
+                  ),
+                  100
+                )}%`,
+              }}
+            />
+          </div>
 
-
-        <div className="bg-slate-800 rounded-xl p-5">
-
-          <h3 className="text-slate-400 text-sm">
-            Risk Level
-          </h3>
-
-          <p className="text-2xl font-bold text-red-400">
-            {analysis?.final_result?.risk_level || "-"}
+          <p className="text-xs text-slate-500 mt-3">
+            Model confidence
           </p>
 
         </div>
 
 
-        <div className="bg-slate-800 rounded-xl p-5">
+        <div className="relative overflow-hidden bg-slate-800/90 border border-emerald-500/20 rounded-2xl p-6 shadow-lg hover:border-emerald-400/40 hover:-translate-y-0.5 transition-all duration-200">
 
-          <h3 className="text-slate-400 text-sm">
+          <div className="absolute right-5 top-5 w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+            <span className="text-emerald-400 text-lg">!</span>
+          </div>
+
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Risk Level
+          </h3>
+
+          <p
+            className={`text-3xl font-bold mt-4 ${String(
+              analysis?.final_result?.risk_level || ""
+            ).toLowerCase() === "high"
+              ? "text-red-400"
+              : String(
+                analysis?.final_result?.risk_level || ""
+              ).toLowerCase() === "medium"
+                ? "text-yellow-400"
+                : "text-emerald-400"
+              }`}
+          >
+            {analysis?.final_result?.risk_level || "-"}
+          </p>
+
+          <div className="w-full h-px bg-slate-700/70 mt-5" />
+
+          <p className="text-xs text-slate-500 mt-3">
+            Propagation risk assessment
+          </p>
+
+        </div>
+
+
+        <div className="relative overflow-hidden bg-slate-800/90 border border-violet-500/20 rounded-2xl p-6 shadow-lg hover:border-violet-400/40 hover:-translate-y-0.5 transition-all duration-200">
+
+          <div className="absolute right-5 top-5 w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+            <span className="text-violet-400 text-lg">↗</span>
+          </div>
+
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Predicted Reach
           </h3>
 
-          <p className="text-2xl font-bold text-cyan-400">
-
+          <p className="text-4xl font-bold text-violet-400 mt-4">
             {(
               analysis?.prediction?.data
                 ?.predicted_reach ??
@@ -1709,7 +1785,12 @@ export default function GraphViewer({
                 ?.predicted_reach ??
               0
             ).toLocaleString()}
+          </p>
 
+          <div className="w-full h-px bg-slate-700/70 mt-5" />
+
+          <p className="text-xs text-slate-500 mt-3">
+            Estimated network exposure
           </p>
 
         </div>
@@ -1723,7 +1804,7 @@ export default function GraphViewer({
 
       <div
         id="graph-container"
-        className={`bg-slate-800 rounded-xl shadow-2xl border border-slate-700 transition-all duration-300 ${interactive && selectedNode
+        className={`bg-slate-800/90 rounded-3xl shadow-2xl border border-slate-700/70 overflow-hidden transition-all duration-300 ${interactive && selectedNode
           ? "mr-[420px]"
           : ""
           }`}
@@ -1732,7 +1813,37 @@ export default function GraphViewer({
           width: "100%",
         }}
       >
+        <div className="px-6 py-5 border-b border-slate-700/70 bg-slate-800/80">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-400">
+                Network Visualization
+              </p>
+
+              <h2 className="text-xl font-bold text-white mt-1">
+                Propagation Network
+              </h2>
+
+              <p className="text-sm text-slate-500 mt-1">
+                Visual representation of information spread through the network
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+
+              <span className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-300">
+                {nodes.length} Nodes
+              </span>
+
+              <span className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-300">
+                {safeEdges.length} Connections
+              </span>
+
+            </div>
+
+          </div>
+        </div>
         <ReactFlow
           nodes={nodes}
           edges={safeEdges}
@@ -1752,37 +1863,55 @@ export default function GraphViewer({
               : undefined
           }
         >
-
           <GraphViewportController
             nodes={nodes}
             pdfMode={pdfMode}
           />
 
+          {!pdfMode && <GraphControls />}
 
-          {!pdfMode && (
-            <MiniMap
-              pannable
-              zoomable
-              nodeStrokeWidth={3}
-            />
-          )}
-
-
-          {showControls && !pdfMode && (
-            <Controls
-              showInteractive={false}
-              position="bottom-left"
-            />
-          )}
-
+          
 
           <Background
-            gap={24}
+            gap={28}
             size={1}
+            color="#334155"
           />
-
         </ReactFlow>
+        <div className="px-6 py-4 border-t border-slate-700/70 bg-slate-800/80">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-400">
 
+            <span className="font-semibold uppercase tracking-wider text-slate-500">
+              Legend
+            </span>
+
+            <span className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+              Source
+            </span>
+
+            <span className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-violet-400" />
+              Influencer
+            </span>
+
+            <span className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
+              Bot
+            </span>
+
+            <span className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
+              User
+            </span>
+
+            <span className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+              Community Leader
+            </span>
+
+          </div>
+        </div>
       </div>
 
 
@@ -1792,14 +1921,18 @@ export default function GraphViewer({
 
       {interactive && selectedNode && (
 
-        <div className="fixed top-0 right-0 h-screen w-[420px] bg-slate-900 border-l border-slate-700 shadow-2xl z-50 overflow-y-auto">
+        <div className="fixed top-0 right-0 h-screen w-[420px] max-w-[92vw] bg-slate-900 border-l border-slate-700/80 shadow-2xl z-50 overflow-y-auto">
 
-          <div className="sticky top-0 bg-slate-900 border-b border-slate-700 p-6 flex justify-between items-center">
+          <div className="sticky top-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/70 p-6 flex justify-between items-center z-10">
 
             <div>
 
-              <h2 className="text-2xl font-bold text-white">
+              <p className="text-xs font-semibold uppercase tracking-wider text-blue-400">
                 Node Details
+              </p>
+
+              <h2 className="text-xl font-bold text-white mt-1">
+                Propagation Node
               </h2>
 
               <p className="text-slate-400 text-sm mt-1">
@@ -1811,7 +1944,7 @@ export default function GraphViewer({
 
             <button
               onClick={closeDetails}
-              className="text-3xl text-slate-400 hover:text-red-400"
+              className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-xl text-slate-400 hover:text-white hover:border-slate-600 transition flex items-center justify-center"
             >
               ×
             </button>
@@ -1819,7 +1952,7 @@ export default function GraphViewer({
           </div>
 
 
-          <div className="p-6 space-y-4">
+          <div className="p-6 space-y-3">
 
             <InfoCard
               title="Username"
@@ -1949,45 +2082,91 @@ export default function GraphViewer({
 
           {/* Graph Analytics */}
 
-          <div className="bg-slate-800 rounded-xl p-6">
+          <div className="bg-slate-800/90 border border-slate-700/70 rounded-3xl p-6 shadow-lg">
 
-            <h2 className="text-xl font-bold text-white mb-5">
-              Graph Analytics
-            </h2>
+            <div className="flex items-center gap-3 mb-6">
 
-            <div className="space-y-3 text-slate-300">
+              <div className="w-1 h-8 bg-cyan-400 rounded-full" />
 
-              <p>
-                Total Nodes :{" "}
-                {analytics?.totalNodes ?? 0}
-              </p>
+              <div>
+                <h2 className="text-xl font-bold text-white">
+                  Graph Analytics
+                </h2>
 
-              <p>
-                Total Edges :{" "}
-                {analytics?.totalEdges ?? 0}
-              </p>
+                <p className="text-sm text-slate-500 mt-1">
+                  Network structure and propagation metrics
+                </p>
+              </div>
 
-              <p>
-                Average Influence :{" "}
-                {analytics?.averageInfluence ?? 0}
-              </p>
+            </div>
 
-              <p>
-                Graph Density :{" "}
-                {analytics?.density ?? 0}
-              </p>
 
-              <p>
-                Spread Efficiency :{" "}
-                {analytics?.spreadEfficiency ?? 0}
-              </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
 
-              <p>
-                <strong>
-                  Largest Community:
-                </strong>{" "}
-                {analytics?.largestCommunity ?? "-"}
-              </p>
+              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
+                <p className="text-xs text-slate-500">
+                  Total Nodes
+                </p>
+
+                <p className="text-2xl font-bold text-blue-400 mt-2">
+                  {analytics?.totalNodes ?? 0}
+                </p>
+              </div>
+
+
+              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
+                <p className="text-xs text-slate-500">
+                  Total Edges
+                </p>
+
+                <p className="text-2xl font-bold text-cyan-400 mt-2">
+                  {analytics?.totalEdges ?? 0}
+                </p>
+              </div>
+
+
+              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
+                <p className="text-xs text-slate-500">
+                  Average Influence
+                </p>
+
+                <p className="text-2xl font-bold text-violet-400 mt-2">
+                  {analytics?.averageInfluence ?? 0}
+                </p>
+              </div>
+
+
+              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
+                <p className="text-xs text-slate-500">
+                  Graph Density
+                </p>
+
+                <p className="text-2xl font-bold text-amber-400 mt-2">
+                  {analytics?.density ?? 0}
+                </p>
+              </div>
+
+
+              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
+                <p className="text-xs text-slate-500">
+                  Spread Efficiency
+                </p>
+
+                <p className="text-2xl font-bold text-emerald-400 mt-2">
+                  {analytics?.spreadEfficiency ?? 0}
+                </p>
+              </div>
+
+
+              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
+                <p className="text-xs text-slate-500">
+                  Largest Community
+                </p>
+
+                <p className="text-2xl font-bold text-pink-400 mt-2">
+                  {analytics?.largestCommunity ?? "-"}
+                </p>
+              </div>
 
             </div>
 
@@ -1996,11 +2175,27 @@ export default function GraphViewer({
 
           {/* Top Influencers */}
 
-          <div className="bg-slate-800 rounded-xl p-6">
+          <div className="bg-slate-800/90 border border-slate-700/70 rounded-3xl p-6 shadow-lg">
 
-            <h2 className="text-xl font-bold text-white mb-5">
-              Top Influencers
-            </h2>
+            <div className="flex items-center justify-between mb-5">
+
+              <div>
+                <h2 className="text-xl font-bold text-white">
+                  Top Influencers
+                </h2>
+
+                <p className="text-sm text-slate-500 mt-1">
+                  Accounts with the strongest network influence
+                </p>
+              </div>
+
+              <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+                <span className="text-violet-400 font-bold">
+                  ★
+                </span>
+              </div>
+
+            </div>
 
             <div className="space-y-4">
 
@@ -2033,24 +2228,45 @@ export default function GraphViewer({
                           node.id ||
                           `influencer-${index}`
                         }
-                        className="flex justify-between items-start border-b border-slate-700 pb-3"
+                        className="flex justify-between items-start bg-slate-900/80 border border-slate-700/70 rounded-2xl p-4 hover:border-violet-500/30 transition"
                       >
                         <div className="min-w-0">
-                          <div className="font-semibold text-white truncate">
-                            {name}
+                          <div className="flex items-center gap-3">
+
+                            <div className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-xs font-bold text-violet-400">
+                              #{index + 1}
+                            </div>
+
+                            <div className="font-semibold text-white truncate">
+                              {name}
+                            </div>
+
                           </div>
 
                           <div className="text-xs text-slate-400">
                             {role}
                           </div>
 
-                          <div className="text-xs text-slate-500">
-                            {followers.toLocaleString()} followers
+                          <div className="text-xs text-slate-500 mt-1">
+                            {followers > 0
+                              ? `${followers.toLocaleString()} followers`
+                              : "Followers not available"}
                           </div>
                         </div>
 
-                        <div className="font-bold text-yellow-400">
-                          {Math.min(100, Math.max(0, score)).toFixed(0)}%
+                        <div className="text-right ml-4">
+
+                          <div className="font-bold text-violet-400">
+                            {Math.min(
+                              100,
+                              Math.max(0, score)
+                            ).toFixed(0)}%
+                          </div>
+
+                          <div className="text-[10px] uppercase tracking-wider text-slate-600 mt-1">
+                            Influence
+                          </div>
+
                         </div>
                       </div>
                     );

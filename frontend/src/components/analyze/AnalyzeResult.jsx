@@ -1,82 +1,249 @@
-export default function AnalyzeResult({ result }) {
+export default function DetectionCard({ data }) {
+  if (!data) return null;
 
-  if (!result) return null;
+  const getBadgeColor = (prediction) => {
+    switch (prediction?.toLowerCase()) {
+      case "potential misinformation":
+        return "bg-red-500";
 
-  const data=result.analysis?.final_result;
+      case "needs verification":
+        return "bg-yellow-500";
 
-  if(!data) return null;
+      case "likely reliable":
+        return "bg-green-500";
 
-  const prediction=data.label || "Unknown";
-
-  const predictionColor=()=>{
-
-    const value=prediction.toLowerCase();
-
-    if(value.includes("verified")){
-      return "text-green-400";
+      default:
+        return "bg-blue-500";
     }
-
-    if(value.includes("false") || value.includes("fake")){
-      return "text-red-400";
-    }
-
-    if(value.includes("misleading")){
-      return "text-yellow-400";
-    }
-
-    return "text-blue-400";
   };
 
-  return (
-    <div className="bg-slate-800 rounded-2xl p-6 shadow-lg">
+  const confidenceValue =
+    Number(String(data.confidence || "0").replace("%", "")) || 0;
 
-      <h2 className="text-3xl font-bold text-white mb-6">
-        AI Analysis Result
+  return (
+    <div className="bg-slate-800 rounded-2xl shadow-lg p-5 h-full flex flex-col">
+
+      <h2 className="text-2xl font-bold text-white mb-4">
+        🧠 NLP Analysis
       </h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-        <div className="bg-slate-900 rounded-xl p-6">
-          <p className="text-gray-400">
-            Prediction
+      <div className="space-y-4">
+
+        {/* Classification */}
+        <div className="flex justify-between items-center">
+
+          <span className="text-gray-400">
+            Classification
+          </span>
+
+          <span
+            className={`px-3 py-1 rounded-full text-sm text-white font-semibold ${getBadgeColor(
+              data.prediction
+            )}`}
+          >
+            {data.prediction || "Unknown"}
+          </span>
+
+        </div>
+
+
+        {/* Confidence */}
+        <div>
+
+          <div className="flex justify-between mb-2">
+
+            <span className="text-gray-400">
+              Confidence
+            </span>
+
+            <span className="text-white font-semibold">
+              {confidenceValue}%
+            </span>
+
+          </div>
+
+
+          <div className="w-full bg-slate-900 rounded-full h-2">
+
+            <div
+              className="bg-green-400 h-2 rounded-full"
+              style={{
+                width: `${confidenceValue}%`,
+              }}
+            />
+
+          </div>
+
+        </div>
+
+
+        {/* Claim */}
+        <div className="bg-slate-900 rounded-xl p-3">
+
+          <h3 className="text-white font-bold mb-2">
+            📌 Detected Claim
+          </h3>
+
+          <p className="text-gray-300">
+            {data.claim || "Unknown"}
           </p>
 
-          <h2 className={`text-4xl font-bold mt-4 ${predictionColor()}`}>
-            {prediction}
-          </h2>
         </div>
 
-        <div className="bg-slate-900 rounded-xl p-6">
-          <p className="text-gray-400">
-            Confidence
-          </p>
 
-          <h2 className="text-4xl font-bold text-blue-400 mt-4">
-            {Number(data.confidence || 0).toFixed(2)}%
-          </h2>
+        {/* Claim Type + Language */}
+        <div className="bg-slate-900 rounded-xl p-3 space-y-2">
+
+
+          <div className="flex justify-between">
+
+            <span className="text-gray-400">
+              Claim Type
+            </span>
+
+            <span className="text-white font-semibold">
+              {data.claim_type || "Unknown"}
+            </span>
+
+          </div>
+
+
+          <div className="flex justify-between">
+
+            <span className="text-gray-400">
+              Language
+            </span>
+
+            <span className="text-white font-semibold">
+              {data.language || "Unknown"}
+            </span>
+
+          </div>
+
+
         </div>
 
-        <div className="bg-slate-900 rounded-xl p-6">
-          <p className="text-gray-400">
-            Risk Level
-          </p>
 
-          <h2 className="text-4xl font-bold text-yellow-400 mt-4">
-            {data.risk_level || "Unknown"}
-          </h2>
+        {/* Keywords */}
+        {data.keywords?.length > 0 && (
+
+          <div>
+
+            <p className="text-gray-400 mb-2">
+              🔑 Keywords
+            </p>
+
+
+            <div className="flex flex-wrap gap-2">
+
+              {data.keywords.map((item, index) => (
+
+                <span
+                  key={index}
+                  className="bg-slate-900 px-2.5 py-1 rounded-lg text-sm text-gray-300"
+                >
+                  {item}
+                </span>
+
+              ))}
+
+            </div>
+
+          </div>
+
+        )}
+
+
+
+        {/* Manipulation Signals */}
+        {data.manipulation_signals?.length > 0 && (
+
+          <div>
+
+            <p className="text-gray-400 mb-2">
+              ⚠️ Manipulation Signals
+            </p>
+
+
+            <div className="space-y-2">
+
+              {data.manipulation_signals.map((item, index) => (
+
+                <div
+                  key={index}
+                  className="bg-slate-900 rounded-lg p-2.5 text-sm text-gray-300"
+                >
+                  ✓ {item}
+                </div>
+
+              ))}
+
+            </div>
+
+          </div>
+
+        )}
+
+
+
+        {/* Entities */}
+        {data.entities?.length > 0 && (
+
+          <div>
+
+            <p className="text-gray-400 mb-2">
+              🌐 Extracted Entities
+            </p>
+
+
+            <div className="space-y-2">
+
+              {data.entities.map((entity, index) => (
+
+                <div
+                  key={index}
+                  className="bg-slate-900 rounded-lg p-2.5 flex justify-between items-center"
+                >
+
+                  <span className="text-gray-300">
+                    {entity.name}
+                  </span>
+
+                  <span className="text-blue-400">
+                    {entity.type}
+                  </span>
+
+                </div>
+
+              ))}
+
+            </div>
+
+          </div>
+
+        )}
+
+
+
+        {/* Similar Claim */}
+        <div className="flex justify-between">
+
+          <span className="text-gray-400">
+            Similar Claim
+          </span>
+
+
+          <span className="text-white font-semibold">
+
+            {data.similar_claim
+              ? "Detected"
+              : "Not Detected"}
+
+          </span>
+
         </div>
 
-      </div>
-
-      <div className="mt-8">
-
-        <h3 className="text-xl font-semibold text-white mb-3">
-          Summary
-        </h3>
-
-        <div className="bg-slate-900 rounded-xl p-4 text-gray-300 leading-7">
-          {data.summary || "No summary available."}
-        </div>
 
       </div>
 

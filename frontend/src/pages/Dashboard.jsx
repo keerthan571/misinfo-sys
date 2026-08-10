@@ -71,56 +71,61 @@ export default function Dashboard() {
       value: dashboard.totalAnalyses,
       subtitle: "All analyses performed",
       icon: BarChart3,
-      valueColor: "text-blue-500",
+      valueColor: "text-blue-400",
     },
     {
       title: "Verified True",
       value: dashboard.verifiedTrue,
       subtitle: "Claims verified as true",
       icon: ShieldCheck,
-      valueColor: "text-green-500",
+      valueColor: "text-emerald-400",
     },
     {
       title: "Verified False",
       value: dashboard.verifiedFalse,
       subtitle: "Claims verified as false",
       icon: ShieldAlert,
-      valueColor: "text-red-500",
+      valueColor: "text-red-400",
     },
     {
       title: "AI Confidence",
       value: `${dashboard.avgConfidence}%`,
       subtitle: "Average AI confidence",
       icon: Target,
-      valueColor: "text-yellow-500",
+      valueColor: "text-amber-400",
     },
   ];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[70vh]">
-        <h2 className="text-xl font-semibold text-gray-600">
-          Loading Dashboard...
-        </h2>
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-full border-4 border-slate-700 border-t-blue-500 animate-spin" />
+          <p className="text-slate-400 text-sm">
+            Loading dashboard...
+          </p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-[70vh]">
-        <h2 className="text-xl font-semibold text-red-500">
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-2xl px-6 py-5 text-red-300">
           {error}
-        </h2>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      <DashboardHeader userName={userName} />
+    <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="mb-7">
+        <DashboardHeader userName={userName} />
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-7">
         {stats.map((stat) => (
           <StatCard
             key={stat.title}
