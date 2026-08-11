@@ -230,14 +230,6 @@ function GraphViewportController({ nodes, pdfMode }) {
       clearTimeout(timer);
     };
 
-    return () => {
-
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-
-    };
-
   }, [
     nodes,
     nodesInitialized,
@@ -260,7 +252,7 @@ function normalizeEdgeType(edge) {
   return {
     ...edge,
 
-    type: "smoothstep",
+    type: "default",
   };
 }
 
@@ -763,239 +755,54 @@ function normalizeSavedGraph(
 
   const normalizedEdges =
     savedGraph.edges.map(
-      (edge, index) => ({
-        ...edge,
+      (edge, index) => {
 
-        id:
-          edge.id ||
-          `saved-edge-${index}`,
+        const targetNode =
+          savedGraph.nodes.find(
+            node =>
+              node.id === edge.target
+          );
 
-        type: "smoothstep",
+        const targetParentId =
+          targetNode?.data?.parentId ??
+          targetNode?.parentId ??
+          null;
 
-        data: {
-          ...(edge.data || {}),
+        let interaction =
+          edge.data?.interaction ||
+          edge.interaction ||
+          edge.edgeType ||
+          null;
 
-          interaction:
-            edge.data?.interaction ||
-            edge.interaction ||
-            "share",
-        },
-      })
-    );
+        if (!interaction) {
 
-  const branchColors = [
-    "#3b82f6",
-    "#22c55e",
-    "#f59e0b",
-    "#a855f7",
-    "#ef4444",
-    "#06b6d4",
-    "#ec4899",
-    "#84cc16",
-    "#f97316",
-    "#6366f1"
-  ];
+          if (
+            targetParentId &&
+            targetParentId === edge.source
+          ) {
+            interaction = "tree";
+          } else {
+            interaction = "cross";
+          }
+        }
 
-  const secondaryColors = [
-    "#14b8a6",
-    "#e879f9",
-    "#fb7185",
-    "#38bdf8",
-    "#c084fc",
-    "#fbbf24"
-  ];
+        return {
+          ...edge,
 
-  const primaryInteractions = [
-    "publish",
-    "share",
-    "cascade",
-    "bot",
-    "tree"
-  ];
+          id:
+            edge.id ||
+            `saved-edge-${index}`,
 
-  const secondaryInteractions = [
-    "bridge",
-    "cross",
-    "community",
-    "reshare"
-  ];
+          type: "default",
 
-  const savedNodes =
-    Array.isArray(savedGraph.nodes)
-      ? savedGraph.nodes
-      : [];
+          data: {
+            ...(edge.data || {}),
 
-  const savedNodeMap =
-    new Map(
-      savedNodes.map(node => [
-        node.id,
-        node
-      ])
-    );
-
-  const treeEdges =
-    savedGraph.edges.filter(edge => {
-
-      const interaction =
-        edge?.data?.interaction ||
-        edge?.interaction ||
-        "";
-
-      return primaryInteractions.includes(
-        interaction
-      );
-    });
-
-  const parentMap = new Map();
-
-  treeEdges.forEach(edge => {
-
-    if (
-      edge.source &&
-      edge.target
-    ) {
-      parentMap.set(
-        edge.target,
-        edge.source
-      );
-    }
-  });
-
-  const branchMap = new Map();
-
-  function getBranchRoot(nodeId) {
-
-    if (!nodeId) {
-      return null;
-    }
-
-    if (branchMap.has(nodeId)) {
-      return branchMap.get(nodeId);
-    }
-
-    let current = nodeId;
-    const visited = new Set();
-
-    while (
-      parentMap.has(current) &&
-      !visited.has(current)
-    ) {
-
-      visited.add(current);
-
-      const parent =
-        parentMap.get(current);
-
-      if (!parent) {
-        break;
+            interaction,
+          },
+        };
       }
-
-      current = parent;
-    }
-
-    let branchRoot = current;
-
-    const path = [];
-    current = nodeId;
-
-    while (
-      current &&
-      !visited.has(`path-${current}`)
-    ) {
-
-      path.push(current);
-
-      visited.add(`path-${current}`);
-
-      const parent =
-        parentMap.get(current);
-
-      if (!parent) {
-        break;
-      }
-
-      current = parent;
-    }
-
-    if (path.length > 1) {
-      branchRoot =
-        path[path.length - 2];
-    }
-
-    branchMap.set(
-      nodeId,
-      branchRoot
     );
-
-    return branchRoot;
-  }
-
-  const branchColorMap =
-    new Map();
-
-  let branchColorIndex = 0;
-
-  function getBranchColor(
-    source,
-    target
-  ) {
-
-    const branchRoot =
-      getBranchRoot(target) ||
-      getBranchRoot(source) ||
-      source;
-
-    if (
-      branchColorMap.has(branchRoot)
-    ) {
-      return branchColorMap.get(
-        branchRoot
-      );
-    }
-
-    const color =
-      branchColors[
-      branchColorIndex %
-      branchColors.length
-      ];
-
-    branchColorIndex++;
-
-    branchColorMap.set(
-      branchRoot,
-      color
-    );
-
-    return color;
-  }
-
-  function getSecondaryColor(
-    edge,
-    index
-  ) {
-
-    const key =
-      `${edge.source}-${edge.target}-${index}`;
-
-    let hash = 0;
-
-    for (
-      let i = 0;
-      i < key.length;
-      i++
-    ) {
-      hash =
-        (
-          hash * 31 +
-          key.charCodeAt(i)
-        ) >>> 0;
-    }
-
-    return secondaryColors[
-      hash %
-      secondaryColors.length
-    ];
-  }
 
   const analytics =
     savedGraph.analytics ||
@@ -1498,7 +1305,7 @@ export default function GraphViewer({
                 edge.id ||
                 `generated-edge-${index}`,
 
-              type: "smoothstep",
+              type: "default",
 
               data: {
                 ...(edge.data || {}),
@@ -1506,7 +1313,9 @@ export default function GraphViewer({
                 interaction:
                   edge.data?.interaction ||
                   edge.interaction ||
-                  "share",
+                  edge.edgeType ||
+                  edge.type ||
+                  null,
               },
             })
           )
@@ -1568,21 +1377,126 @@ export default function GraphViewer({
   };
 
   const safeEdges = useMemo(() => {
-    return (edges || []).map((edge, index) => ({
-      ...edge,
 
-      id: edge.id || `edge-${index}`,
+    const fallbackColors = {
+      tree: "#3b82f6",
+      publish: "#22c55e",
+      share: "#f59e0b",
+      cascade: "#a855f7",
+      bot: "#ef4444",
 
-      type: "smoothstep",
+      cross: "#38bdf8",
+      community: "#fbbf24",
+      reshare: "#fb7185",
+      bridge: "#c084fc",
+    };
 
-      data: {
-        ...(edge.data || {}),
-        interaction:
-          edge.data?.interaction ||
-          edge.interaction ||
-          "share",
-      },
-    }));
+    return (edges || []).map(
+      (edge, index) => {
+
+        const interaction =
+          edge?.data?.interaction ||
+          edge?.interaction ||
+          edge?.edgeType ||
+          "share";
+
+        /*
+         * =====================================================
+         * IMPORTANT
+         *
+         * EdgeGenerator ALREADY assigns the correct color.
+         *
+         * DO NOT generate another branch color here.
+         *
+         * Priority:
+         * 1. edge.data.color
+         * 2. edge.style.stroke
+         * 3. fallback interaction color
+         * =====================================================
+         */
+
+        const edgeColor =
+          edge?.data?.color ||
+          edge?.style?.stroke ||
+          fallbackColors[interaction] ||
+          "#94a3b8";
+
+        const isPrimary =
+          interaction === "tree" ||
+          interaction === "publish" ||
+          interaction === "share" ||
+          interaction === "cascade" ||
+          interaction === "bot";
+
+        return {
+
+          ...edge,
+
+          id:
+            edge.id ||
+            `edge-${index}`,
+
+          /*
+           * React Flow default edge =
+           * curved Bezier edge.
+           */
+          type: "default",
+
+          /*
+           * Preserve generator animation.
+           */
+          animated:
+            edge.animated ??
+            (
+              interaction === "tree" ||
+              interaction === "reshare"
+            ),
+
+          style: {
+
+            ...(edge.style || {}),
+
+            /*
+             * USE THE COLOR GENERATED BY EDGEGENERATOR.
+             */
+            stroke: edgeColor,
+
+            strokeWidth:
+              edge.style?.strokeWidth ||
+              (
+                isPrimary
+                  ? 2.5
+                  : 1.8
+              ),
+
+            opacity:
+              edge.style?.opacity ??
+              (
+                isPrimary
+                  ? 0.9
+                  : 0.65
+              ),
+
+          },
+
+          data: {
+
+            ...(edge.data || {}),
+
+            interaction,
+
+            /*
+             * Keep the actual edge color available.
+             */
+            color: edgeColor,
+
+          },
+
+        };
+
+      }
+    );
+
   }, [edges]);
 
 
@@ -1870,7 +1784,7 @@ export default function GraphViewer({
 
           {!pdfMode && <GraphControls />}
 
-          
+
 
           <Background
             gap={28}
