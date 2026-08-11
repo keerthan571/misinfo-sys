@@ -543,7 +543,11 @@ function normalizeSavedGraph(
             followers:
               originalData.followers ??
               node.followers ??
-              null,
+              (
+                isClaim
+                  ? sourceFollowers
+                  : null
+              ),
 
             /*
              * =====================================================
@@ -1507,6 +1511,18 @@ export default function GraphViewer({
     ...(selectedNode?.originalData || {}),
   };
 
+  const selectedNodeType = String(
+    selectedData.nodeType ||
+    selectedData.node_type ||
+    selectedNode?.type ||
+    ""
+  ).toLowerCase();
+
+  const isSourceNode =
+    selectedNodeType === "claim" ||
+    selectedNodeType === "source" ||
+    selectedNodeType === "origin";
+
   const selectedUsername =
     getNodeDisplayName(selectedData);
 
@@ -1869,7 +1885,7 @@ export default function GraphViewer({
           <div className="p-6 space-y-3">
 
             <InfoCard
-              title="Username"
+              title={isSourceNode ? "Publisher" : "Username"}
               value={selectedUsername}
             />
 
@@ -1878,20 +1894,22 @@ export default function GraphViewer({
               value={selectedRole}
             />
 
-            <InfoCard
-              title="Followers"
-              value={selectedFollowers !== null &&
-                Number.isFinite(selectedFollowers)
-                ? selectedFollowers.toLocaleString()
-                : "Not available"
-              }
-            />
+            {!isSourceNode && (
+              <InfoCard
+                title="Followers"
+                value={
+                  selectedFollowers !== null &&
+                    Number.isFinite(selectedFollowers)
+                    ? selectedFollowers.toLocaleString()
+                    : "Not available"
+                }
+              />
+            )}
 
             <InfoCard
               title="Network Influence"
               value={
-                selectedInfluence !== null &&
-                  Number.isFinite(selectedInfluence)
+                Number.isFinite(selectedInfluence)
                   ? `${selectedInfluence.toFixed(2)}%`
                   : "Not available"
               }
@@ -1919,49 +1937,55 @@ export default function GraphViewer({
             <InfoCard
               title="PageRank"
               value={
-                selectedPageRank > 0
+                selectedPageRank !== null &&
+                  Number.isFinite(selectedPageRank)
                   ? selectedPageRank.toFixed(4)
                   : "Not available"
               }
             />
 
-            <InfoCard
-              title="Share Probability"
-              value={
-                selectedShareProbability !== null &&
-                  Number.isFinite(selectedShareProbability)
-                  ? `${(
-                    selectedShareProbability * 100
-                  ).toFixed(2)}%`
-                  : "Not available"
-              }
-            />
+            {!isSourceNode && (
+              <InfoCard
+                title="Share Probability"
+                value={
+                  selectedShareProbability !== null &&
+                    Number.isFinite(selectedShareProbability)
+                    ? `${(
+                      selectedShareProbability * 100
+                    ).toFixed(2)}%`
+                    : "Not available"
+                }
+              />
+            )}
 
             <InfoCard
               title="Platform"
               value={
-                selectedData.platform ||
-                "-"
+                selectedData.platform || "-"
               }
             />
 
-            <InfoCard
-              title="Verified"
-              value={
-                selectedData.verified
-                  ? "Yes ✔"
-                  : "No"
-              }
-            />
+            {!isSourceNode && (
+              <>
+                <InfoCard
+                  title="Verified"
+                  value={
+                    selectedData.verified
+                      ? "Yes ✔"
+                      : "No"
+                  }
+                />
 
-            <InfoCard
-              title="Bot"
-              value={
-                selectedData.isBot
-                  ? "Yes 🤖"
-                  : "No"
-              }
-            />
+                <InfoCard
+                  title="Bot"
+                  value={
+                    selectedData.isBot
+                      ? "Yes 🤖"
+                      : "No"
+                  }
+                />
+              </>
+            )}
 
             <InfoCard
               title="Created"
@@ -1980,7 +2004,6 @@ export default function GraphViewer({
             />
 
           </div>
-
         </div>
       )}
 

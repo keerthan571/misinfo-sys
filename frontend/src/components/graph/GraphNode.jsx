@@ -38,11 +38,9 @@ export default function GraphNode({ data }) {
             />
 
             <div
-                className={`graph-node ${nodeType} ${
-                    verified ? "verified-node" : ""
-                } ${
-                    isBot ? "bot-node" : ""
-                }`}
+                className={`graph-node ${nodeType} ${verified ? "verified-node" : ""
+                    } ${isBot ? "bot-node" : ""
+                    }`}
             >
                 <div className="graph-node-header">
 
@@ -72,12 +70,23 @@ export default function GraphNode({ data }) {
 
                 <div className="graph-node-body">
 
-                    <div className="metric">
-                        <span>👥 Followers</span>
-                        <strong>
-                            {formattedFollowers || followers}
-                        </strong>
-                    </div>
+                    {["claim", "origin", "source"].includes(
+                        String(nodeType).toLowerCase()
+                    ) ? (
+                        <div className="metric">
+                            <span>📰 Publisher</span>
+                            <strong>
+                                {displayName || "Not available"}
+                            </strong>
+                        </div>
+                    ) : (
+                        <div className="metric">
+                            <span>👥 Followers</span>
+                            <strong>
+                                {formattedFollowers || followers || "Not available"}
+                            </strong>
+                        </div>
+                    )}
 
                     <div className="metric">
                         <span>⭐ Influence</span>
