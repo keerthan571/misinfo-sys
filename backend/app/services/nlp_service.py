@@ -15,7 +15,7 @@ groq_client = Groq(
 
 
 # Transformer NER model
-nlp_model = spacy.load("en_core_web_sm")
+nlp_model = spacy.load("en_core_web_trf")
 
 
 
@@ -27,7 +27,6 @@ class NLPService:
         doc = nlp_model(text)
 
         entities = []
-
 
         entity_map = {
 
@@ -44,86 +43,6 @@ class NLPService:
 
 
         seen = set()
-
-
-
-        known_entities = {
-
-            "bcci": "Organization",
-            "icc": "Organization",
-            "fifa": "Organization",
-            "rvcj": "Organization",
-            "google": "Organization",
-            "openai": "Organization",
-            "chatgpt": "Product",
-            "instagram": "Organization",
-            "facebook": "Organization",
-            "twitter": "Organization",
-            "youtube": "Organization"
-
-        }
-
-
-
-        special_entities = {
-
-            "adipurush": "Product",
-            "ramayana": "Event",
-            "voldemort": "Person"
-
-        }
-
-
-
-        lower_text = text.lower()
-
-
-
-        # Known organizations/products
-
-        for name, label in known_entities.items():
-
-            if name in lower_text:
-
-                display = (
-                    name.upper()
-                    if name in [
-                        "bcci",
-                        "icc",
-                        "fifa",
-                        "rvcj"
-                    ]
-                    else name.title()
-                )
-
-
-                entities.append(
-                    {
-                        "name": display,
-                        "type": label
-                    }
-                )
-
-
-                seen.add(name)
-
-
-
-        # Special corrections
-
-        for name, label in special_entities.items():
-
-            if name in lower_text:
-
-                entities.append(
-                    {
-                        "name": name.title(),
-                        "type": label
-                    }
-                )
-
-                seen.add(name)
-
 
 
         ignored_words = {
@@ -149,36 +68,29 @@ class NLPService:
 
         for ent in doc.ents:
 
-
             value = ent.text.strip()
 
             value_lower = value.lower()
-
 
 
             if ent.label_ not in entity_map:
                 continue
 
 
-
             if len(value) < 3:
                 continue
-
 
 
             if value_lower in ignored_words:
                 continue
 
 
-
             if value_lower in seen:
                 continue
 
 
-
             if re.search(r"\d", value):
                 continue
-
 
 
             if value.startswith("@"):
@@ -186,41 +98,11 @@ class NLPService:
 
 
 
-            # remove wrong detections
-
-            if value_lower in {
-
-                "maiden odi",
-                "this day",
-                "vs nz",
-                "odi"
-
-            }:
-
-                continue
-
-
-
-
-            # Acronym correction
-
-            if value.isupper() and len(value) <= 6:
-
-                final_type = "Organization"
-
-            else:
-
-                final_type = entity_map[ent.label_]
-
-
-
             entities.append(
-
                 {
                     "name": value,
-                    "type": final_type
+                    "type": entity_map[ent.label_]
                 }
-
             )
 
 
