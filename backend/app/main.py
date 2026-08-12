@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config.database import client
-
+import os
 try:
     client.admin.command("ping")
     print("Connected to MongoDB Atlas")
@@ -31,6 +31,8 @@ app = FastAPI(
     description="Backend API for the VTU final year project.",
     version="1.0.0",
 )
+
+os.makedirs("uploads", exist_ok=True)
 
 app.mount(
     "/uploads",
