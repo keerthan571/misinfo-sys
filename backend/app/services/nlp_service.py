@@ -14,8 +14,8 @@ groq_client = Groq(
 )
 
 
-# Transformer NER model
-nlp_model = spacy.load("en_core_web_trf")
+# Lightweight NER model for production deployment
+nlp_model = spacy.load("en_core_web_sm")
 
 
 
