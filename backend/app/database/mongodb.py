@@ -1,17 +1,15 @@
 from pymongo import MongoClient
-import os
-from dotenv import load_dotenv
+from app.config.settings import MONGODB_URL, DATABASE_NAME
 
-load_dotenv()
 
-MONGO_URI = os.getenv(
-    "MONGO_URI",
-    "mongodb://127.0.0.1:27017"
-)
+# ======================================================
+# MongoDB Connection
+# ======================================================
 
-client = MongoClient(MONGO_URI)
+client = MongoClient(MONGODB_URL)
 
-db = client["misinformation_db"]
+db = client[DATABASE_NAME]
+
 
 # ======================================================
 # Collections
@@ -32,6 +30,10 @@ reports_collection = db["reports"]
 prediction_collection = db["spread_predictions"]
 spread_predictions_collection = prediction_collection
 
+
+# ======================================================
+# Database Getter
+# ======================================================
 
 def get_database():
     return db
