@@ -54,22 +54,59 @@ export default function HistoryDetails() {
       .replace(/\\/g, "/")
       .replace(/^\/+/, "");
 
-    if (cleanPath.startsWith("http://") ||
-      cleanPath.startsWith("https://")) {
+    const backendUrl =
+      import.meta.env.VITE_API_URL ||
+      "https://misinfo-system.onrender.com";
+
+    // --------------------------------------------------------
+    // Existing absolute URL
+    // --------------------------------------------------------
+
+    if (
+      cleanPath.startsWith("http://") ||
+      cleanPath.startsWith("https://")
+    ) {
+      // Convert old/local backend URLs to production backend.
+      if (
+        cleanPath.includes("127.0.0.1:8000") ||
+        cleanPath.includes("localhost:8000")
+      ) {
+        const uploadsIndex = cleanPath.indexOf("/uploads/");
+
+        if (uploadsIndex !== -1) {
+          return (
+            backendUrl +
+            cleanPath.substring(uploadsIndex)
+          );
+        }
+      }
+
       return cleanPath;
     }
 
+    // --------------------------------------------------------
+    // backend/uploads/filename
+    // --------------------------------------------------------
+
     if (cleanPath.startsWith("backend/uploads/")) {
-      return `http://127.0.0.1:8000/uploads/${cleanPath.substring(
+      return `${backendUrl}/uploads/${cleanPath.substring(
         "backend/uploads/".length
       )}`;
     }
 
+    // --------------------------------------------------------
+    // uploads/filename
+    // --------------------------------------------------------
+
     if (cleanPath.startsWith("uploads/")) {
-      return `http://127.0.0.1:8000/${cleanPath}`;
+      return `${backendUrl}/${cleanPath}`;
     }
 
-    return `http://127.0.0.1:8000/uploads/${cleanPath}`;
+    // --------------------------------------------------------
+    // filename only
+    // --------------------------------------------------------
+
+    return `${backendUrl}/uploads/${cleanPath}`;
   })();
 
   const downloadPDF = async () => {

@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:8000/api/reports",
+  baseURL: "https://misinfo-system.onrender.com/api/reports",
 });
 
 export const getReports = async () => {
