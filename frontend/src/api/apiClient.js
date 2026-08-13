@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const apiClient = axios.create({
-  baseURL: "https://misinfo-backend.onrender.com",
+  baseURL: "https://misinfo-system.onrender.com",
 });
 
 apiClient.interceptors.request.use(
