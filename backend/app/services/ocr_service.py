@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 import re
 
 import pytesseract
@@ -8,10 +9,16 @@ import pytesseract
 from PIL import Image, ImageEnhance, ImageFilter
 
 
-pytesseract.pytesseract.tesseract_cmd = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
+# ============================================================
+# TESSERACT CONFIGURATION
+# ============================================================
 
+# Windows → use local Tesseract installation.
+# Render/Linux → use Tesseract available in PATH.
+if os.name == "nt":
+    pytesseract.pytesseract.tesseract_cmd = (
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    )
 
 class OCRService:
 
@@ -137,8 +144,6 @@ class OCRService:
         # =========================================================
         # 2. SOCIAL MEDIA HANDLE
         # =========================================================
-
-        import re
 
         handles = re.findall(
             r"@([A-Za-z0-9_\.]{3,40})",
