@@ -37,7 +37,9 @@ Thank you,
 AI MISINFO Team
 """
     )
-
+    print("MAIL_EMAIL SET:", bool(MAIL_EMAIL))
+    print("MAIL_APP_PASSWORD SET:", bool(MAIL_APP_PASSWORD))
+    print("FRONTEND_URL:", FRONTEND_URL)
     try:
         with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
             smtp.starttls()
