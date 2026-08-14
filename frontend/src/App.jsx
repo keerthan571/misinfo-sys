@@ -15,7 +15,7 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
-
+import ResetPassword from "./pages/ResetPassword";
 
 function App() {
 
@@ -43,6 +43,10 @@ function App() {
           element={<ForgotPassword />}
         />
 
+        <Route
+          path="/reset-password"
+          element={<ResetPassword />}
+        />
 
         <Route
           path="/"
@@ -114,7 +118,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-       
+
         <Route
           path="/history/:id"
           element={
