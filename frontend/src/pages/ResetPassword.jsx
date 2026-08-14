@@ -34,8 +34,8 @@ export default function ResetPassword() {
             return;
         }
 
-        if (password.length < 6) {
-            setError("Password must be at least 6 characters long.");
+        if (password.length < 8) {
+            setError("Password must be at least 8 characters long.");
             return;
         }
 
@@ -58,10 +58,22 @@ export default function ResetPassword() {
             setSuccess(true);
 
         } catch (err) {
-            setError(
-                err.response?.data?.detail ||
-                "Unable to reset your password. Please try again."
-            );
+            console.error("RESET PASSWORD ERROR:", err);
+
+            const detail = err.response?.data?.detail;
+
+            if (Array.isArray(detail)) {
+                setError(
+                    detail
+                        .map((item) => item.msg)
+                        .join(", ")
+                );
+            } else {
+                setError(
+                    detail ||
+                    "Unable to reset your password. Please try again."
+                );
+            }
         } finally {
             setLoading(false);
         }
@@ -294,7 +306,7 @@ export default function ResetPassword() {
                     <div className="bg-slate-800/50 border border-slate-700/40 rounded-xl px-4 py-3">
 
                         <p className="text-slate-400 text-xs">
-                            Password must contain at least 6 characters.
+                            Password must contain at least 8 characters.
                         </p>
 
                     </div>
