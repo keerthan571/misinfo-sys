@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv(
+    "GROQ_MODEL",
+    "llama-3.3-70b-versatile"
+)
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
 
@@ -283,7 +287,7 @@ Rules:
 """
 
         response = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=GROQ_MODEL,
             temperature=0,
             max_tokens=300,
             messages=[
