@@ -290,14 +290,44 @@ Rules:
 
         response = groq_client.chat.completions.create(
             model=GROQ_MODEL,
-            temperature=0,
-            max_tokens=300,
+            reasoning_effort="low",
+            include_reasoning=False,
+            max_completion_tokens=700,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "fact_verification",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "verdict": {
+                                "type": "string",
+                                "enum": [
+                                    "Verified Information",
+                                    "False Information",
+                                    "Misleading Information",
+                                    "Insufficient Evidence"
+                                ]
+                            },
+                            "reason": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "verdict",
+                            "reason"
+                        ],
+                        "additionalProperties": False
+                    }
+                }
+            },
             messages=[
                 {
                     "role": "system",
                     "content": (
                         "You are a strict fact verification AI. "
-                        "Return only valid JSON."
+                        "Evaluate the claim only using the supplied evidence."
                     )
                 },
                 {
@@ -306,7 +336,7 @@ Rules:
                 }
             ]
         )
-
+        
         output = (
             response.choices[0]
             .message.content
