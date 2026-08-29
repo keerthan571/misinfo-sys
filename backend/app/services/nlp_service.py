@@ -13,9 +13,9 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
-# -------------------------
-# Environment Configuration
-# -------------------------
+# ============================================================
+# ENVIRONMENT CONFIGURATION
+# ============================================================
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
@@ -25,9 +25,9 @@ GROQ_MODEL = os.getenv(
 )
 
 
-# -------------------------
-# Groq Client
-# -------------------------
+# ============================================================
+# GROQ CLIENT
+# ============================================================
 
 groq_client = (
     Groq(api_key=GROQ_API_KEY)
@@ -36,22 +36,24 @@ groq_client = (
 )
 
 
-# -------------------------
-# spaCy NER Model
-# -------------------------
+# ============================================================
+# SPACY NER MODEL
+# ============================================================
 
-nlp_model = spacy.load("en_core_web_sm")
+nlp_model = spacy.load(
+    "en_core_web_sm"
+)
 
 
-# -------------------------
-# NLP Service
-# -------------------------
+# ============================================================
+# NLP SERVICE
+# ============================================================
 
 class NLPService:
 
-    # -------------------------
-    # Entity Extraction
-    # -------------------------
+    # ========================================================
+    # ENTITY EXTRACTION
+    # ========================================================
 
     def extract_entities(self, text):
 
@@ -80,7 +82,9 @@ class NLPService:
             seen = set()
 
             # Generic ignore list.
-            # Avoid domain-specific terms such as cricket teams.
+            # Do NOT put domain-specific terms such as
+            # cricket teams, movie names, political parties, etc.
+            # here.
             ignored_words = {
 
                 "the",
@@ -109,6 +113,9 @@ class NLPService:
 
                 value = ent.text.strip()
 
+                if not value:
+                    continue
+
                 value_lower = value.lower()
 
                 # Unsupported entity type
@@ -127,11 +134,11 @@ class NLPService:
                 if value_lower in seen:
                     continue
 
-                # Ignore handles
+                # Ignore social-media handles
                 if value.startswith("@"):
                     continue
 
-                # Avoid entities that are purely numeric
+                # Ignore entities that are purely numeric
                 if value.isdigit():
                     continue
 
@@ -147,19 +154,22 @@ class NLPService:
             return entities[:10]
 
         except Exception:
+
             logger.exception(
                 "NLP entity extraction failed."
             )
 
             return []
 
-    # -------------------------
-    # JSON Extraction
-    # -------------------------
+    # ========================================================
+    # JSON EXTRACTION
+    # ========================================================
 
-    def extract_json_response(self, output):
+    @staticmethod
+    def extract_json_response(output):
 
         if not output:
+
             raise ValueError(
                 "Empty AI response."
             )
@@ -173,16 +183,19 @@ class NLPService:
         )
 
         # First attempt:
-        # Entire response is JSON
+        # Entire response is JSON.
         try:
 
-            return json.loads(cleaned)
+            return json.loads(
+                cleaned
+            )
 
         except json.JSONDecodeError:
             pass
 
         # Fallback:
-        # Extract JSON object from surrounding text
+        # Extract JSON object if the model added
+        # surrounding text.
         match = re.search(
             r"\{[\s\S]*\}",
             cleaned
@@ -198,9 +211,9 @@ class NLPService:
             match.group(0)
         )
 
-    # -------------------------
-    # Value Validation
-    # -------------------------
+    # ========================================================
+    # NUMBER VALIDATION
+    # ========================================================
 
     @staticmethod
     def clamp_number(
@@ -229,17 +242,19 @@ class NLPService:
 
             return default
 
-    # -------------------------
-    # Text Analysis
-    # -------------------------
+    # ========================================================
+    # TEXT ANALYSIS
+    # ========================================================
 
     def analyze_text(self, text):
 
-        text = (text or "").strip()
+        text = (
+            text or ""
+        ).strip()
 
-        # -------------------------
-        # Invalid Input
-        # -------------------------
+        # ----------------------------------------------------
+        # Invalid input
+        # ----------------------------------------------------
 
         if len(text) < 5:
 
@@ -251,7 +266,8 @@ class NLPService:
 
                 "claim_type": "Unknown",
 
-                "prediction": "Needs Verification",
+                "prediction":
+                    "Needs Verification",
 
                 "confidence": None,
 
@@ -267,9 +283,9 @@ class NLPService:
 
             }
 
-        # -------------------------
-        # Groq Configuration Check
-        # -------------------------
+        # ----------------------------------------------------
+        # Groq configuration
+        # ----------------------------------------------------
 
         if not GROQ_API_KEY:
 
@@ -285,7 +301,8 @@ class NLPService:
 
                 "claim_type": "General",
 
-                "prediction": "Verification Unavailable",
+                "prediction":
+                    "Verification Unavailable",
 
                 "confidence": None,
 
@@ -293,7 +310,8 @@ class NLPService:
 
                 "keywords": [],
 
-                "entities": self.extract_entities(text),
+                "entities":
+                    self.extract_entities(text),
 
                 "language": "Unknown",
 
@@ -315,7 +333,8 @@ class NLPService:
 
                 "claim_type": "General",
 
-                "prediction": "Verification Unavailable",
+                "prediction":
+                    "Verification Unavailable",
 
                 "confidence": None,
 
@@ -323,7 +342,8 @@ class NLPService:
 
                 "keywords": [],
 
-                "entities": self.extract_entities(text),
+                "entities":
+                    self.extract_entities(text),
 
                 "language": "Unknown",
 
@@ -331,26 +351,38 @@ class NLPService:
 
             }
 
-        # -------------------------
-        # Prompt
-        # -------------------------
+        # ====================================================
+        # PROMPT
+        # ====================================================
 
         prompt = f"""
-Analyze the following social media content for misinformation risk.
+Analyze the following submitted social-media content.
 
 TEXT:
 {text[:2000]}
 
-Extract the MAIN factual claim.
+Your task is NLP analysis, NOT factual verification.
 
-Ignore:
-- opinions
-- emotions
-- jokes
-- hashtags unless they are part of the factual claim
-- irrelevant social media metadata
+IMPORTANT:
+Do NOT decide whether a factual claim is true or false.
+Do NOT use your own world knowledge to determine whether
+the claim is correct.
+Current events may have changed after your training data.
 
-Classify the claim type as exactly one of:
+The separate Fact Verification module will verify factual
+claims using external evidence.
+
+Your responsibilities are:
+
+1. Extract the MAIN factual claim.
+2. Classify the claim type.
+3. Identify the language.
+4. Extract important keywords.
+5. Identify linguistic/manipulation signals that are
+   actually present in the text.
+6. Estimate linguistic/manipulation risk.
+
+Claim types must be exactly one of:
 
 Political
 Financial
@@ -360,160 +392,208 @@ Technology
 Entertainment
 General
 
-Return an overall misinformation risk assessment.
+Prediction must be:
 
-Confidence must be between 0 and 100.
+"Needs Verification"
 
-Risk score must be between 0 and 100.
+for factual claims because factual correctness is determined
+by the separate evidence-based verification module.
 
-Normal factual content should NOT automatically be classified as misinformation.
+For non-factual content such as opinions, emotions, jokes,
+or subjective statements, prediction may be:
 
-Identify concise manipulation signals only when there is evidence in the text.
+"Not a Factual Claim"
 
-Extract important keywords.
+Risk score:
+- 0 means no meaningful linguistic/manipulation risk detected.
+- 100 means very strong linguistic/manipulation signals.
+- This score MUST NOT represent factual truth.
+- Do not increase risk merely because a claim is unusual,
+  recent, future-dated, controversial, or unknown.
+- Do not use your knowledge cutoff as evidence of misinformation.
 
-Identify the language of the submitted content.
+Confidence:
+- Represents confidence in this NLP analysis only.
+- It is NOT the probability that the claim is true or false.
+
+Manipulation signals may include things such as:
+- sensational language
+- excessive urgency
+- fear appeal
+- unsupported certainty
+- fabricated authority
+- emotionally manipulative wording
+- conspiracy framing
+- misleading calls to action
+
+Only report a signal when there is textual evidence.
+
+Return ONLY JSON.
 """
 
-        # -------------------------
-        # Groq Request
-        # -------------------------
+        # ====================================================
+        # GROQ REQUEST
+        # ====================================================
 
         try:
 
-            response = groq_client.chat.completions.create(
+            response = (
+                groq_client
+                .chat
+                .completions
+                .create(
 
-                model=GROQ_MODEL,
+                    model=GROQ_MODEL,
 
-                reasoning_effort="low",
+                    reasoning_effort="low",
 
-                include_reasoning=False,
+                    include_reasoning=False,
 
-                max_completion_tokens=1000,
+                    max_completion_tokens=1000,
 
-                response_format={
+                    response_format={
 
-                    "type": "json_schema",
+                        "type": "json_schema",
 
-                    "json_schema": {
+                        "json_schema": {
 
-                        "name":
-                        "nlp_misinformation_analysis",
+                            "name":
+                                "nlp_misinformation_analysis",
 
-                        "strict": True,
+                            "strict": True,
 
-                        "schema": {
+                            "schema": {
 
-                            "type": "object",
+                                "type": "object",
 
-                            "properties": {
+                                "properties": {
 
-                                "claim": {
-                                    "type": "string"
-                                },
-
-                                "claim_type": {
-                                    "type": "string",
-                                    "enum": [
-                                        "Political",
-                                        "Financial",
-                                        "Health",
-                                        "Sports",
-                                        "Technology",
-                                        "Entertainment",
-                                        "General"
-                                    ]
-                                },
-
-                                "prediction": {
-                                    "type": "string"
-                                },
-
-                                "confidence": {
-                                    "type": "number"
-                                },
-
-                                "risk_score": {
-                                    "type": "number"
-                                },
-
-                                "language": {
-                                    "type": "string"
-                                },
-
-                                "keywords": {
-
-                                    "type": "array",
-
-                                    "items": {
+                                    "claim": {
                                         "type": "string"
+                                    },
+
+                                    "claim_type": {
+
+                                        "type": "string",
+
+                                        "enum": [
+
+                                            "Political",
+                                            "Financial",
+                                            "Health",
+                                            "Sports",
+                                            "Technology",
+                                            "Entertainment",
+                                            "General"
+
+                                        ]
+
+                                    },
+
+                                    "prediction": {
+
+                                        "type": "string"
+
+                                    },
+
+                                    "confidence": {
+
+                                        "type": "number"
+
+                                    },
+
+                                    "risk_score": {
+
+                                        "type": "number"
+
+                                    },
+
+                                    "language": {
+
+                                        "type": "string"
+
+                                    },
+
+                                    "keywords": {
+
+                                        "type": "array",
+
+                                        "items": {
+                                            "type": "string"
+                                        }
+
+                                    },
+
+                                    "manipulation_signals": {
+
+                                        "type": "array",
+
+                                        "items": {
+                                            "type": "string"
+                                        }
+
                                     }
 
                                 },
 
-                                "manipulation_signals": {
+                                "required": [
 
-                                    "type": "array",
+                                    "claim",
+                                    "claim_type",
+                                    "prediction",
+                                    "confidence",
+                                    "risk_score",
+                                    "language",
+                                    "keywords",
+                                    "manipulation_signals"
 
-                                    "items": {
-                                        "type": "string"
-                                    }
+                                ],
 
-                                }
+                                "additionalProperties":
+                                    False
 
-                            },
-
-                            "required": [
-
-                                "claim",
-                                "claim_type",
-                                "prediction",
-                                "confidence",
-                                "risk_score",
-                                "language",
-                                "keywords",
-                                "manipulation_signals"
-
-                            ],
-
-                            "additionalProperties": False
+                            }
 
                         }
 
-                    }
-
-                },
-
-                messages=[
-
-                    {
-
-                        "role": "system",
-
-                        "content": (
-                            "You are an expert NLP "
-                            "misinformation analysis system. "
-                            "Return only the requested "
-                            "structured output."
-                        )
-
                     },
 
-                    {
+                    messages=[
 
-                        "role": "user",
+                        {
 
-                        "content": prompt
+                            "role": "system",
 
-                    }
+                            "content": (
+                                "You are an expert NLP "
+                                "analysis system. "
+                                "You analyze linguistic "
+                                "and manipulation signals. "
+                                "You do not determine "
+                                "whether factual claims "
+                                "are true or false. "
+                                "Return only structured "
+                                "JSON."
+                            )
 
-                ]
+                        },
 
+                        {
+
+                            "role": "user",
+
+                            "content": prompt
+
+                        }
+
+                    ]
+
+                )
             )
 
-            # -------------------------
-            # Extract Model Response
-            # -------------------------
+            # =================================================
+            # MODEL OUTPUT
+            # =================================================
 
             output = (
                 response
@@ -528,13 +608,57 @@ Identify the language of the submitted content.
                     "Groq returned an empty AI response."
                 )
 
-            result = self.extract_json_response(
-                output
+            result = (
+                self.extract_json_response(
+                    output
+                )
             )
 
-            # -------------------------
-            # Validate Prediction
-            # -------------------------
+            # =================================================
+            # CLAIM
+            # =================================================
+
+            claim = str(
+                result.get(
+                    "claim",
+                    "Unknown"
+                )
+            ).strip()
+
+            if not claim:
+
+                claim = "Unknown"
+
+            # =================================================
+            # CLAIM TYPE
+            # =================================================
+
+            allowed_claim_types = {
+
+                "Political",
+                "Financial",
+                "Health",
+                "Sports",
+                "Technology",
+                "Entertainment",
+                "General"
+
+            }
+
+            claim_type = str(
+                result.get(
+                    "claim_type",
+                    "General"
+                )
+            ).strip()
+
+            if claim_type not in allowed_claim_types:
+
+                claim_type = "General"
+
+            # =================================================
+            # PREDICTION
+            # =================================================
 
             prediction = str(
                 result.get(
@@ -543,45 +667,79 @@ Identify the language of the submitted content.
                 )
             ).strip()
 
-            if not prediction:
+            # IMPORTANT:
+            #
+            # NLP must not independently declare a factual
+            # claim true or false.
+            #
+            # The fact-verification service is responsible
+            # for evidence-based factual classification.
 
-                prediction = "Needs Verification"
+            if prediction not in {
+                "Not a Factual Claim",
+                "Needs Verification"
+            }:
 
-            # -------------------------
-            # Validate Numbers
-            # -------------------------
+                prediction = (
+                    "Needs Verification"
+                )
+
+            # =================================================
+            # CONFIDENCE
+            # =================================================
 
             confidence = self.clamp_number(
-                result.get("confidence"),
+
+                result.get(
+                    "confidence"
+                ),
+
                 0,
+
                 100,
+
                 default=0
+
             )
+
+            # =================================================
+            # RISK SCORE
+            # =================================================
 
             risk_score = self.clamp_number(
-                result.get("risk_score"),
+
+                result.get(
+                    "risk_score"
+                ),
+
                 0,
+
                 100,
+
                 default=0
+
             )
 
-            # Convert confidence to integer
-            # when it is mathematically whole.
-            if confidence.is_integer():
+            # Convert whole numbers to integers
+            if confidence is not None:
 
-                confidence = int(
-                    confidence
-                )
+                if confidence.is_integer():
 
-            if risk_score.is_integer():
+                    confidence = int(
+                        confidence
+                    )
 
-                risk_score = int(
-                    risk_score
-                )
+            if risk_score is not None:
 
-            # -------------------------
-            # Keywords
-            # -------------------------
+                if risk_score.is_integer():
+
+                    risk_score = int(
+                        risk_score
+                    )
+
+            # =================================================
+            # KEYWORDS
+            # =================================================
 
             keywords = result.get(
                 "keywords",
@@ -605,9 +763,9 @@ Identify the language of the submitted content.
 
             ][:15]
 
-            # -------------------------
-            # Manipulation Signals
-            # -------------------------
+            # =================================================
+            # MANIPULATION SIGNALS
+            # =================================================
 
             manipulation_signals = (
                 result.get(
@@ -627,38 +785,33 @@ Identify the language of the submitted content.
 
                 str(signal).strip()
 
-                for signal
-                in manipulation_signals
+                for signal in manipulation_signals
 
                 if str(signal).strip()
 
             ][:10]
 
-            # -------------------------
-            # Entities
-            # -------------------------
+            # =================================================
+            # ENTITIES
+            # =================================================
 
-            entities = self.extract_entities(
-                text
+            entities = (
+                self.extract_entities(
+                    text
+                )
             )
 
-            # -------------------------
-            # Successful Response
-            # -------------------------
+            # =================================================
+            # SUCCESS
+            # =================================================
 
             return {
 
                 "status": "success",
 
-                "claim": result.get(
-                    "claim",
-                    "Unknown"
-                ),
+                "claim": claim,
 
-                "claim_type": result.get(
-                    "claim_type",
-                    "General"
-                ),
+                "claim_type": claim_type,
 
                 "prediction": prediction,
 
@@ -666,10 +819,13 @@ Identify the language of the submitted content.
 
                 "risk_score": risk_score,
 
-                "language": result.get(
-                    "language",
-                    "English"
-                ),
+                "language": str(
+                    result.get(
+                        "language",
+                        "English"
+                    )
+                ).strip()
+                or "English",
 
                 "keywords": keywords,
 
@@ -680,9 +836,9 @@ Identify the language of the submitted content.
 
             }
 
-        # -------------------------
-        # AI / JSON / Runtime Error
-        # -------------------------
+        # ====================================================
+        # ERROR HANDLING
+        # ====================================================
 
         except Exception:
 
@@ -691,11 +847,14 @@ Identify the language of the submitted content.
             )
 
             # IMPORTANT:
-            # Never convert an AI failure into
-            # risk_score = 0 or confidence = 50.
             #
-            # None means:
-            # "No valid AI analysis was available."
+            # Never return:
+            # risk_score = 0
+            # confidence = 50
+            #
+            # when the model failed.
+            #
+            # None means the analysis was unavailable.
 
             return {
 
@@ -724,8 +883,8 @@ Identify the language of the submitted content.
             }
 
 
-# -------------------------
-# Service Instance
-# -------------------------
+# ============================================================
+# SERVICE INSTANCE
+# ============================================================
 
 nlp_service = NLPService()

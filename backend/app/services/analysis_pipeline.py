@@ -1,27 +1,21 @@
+import io
+import logging
+import os
 import time
 import uuid
-import io
-import os
-
-from PIL import Image
 
 import cv2
 import numpy as np
+from PIL import Image
 
-from app.services.vision_engagement_detector import (
-    vision_engagement_detector
-)
+from app.database.mongodb import analysis_collection
 
 from app.services.engagement_extractor import (
     engagement_extractor
 )
 
-from app.services.twitter_engagement_extractor import (
-    twitter_engagement_extractor
-)
-
-from app.services.twitter_views_detector import (
-    twitter_views_detector
+from app.services.fact_verification_service import (
+    verify_claim
 )
 
 from app.services.graph.graph_generator import (
@@ -32,21 +26,28 @@ from app.services.nlp_service import (
     nlp_service
 )
 
-from app.services.fact_verification_service import (
-    verify_claim
+from app.services.prediction_service import (
+    prediction_service
 )
 
 from app.services.spread_factor_service import (
     spread_factor_service
 )
 
-from app.services.prediction_service import (
-    prediction_service
+from app.services.twitter_engagement_extractor import (
+    twitter_engagement_extractor
 )
 
-from app.database.mongodb import (
-    analysis_collection
+from app.services.twitter_views_detector import (
+    twitter_views_detector
 )
+
+from app.services.vision_engagement_detector import (
+    vision_engagement_detector
+)
+
+
+logger = logging.getLogger(__name__)
 
 
 class AnalysisPipeline:
@@ -70,24 +71,47 @@ class AnalysisPipeline:
             uuid.uuid4()
         )
 
-        if ocr_values is None:
-            ocr_values = {}
+        # ---------------------------------------------------------
+        # Normalize inputs
+        # ---------------------------------------------------------
+
+        ocr_values = (
+            ocr_values
+            if isinstance(ocr_values, dict)
+            else {}
+        )
+
+        input_text = str(
+            text or ""
+        ).strip()
+
+        normalized_platform = str(
+            platform or ""
+        ).strip().lower()
 
         extracted_text = ""
 
-        # =========================================================
-        # INITIAL PUBLISHER
-        # =========================================================
-        #
-        # OCR publisher is the initial source.
-        # Vision/Gemini may override it later if it actually
-        # detects a publisher.
-        #
+        image_path = None
+
+        # True only when an actual social-media screenshot
+        # is available for engagement / propagation analysis.
+        has_social_media_input = (
+            image is not None
+            and normalized_platform not in {
+                "",
+                "text",
+                "general",
+                "text / general",
+            }
+        )
+
+        # ---------------------------------------------------------
+        # Publisher initialization
+        # ---------------------------------------------------------
+
         publisher = (
             ocr_publisher
-            or ocr_values.get(
-                "publisher"
-            )
+            or ocr_values.get("publisher")
         )
 
         publisher_confidence = (
@@ -106,6 +130,10 @@ class AnalysisPipeline:
             )
         )
 
+        # ---------------------------------------------------------
+        # Engagement defaults
+        # ---------------------------------------------------------
+
         engagement_values = {
             "likes": 0,
             "comments": 0,
@@ -116,11 +144,9 @@ class AnalysisPipeline:
             "views": 0,
         }
 
-        image_path = None
-
-        # =========================================================
+        # ---------------------------------------------------------
         # IMAGE PROCESSING
-        # =========================================================
+        # ---------------------------------------------------------
 
         if image:
 
@@ -133,9 +159,15 @@ class AnalysisPipeline:
                 exist_ok=True
             )
 
+            original_filename = (
+                os.path.basename(
+                    image.filename or "uploaded_image"
+                )
+            )
+
             filename = (
                 f"{analysis_id}_"
-                f"{os.path.basename(image.filename)}"
+                f"{original_filename}"
             )
 
             image_path = os.path.join(
@@ -152,6 +184,7 @@ class AnalysisPipeline:
                     image_bytes
                 )
 
+            # Load image for engagement / Vision processing.
             pil_image = Image.open(
                 io.BytesIO(
                     image_bytes
@@ -164,19 +197,29 @@ class AnalysisPipeline:
                 pil_image
             )
 
-            img = cv2.cvtColor(
-                img,
-                cv2.COLOR_RGB2BGR
-            )
+            # Handle images that contain an alpha channel.
+            if len(img.shape) == 3 and img.shape[2] == 4:
+
+                img = cv2.cvtColor(
+                    img,
+                    cv2.COLOR_RGBA2BGR
+                )
+
+            else:
+
+                img = cv2.cvtColor(
+                    img,
+                    cv2.COLOR_RGB2BGR
+                )
 
             # =====================================================
             # TWITTER / X ENGAGEMENT
             # =====================================================
 
-            if platform.lower() in [
+            if normalized_platform in {
                 "twitter",
                 "x"
-            ]:
+            }:
 
                 twitter_engagement = (
                     twitter_engagement_extractor.analyze(
@@ -199,7 +242,7 @@ class AnalysisPipeline:
                 )
 
             # =====================================================
-            # OTHER PLATFORM ENGAGEMENT
+            # OTHER SOCIAL-MEDIA PLATFORMS
             # =====================================================
 
             else:
@@ -214,21 +257,9 @@ class AnalysisPipeline:
                     opencv_engagement
                 )
 
-        # =========================================================
-        # VISION ANALYSIS
-        # =========================================================
-        #
-        # OCR is the primary source for uploaded screenshots.
-        #
-        # If OCR already supplied text, do NOT call Gemini Vision.
-        # This prevents the analysis pipeline from getting stuck
-        # when Gemini quota is unavailable.
-        #
-        # Gemini is only used as a fallback when:
-        #   1. an image exists
-        #   2. OCR/text did not provide usable text
-        #
-        # =========================================================
+        # ---------------------------------------------------------
+        # VISION / OCR TEXT SELECTION
+        # ---------------------------------------------------------
 
         ocr_text = str(
             ocr_values.get(
@@ -237,46 +268,39 @@ class AnalysisPipeline:
             )
         ).strip()
 
-        input_text = str(
-            text or ""
-        ).strip()
+        vision_fallback_used = False
 
-        ocr_has_publisher = bool(
-            ocr_values.get(
-                "publisher"
-            )
-        )
+        # ---------------------------------------------------------
+        # Determine analysis text
+        # ---------------------------------------------------------
 
         if input_text:
 
-            # Analyze.jsx sends OCR text through `text`.
-            # Therefore this is already the best available text.
-
             extracted_text = input_text
 
-            print(
-                "VISION SKIPPED: OCR/input text already available."
+            logger.info(
+                "Using supplied input text; Vision fallback skipped."
             )
 
         elif ocr_text:
 
             extracted_text = ocr_text
 
-            print(
-                "VISION SKIPPED: OCR text already available."
+            logger.info(
+                "Using OCR extracted text; Vision fallback skipped."
             )
 
         elif image:
 
-            # ---------------------------------------------------------
-            # OCR failed to provide text.
-            # Gemini can be attempted as a fallback.
-            # ---------------------------------------------------------
+            # -----------------------------------------------------
+            # OCR did not provide usable text.
+            # Vision is only a fallback.
+            # -----------------------------------------------------
 
             try:
 
-                print(
-                    "VISION FALLBACK: OCR text unavailable."
+                logger.info(
+                    "OCR text unavailable. Attempting Vision fallback."
                 )
 
                 vision_result = (
@@ -286,12 +310,14 @@ class AnalysisPipeline:
                     )
                 )
 
-                extracted_text = (
+                vision_fallback_used = True
+
+                extracted_text = str(
                     vision_result.get(
                         "post_text",
                         ""
                     )
-                )
+                ).strip()
 
                 vision_publisher = (
                     vision_result.get(
@@ -312,8 +338,8 @@ class AnalysisPipeline:
                     )
                 )
 
-                # Only use Vision publisher if OCR did not
-                # already provide one.
+                # Vision publisher is only a fallback.
+                # Never overwrite an existing OCR publisher.
 
                 if (
                     vision_publisher
@@ -332,21 +358,17 @@ class AnalysisPipeline:
                         vision_publisher_method
                     )
 
-            except Exception as e:
+            except Exception:
 
-                print(
-                    "VISION FALLBACK ERROR:",
-                    e
+                logger.exception(
+                    "VISION FALLBACK ERROR"
                 )
-
-                # Never destroy OCR results because
-                # Gemini failed.
 
                 extracted_text = ""
 
-        # =========================================================
-        # OCR PUBLISHER FALLBACK
-        # =========================================================
+        # ---------------------------------------------------------
+        # Publisher fallback
+        # ---------------------------------------------------------
 
         if not publisher:
 
@@ -375,9 +397,9 @@ class AnalysisPipeline:
                     )
                 )
 
-        # =========================================================
-        # OCR ENGAGEMENT FALLBACK
-        # =========================================================
+        # ---------------------------------------------------------
+        # OCR engagement fallback
+        # ---------------------------------------------------------
 
         if ocr_values:
 
@@ -385,79 +407,79 @@ class AnalysisPipeline:
                 ocr_values.items()
             ):
 
-                # Ignore publisher metadata.
                 if key not in engagement_values:
                     continue
 
-                if engagement_values[key] == 0:
+                # Only use OCR value when the primary
+                # engagement detector did not find a value.
+                if engagement_values[key] != 0:
+                    continue
 
-                    try:
+                try:
 
-                        clean = (
-                            str(value)
-                            .replace(
-                                ",",
-                                ""
+                    clean = (
+                        str(value)
+                        .replace(",", "")
+                        .strip()
+                        .lower()
+                    )
+
+                    if not clean:
+                        continue
+
+                    if clean.endswith("k"):
+
+                        number = (
+                            float(
+                                clean[:-1]
                             )
-                            .lower()
+                            * 1000
                         )
 
-                        if "k" in clean:
+                    elif clean.endswith("m"):
 
-                            number = (
-                                float(
-                                    clean.replace(
-                                        "k",
-                                        ""
-                                    )
-                                )
-                                * 1000
+                        number = (
+                            float(
+                                clean[:-1]
                             )
-
-                        elif "m" in clean:
-
-                            number = (
-                                float(
-                                    clean.replace(
-                                        "m",
-                                        ""
-                                    )
-                                )
-                                * 1000000
-                            )
-
-                        else:
-
-                            number = int(
-                                clean
-                            )
-
-                        engagement_values[
-                            key
-                        ] = int(
-                            number
+                            * 1000000
                         )
 
-                    except Exception as e:
+                    else:
 
-                        print(
-                            "OCR VALUE ERROR:",
-                            e
+                        number = int(
+                            float(clean)
                         )
 
-        # =========================================================
+                    engagement_values[key] = int(
+                        number
+                    )
+
+                except (
+                    ValueError,
+                    TypeError
+                ):
+
+                    logger.warning(
+                        "Could not parse OCR engagement value: "
+                        "%s=%s",
+                        key,
+                        value
+                    )
+
+        # ---------------------------------------------------------
         # FINAL TEXT
-        # =========================================================
+        # ---------------------------------------------------------
 
         final_text = (
-            text.strip()
-            if text
+            input_text
+            if input_text
             else extracted_text
-        )
+        ).strip()
 
-        # =========================================================
+        # ---------------------------------------------------------
         # NLP
-        # =========================================================
+        # ---------------------------------------------------------
 
         detection = (
             nlp_service.analyze_text(
@@ -470,64 +492,17 @@ class AnalysisPipeline:
             final_text
         )
 
-        # =========================================================
+        # ---------------------------------------------------------
         # FACT VERIFICATION
-        # =========================================================
+        # ---------------------------------------------------------
 
         fact_result = verify_claim(
             claim
         )
 
-        # =========================================================
-        # DEBUG
-        # =========================================================
-
-        print(
-            "========== FINAL DEBUG =========="
-        )
-
-        print(
-            "PLATFORM:",
-            platform
-        )
-
-        print(
-            "TEXT:",
-            extracted_text
-        )
-
-        print(
-            "PUBLISHER:",
-            publisher
-        )
-
-        print(
-            "PUBLISHER CONFIDENCE:",
-            publisher_confidence
-        )
-
-        print(
-            "PUBLISHER METHOD:",
-            publisher_detection_method
-        )
-
-        print(
-            "ENGAGEMENT:",
-            engagement_values
-        )
-
-        print(
-            "IMAGE PATH:",
-            image_path
-        )
-
-        print(
-            "================================="
-        )
-
-        # =========================================================
-        # ENGAGEMENT
-        # =========================================================
+        # ---------------------------------------------------------
+        # ENGAGEMENT OBJECT
+        # ---------------------------------------------------------
 
         engagement = {
             **engagement_values,
@@ -547,20 +522,17 @@ class AnalysisPipeline:
                     "metrics"
                 ].append(
                     {
-                        "label":
-                            key.title(),
-                        "value":
-                            value
+                        "label": key.title(),
+                        "value": value
                     }
                 )
 
-        # =========================================================
+        # ---------------------------------------------------------
         # INSTAGRAM FOLLOWERS
-        # =========================================================
+        # ---------------------------------------------------------
 
         if (
-            platform.lower()
-            == "instagram"
+            normalized_platform == "instagram"
             and followers
         ):
 
@@ -568,84 +540,154 @@ class AnalysisPipeline:
                 "followers"
             ] = followers
 
-        # =========================================================
-        # SPREAD ANALYSIS
-        # =========================================================
+        # ---------------------------------------------------------
+        # SPREAD / PREDICTION / GRAPH
+        # ---------------------------------------------------------
+        #
+        # IMPORTANT:
+        #
+        # These components require social-media evidence.
+        #
+        # Text-only analysis:
+        #
+        #   NLP
+        #      ↓
+        #   Fact Verification
+        #
+        # No engagement
+        # No spread prediction
+        # No propagation graph
+        #
+        # Screenshot analysis:
+        #
+        #   OCR
+        #      ↓
+        #   Engagement
+        #      ↓
+        #   NLP
+        #      ↓
+        #   Fact Verification
+        #      ↓
+        #   Spread Prediction
+        #      ↓
+        #   Graph
+        #
+        # ---------------------------------------------------------
 
-        spread_analysis = (
-            spread_factor_service.analyze(
-                engagement,
-                detection,
-                platform
+        spread_analysis = None
+        prediction = None
+        graph = None
+
+        if has_social_media_input:
+
+            # Do not continue into numerical spread analysis
+            # if NLP analysis failed to produce a valid risk score.
+
+            nlp_risk_score = detection.get(
+                "risk_score"
             )
-        )
 
-        # =========================================================
-        # PREDICTION
-        # =========================================================
+            if (
+                detection.get("status") == "success"
+                and nlp_risk_score is not None
+            ):
 
-        prediction = (
-            prediction_service.predict_spread(
-                {
-                    **engagement,
-
-                    "spread_score":
-                        spread_analysis[
-                            "metrics"
-                        ][
-                            "spread_score"
-                        ],
-
-                    "risk_score":
-                        detection.get(
-                            "risk_score",
-                            0
-                        ),
-
-                    "emotion_score":
-                        0,
-
-                    "manipulation_score":
-                        0
-                }
-            )
-        )
-
-        # =========================================================
-        # GRAPH
-        # =========================================================
-
-        graph = (
-            graph_generator.generate(
-                {
-                    "analysis": {
-                        "text":
-                            final_text,
-
-                        "platform":
-                            platform,
-
-                        "publisher":
-                            publisher,
-
-                        "publisher_confidence":
-                            publisher_confidence
-                    },
-
-                    "engagement":
+                spread_analysis = (
+                    spread_factor_service.analyze(
                         engagement,
+                        detection,
+                        platform
+                    )
+                )
 
-                    "spread_prediction":
-                        prediction[
-                            "data"
-                        ]
-                }
+                spread_score = (
+                    spread_analysis
+                    .get("metrics", {})
+                    .get("spread_score")
+                )
+
+                if spread_score is not None:
+
+                    prediction_input = {
+                        **engagement,
+
+                        "spread_score":
+                            spread_score,
+
+                        "risk_score":
+                            nlp_risk_score,
+
+                        "emotion_score":
+                            0,
+
+                        "manipulation_score":
+                            0
+                    }
+
+                    prediction = (
+                        prediction_service.predict_spread(
+                            prediction_input
+                        )
+                    )
+
+                    # Only generate the graph after
+                    # a valid spread prediction exists.
+
+                    if prediction and prediction.get("data"):
+
+                        graph = (
+                            graph_generator.generate(
+                                {
+                                    "analysis": {
+
+                                        "text":
+                                            final_text,
+
+                                        "platform":
+                                            platform,
+
+                                        "publisher":
+                                            publisher,
+
+                                        "publisher_confidence":
+                                            publisher_confidence
+
+                                    },
+
+                                    "engagement":
+                                        engagement,
+
+                                    "spread_prediction":
+                                        prediction[
+                                            "data"
+                                        ]
+                                }
+                            )
+                        )
+
+            else:
+
+                logger.warning(
+                    "Skipping spread prediction because "
+                    "NLP analysis did not provide a valid risk score."
+                )
+
+        else:
+
+            logger.info(
+                "Text-only analysis: "
+                "spread prediction and propagation graph skipped."
+            )
+
+        # ---------------------------------------------------------
+        # FINAL RESULT
+        # ---------------------------------------------------------
+
+        fact_confidence = (
+            fact_result.get(
+                "confidence"
             )
         )
-
-        # =========================================================
-        # FINAL RESULT
-        # =========================================================
 
         final_result = {
 
@@ -657,28 +699,38 @@ class AnalysisPipeline:
 
             "confidence":
                 self.convert_confidence(
-                    fact_result.get(
-                        "confidence",
-                        "0%"
-                    )
+                    fact_confidence
                 ),
 
             "risk_level":
-                prediction[
-                    "data"
-                ][
-                    "risk_level"
-                ],
+                (
+                    prediction.get(
+                        "data",
+                        {}
+                    ).get(
+                        "risk_level"
+                    )
+                    if prediction
+                    else None
+                ),
 
             "summary":
-                spread_analysis[
-                    "summary"
-                ]
+                (
+                    spread_analysis.get(
+                        "summary"
+                    )
+                    if spread_analysis
+                    else (
+                        "Spread analysis is not available "
+                        "because social-media engagement data "
+                        "was not provided."
+                    )
+                )
         }
 
-        # =========================================================
+        # ---------------------------------------------------------
         # RESPONSE
-        # =========================================================
+        # ---------------------------------------------------------
 
         response = {
 
@@ -717,7 +769,10 @@ class AnalysisPipeline:
             "vision": {
 
                 "used":
-                    bool(image),
+                    vision_fallback_used,
+
+                "ocr_used":
+                    bool(ocr_text),
 
                 "post_text":
                     extracted_text,
@@ -744,13 +799,17 @@ class AnalysisPipeline:
             "engagement":
                 engagement,
 
+            # None means the analysis was not applicable,
+            # not that the calculated score was zero.
             "spread_analysis":
                 spread_analysis,
 
             "prediction":
-                prediction[
-                    "data"
-                ],
+                (
+                    prediction.get("data")
+                    if prediction
+                    else None
+                ),
 
             "graph":
                 graph,
@@ -774,22 +833,27 @@ class AnalysisPipeline:
                     ),
 
                 "graph_generated_once":
-                    True
+                    bool(graph)
+
             }
         }
 
-        # =========================================================
-        # SAVE TO MONGODB
-        # =========================================================
+        # ---------------------------------------------------------
+        # DATABASE
+        # ---------------------------------------------------------
+
+        user_email = (
+            current_user.get("email")
+            if current_user
+            else None
+        )
 
         analysis_collection.insert_one(
             {
                 **response,
 
                 "email":
-                    current_user.get(
-                        "email"
-                    ),
+                    user_email,
 
                 "analysis_time":
                     time.strftime(
@@ -798,15 +862,32 @@ class AnalysisPipeline:
             }
         )
 
+        logger.info(
+            "Analysis completed successfully. "
+            "analysis_id=%s platform=%s social_input=%s "
+            "graph_generated=%s processing_time=%.2fs",
+            analysis_id,
+            platform,
+            has_social_media_input,
+            bool(graph),
+            time.time() - start
+        )
+
         return {
             "analysis":
                 response
         }
 
-    def convert_confidence(
-        self,
-        value
-    ):
+    # ---------------------------------------------------------
+    # CONFIDENCE CONVERSION
+    # ---------------------------------------------------------
+
+    @staticmethod
+    def convert_confidence(value):
+
+        # None means confidence was unavailable.
+        if value is None:
+            return None
 
         if isinstance(
             value,
@@ -817,7 +898,7 @@ class AnalysisPipeline:
 
         value = str(
             value
-        ).lower()
+        ).lower().strip()
 
         if "high" in value:
             return 90
@@ -837,9 +918,12 @@ class AnalysisPipeline:
                 )
             )
 
-        except:
+        except (
+            ValueError,
+            TypeError
+        ):
 
-            return 0
+            return None
 
 
 analysis_pipeline = AnalysisPipeline()
