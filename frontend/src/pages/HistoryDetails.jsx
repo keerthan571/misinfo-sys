@@ -854,8 +854,14 @@ export default function HistoryDetails() {
             // rendering and fit the complete graph.
             await new Promise(
               resolve =>
-                setTimeout(resolve, 1800)
+                setTimeout(resolve, 2500)
             );
+
+            const capturedGraphWidth =
+              graphContainer.scrollWidth;
+
+            const capturedGraphHeight =
+              graphContainer.scrollHeight;
 
             const graphImage =
               await toPng(
@@ -865,35 +871,18 @@ export default function HistoryDetails() {
                   pixelRatio: 2,
                   backgroundColor: "#1e293b",
 
-                  width:
-                    graphContainer.clientWidth,
-
-                  height:
-                    graphContainer.clientHeight,
+                  width: capturedGraphWidth,
+                  height: capturedGraphHeight,
 
                   style: {
                     width:
-                      `${graphContainer.clientWidth}px`,
+                      `${capturedGraphWidth}px`,
 
                     height:
-                      `${graphContainer.clientHeight}px`,
+                      `${capturedGraphHeight}px`,
+
+                    overflow: "visible",
                   },
-                }
-              );
-
-            const graphImg =
-              await new Promise(
-                (resolve, reject) => {
-
-                  const img =
-                    new Image();
-
-                  img.onload = () =>
-                    resolve(img);
-
-                  img.onerror = reject;
-
-                  img.src = graphImage;
                 }
               );
 
@@ -992,13 +981,6 @@ export default function HistoryDetails() {
             const graphRatio =
               graphImg.width /
               graphImg.height;
-
-            let graphWidth =
-              availableWidth;
-
-            let graphHeight =
-              graphWidth /
-              graphRatio;
 
             /*
              * Never allow graph to exceed
@@ -1232,15 +1214,7 @@ export default function HistoryDetails() {
             </h2>
           </div>
 
-          <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
-            <p className="text-slate-400">
-              Confidence
-            </p>
 
-            <h2 className="text-4xl font-bold text-blue-400 mt-2">
-              {analysis.final_result?.confidence}%
-            </h2>
-          </div>
 
           <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
             <p className="text-slate-400">
@@ -1608,16 +1582,6 @@ export default function HistoryDetails() {
                   </p>
                 </div>
 
-                <div>
-                  <p className="text-slate-400 text-sm">
-                    Confidence
-                  </p>
-
-                  <p className="text-white text-xl font-semibold mt-2">
-                    {analysis.platform?.confidence ?? 100}%
-                  </p>
-                </div>
-
               </div>
 
             </div>
@@ -1694,7 +1658,7 @@ export default function HistoryDetails() {
               id="pdf-graph-container"
               className="rounded-xl overflow-hidden border border-slate-700"
               style={{
-                height: "560px",
+                height: "1000px",
                 width: "100%",
               }}
             >
@@ -1704,7 +1668,7 @@ export default function HistoryDetails() {
                 interactive={false}
                 pdfMode={true}
                 showControls={false}
-                graphHeight="560px"
+                graphHeight="1000px"
               />
             </div>
 
