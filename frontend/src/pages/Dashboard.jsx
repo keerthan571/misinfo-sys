@@ -37,29 +37,42 @@ export default function Dashboard() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let mounted = true;
+
+    const fetchDashboard = async () => {
+      try {
+        const dashboardData = await getDashboardStats();
+
+        if (!mounted) return;
+
+        setDashboard((prev) => ({
+          ...prev,
+          totalAnalyses: dashboardData.totalAnalyses,
+          verifiedTrue: dashboardData.verifiedTrue,
+          verifiedFalse: dashboardData.verifiedFalse,
+          ocrUploads: dashboardData.ocrUploads,
+          avgConfidence: dashboardData.avgConfidence,
+          weeklyAnalysis: dashboardData.weeklyAnalysis,
+        }));
+      } catch (err) {
+        console.error(err);
+
+        if (!mounted) return;
+
+        setError("Failed to load dashboard.");
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
     fetchDashboard();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
-
-  const fetchDashboard = async () => {
-    try {
-      const dashboardData = await getDashboardStats();
-
-      setDashboard((prev) => ({
-        ...prev,
-        totalAnalyses: dashboardData.totalAnalyses,
-        verifiedTrue: dashboardData.verifiedTrue,
-        verifiedFalse: dashboardData.verifiedFalse,
-        ocrUploads: dashboardData.ocrUploads,
-        avgConfidence: dashboardData.avgConfidence,
-        weeklyAnalysis: dashboardData.weeklyAnalysis,
-      }));
-    } catch (err) {
-      console.error(err);
-      setError("Failed to load dashboard.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const stats = [
     {
@@ -118,7 +131,6 @@ export default function Dashboard() {
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-
       <div className="mb-7">
         <DashboardHeader
           userName={user?.name || "User"}
@@ -145,7 +157,6 @@ export default function Dashboard() {
           weeklyAnalysis={dashboard.weeklyAnalysis}
         />
       </div>
-
     </div>
   );
 }
