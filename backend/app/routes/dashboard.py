@@ -58,7 +58,6 @@ def normalize_verdict(verdict):
 # =====================================================
 
 @router.get("/stats")
-@router.get("/stats")
 def get_dashboard_stats(current_user=Depends(get_current_user)):
 
     user_filter = {
@@ -78,10 +77,7 @@ def get_dashboard_stats(current_user=Depends(get_current_user)):
             }
         )
     )
-    print("\n===== SAMPLE DOCUMENT =====")
-    if analyses:
-        print(analyses[0])
-    print("===========================\n")
+    
     verified_true = 0
     verified_false = 0
     confidence_values = []
