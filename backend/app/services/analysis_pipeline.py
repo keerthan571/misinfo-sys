@@ -497,7 +497,10 @@ class AnalysisPipeline:
         # ---------------------------------------------------------
 
         fact_result = verify_claim(
-            claim
+            claim=claim,
+            context=final_text,
+            publisher=publisher,
+            platform=platform,
         )
 
         # ---------------------------------------------------------

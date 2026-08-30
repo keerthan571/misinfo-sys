@@ -312,28 +312,78 @@ def calculate_confidence(
 # SEARCH QUERY GENERATION
 # ============================================================
 
-def build_search_queries(claim: str) -> list[str]:
+def build_search_queries(
+    claim: str,
+    context: str = "",
+    publisher: str | None = None,
+    platform: str | None = None,
+) -> list[str]:
 
     """
-    Generate a small set of complementary search queries.
+    Generate context-aware search queries.
 
-    The system remains domain-independent. No sport, political,
-    medical or other domain is hardcoded.
+    The claim remains the primary verification target,
+    while surrounding OCR context, publisher and platform
+    are used to prevent unrelated search results.
     """
 
-    claim = claim.strip()
+    claim = normalize_text(claim)
+    context = normalize_text(context)
+    publisher = normalize_text(publisher)
+    platform = normalize_text(platform)
 
-    queries = [
+    queries = []
 
-        claim[:500],
+    # --------------------------------------------------------
+    # 1. Exact claim
+    # --------------------------------------------------------
 
-        f'"{claim[:350]}" fact check',
+    if claim:
+        queries.append(
+            f'"{claim[:350]}"'
+        )
 
-        f'"{claim[:350]}" official result'
+    # --------------------------------------------------------
+    # 2. Claim + publisher
+    # --------------------------------------------------------
 
-    ]
+    if claim and publisher:
+        queries.append(
+            f'"{claim[:250]}" "{publisher[:150]}"'
+        )
 
-    # Remove duplicates while preserving order.
+    # --------------------------------------------------------
+    # 3. Claim + important context
+    # --------------------------------------------------------
+
+    if claim and context:
+        context_words = context[:700]
+
+        queries.append(
+            f'"{claim[:220]}" "{context_words}"'
+        )
+
+    # --------------------------------------------------------
+    # 4. Context-focused fallback
+    # --------------------------------------------------------
+
+    if context and publisher:
+        queries.append(
+            f'"{publisher[:150]}" "{context[:400]}"'
+        )
+
+    # --------------------------------------------------------
+    # 5. Platform-specific context
+    # --------------------------------------------------------
+
+    if claim and platform:
+        queries.append(
+            f'"{claim[:250]}" "{platform[:80]}"'
+        )
+
+    # --------------------------------------------------------
+    # Remove duplicates
+    # --------------------------------------------------------
 
     unique_queries = list(
         dict.fromkeys(
@@ -343,14 +393,18 @@ def build_search_queries(claim: str) -> list[str]:
         )
     )
 
-    return unique_queries[:3]
-
+    return unique_queries[:5]
 
 # ============================================================
 # TAVILY SEARCH
 # ============================================================
 
-def collect_evidence(claim: str):
+def collect_evidence(
+    claim: str,
+    context: str = "",
+    publisher: str | None = None,
+    platform: str | None = None,
+):
     
     """
     Search multiple complementary queries in parallel and combine
@@ -364,7 +418,12 @@ def collect_evidence(claim: str):
     - Same deduplication
     """
 
-    queries = build_search_queries(claim)
+    queries = build_search_queries(
+        claim=claim,
+        context=context,
+        publisher=publisher,
+        platform=platform,
+    )
 
     def search_query(query):
 
@@ -521,21 +580,29 @@ Content:
 
 def build_verification_prompt(
     claim: str,
-    evidence: str
+    evidence: str,
+    context: str = "",
+    publisher: str | None = None,
+    platform: str | None = None,
 ) -> str:
 
     return f"""
-You are performing evidence-based fact verification.
+    You are performing strict evidence-based fact verification.
 
-CLAIM:
-{claim}
+    CLAIM TO VERIFY:
+    {claim}
 
-PROVIDED EVIDENCE:
-{evidence}
+    SOURCE CONTEXT:
+    {context or "Not available"}
 
-Your task is to determine whether the CLAIM is supported,
-contradicted, materially distorted, or not established by
-the PROVIDED EVIDENCE.
+    PUBLISHER / SOURCE:
+    {publisher or "Not available"}
+
+    PLATFORM:
+    {platform or "Not available"}
+
+    PROVIDED WEB EVIDENCE:
+    {evidence}
 
 IMPORTANT:
 
@@ -601,12 +668,18 @@ for the selected verdict.
 
 def run_groq_verification(
     claim: str,
-    evidence: str
+    evidence: str,
+    context: str = "",
+    publisher: str | None = None,
+    platform: str | None = None,
 ):
 
     prompt = build_verification_prompt(
-        claim,
-        evidence
+        claim=claim,
+        evidence=evidence,
+        context=context,
+        publisher=publisher,
+        platform=platform,
     )
 
     # ========================================================
@@ -859,7 +932,12 @@ Rules:
 # MAIN VERIFICATION FUNCTION
 # ============================================================
 
-def verify_claim(claim: str):
+def verify_claim(
+    claim: str,
+    context: str = "",
+    publisher: str | none = none,
+    platform: str | none = none,
+):
 
     claim = normalize_text(
         claim
@@ -983,7 +1061,10 @@ def verify_claim(claim: str):
             evidence,
             sources
         ) = collect_evidence(
-            claim
+            claim=claim,
+            context=context,
+            publisher=publisher,
+            platform=platform,
         )
 
         # ----------------------------------------------------
@@ -1017,11 +1098,11 @@ def verify_claim(claim: str):
         # ----------------------------------------------------
 
         result = run_groq_verification(
-
-            claim,
-
-            evidence
-
+            claim=claim,
+            evidence=evidence,
+            context=context,
+            publisher=publisher,
+            platform=platform,
         )
 
         # ----------------------------------------------------
