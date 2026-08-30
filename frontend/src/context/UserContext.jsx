@@ -7,34 +7,49 @@ export function UserProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const refreshUser = async () => {
     const token = localStorage.getItem("token");
 
     if (!token) {
+      setUser(null);
       setLoading(false);
-      return;
+      return null;
     }
 
-    const fetchUser = async () => {
-      try {
-        const response = await apiClient.get("/api/auth/me");
-        setUser(response.data);
-      } catch (error) {
-        console.error(error);
+    try {
+      const response = await apiClient.get("/api/auth/me");
 
-        localStorage.removeItem("token");
-        localStorage.removeItem("token_type");
-        localStorage.removeItem("email");
-      } finally {
-        setLoading(false);
-      }
-    };
+      setUser(response.data);
 
-    fetchUser();
+      return response.data;
+    } catch (error) {
+      console.error(error);
+
+      setUser(null);
+
+      localStorage.removeItem("token");
+      localStorage.removeItem("token_type");
+      localStorage.removeItem("email");
+
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshUser();
   }, []);
 
   return (
-    <UserContext.Provider value={{ user, loading, setUser }}>
+    <UserContext.Provider
+      value={{
+        user,
+        loading,
+        setUser,
+        refreshUser,
+      }}
+    >
       {children}
     </UserContext.Provider>
   );
