@@ -935,8 +935,8 @@ Rules:
 def verify_claim(
     claim: str,
     context: str = "",
-    publisher: str | none = none,
-    platform: str | none = none,
+    publisher: str | None = None,
+    platform: str | None = None,
 ):
 
     claim = normalize_text(
