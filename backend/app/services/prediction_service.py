@@ -1,22 +1,20 @@
 class PredictionService:
-
-
+    
     def calculate_risk_level(
         self,
         probability
     ):
 
-        if probability>=80:
+        if probability >= 80:
             return "Very High"
 
-        elif probability>=60:
+        elif probability >= 60:
             return "High"
 
-        elif probability>=30:
+        elif probability >= 30:
             return "Medium"
 
         return "Low"
-
 
 
     def predict_spread(
@@ -24,241 +22,180 @@ class PredictionService:
         features
     ):
 
-
-        likes=features.get(
+        likes = features.get(
             "likes",
             0
         ) or 0
 
-
-        shares=features.get(
+        shares = features.get(
             "shares",
             0
         ) or 0
 
-
-        comments=features.get(
+        comments = features.get(
             "comments",
             0
         ) or 0
 
-
-        views=features.get(
+        views = features.get(
             "views",
             0
         ) or 0
 
-
-        saves=features.get(
+        saves = features.get(
             "saves",
             0
         ) or 0
 
-
-
-        spread_score=features.get(
+        spread_score = features.get(
             "spread_score",
             0
         ) or 0
 
-
-        risk_score=features.get(
+        risk_score = features.get(
             "risk_score",
             0
         ) or 0
 
-
-
-        total_engagement=(
-
-            likes+
-            shares+
-            comments+
+        total_engagement = (
+            likes +
+            shares +
+            comments +
             saves
-
         )
 
+        if views > 0:
 
-
-        if views>0:
-
-            engagement_score=(
-
-                total_engagement/views
-
-            )*100
-
+            engagement_score = (
+                total_engagement / views
+            ) * 100
 
         else:
 
-            engagement_score=min(
-
-                total_engagement/100,
-
+            engagement_score = min(
+                total_engagement / 100,
                 100
-
             )
 
-
-
-        engagement_score=round(
-
+        engagement_score = round(
             min(
                 engagement_score,
                 100
             ),
-
             2
-
         )
 
-
-
-        spread_probability=(
-
-            risk_score*0.35+
-
-            spread_score*0.35+
-
-            engagement_score*0.25
-
+        spread_probability = (
+            risk_score * 0.35 +
+            spread_score * 0.35 +
+            engagement_score * 0.30
         )
 
-
-
-        spread_probability=round(
-
+        spread_probability = round(
             min(
                 spread_probability,
                 100
             ),
-
             2
-
         )
 
-
-
-        risk_level=self.calculate_risk_level(
-
+        risk_level = self.calculate_risk_level(
             spread_probability
-
         )
 
+        if views > 0:
 
-
-        if views>0:
-
-            predicted_reach=views*(
-
-                1+
-
-                spread_probability/100
-
+            predicted_reach = views * (
+                1 +
+                spread_probability / 100
             )
-
 
         else:
 
-            predicted_reach=total_engagement*(
-
-                5+
-
-                spread_probability/20
-
+            predicted_reach = total_engagement * (
+                5 +
+                spread_probability / 20
             )
 
-
-
-        predicted_reach=round(
-
+        predicted_reach = round(
             predicted_reach,
-
             2
-
         )
 
+        virality_score = round(
+            min(
+                spread_score,
+                100
+            ),
+            2
+        )
 
+        if shares > likes:
 
-        if shares>likes:
+            summary = (
+                "High redistribution potential detected "
+                "because sharing activity is dominant."
+            )
 
-            summary="High redistribution potential detected because sharing activity is dominant."
+        elif risk_score >= 70:
 
+            summary = (
+                "High misinformation risk signals detected."
+            )
 
-        elif risk_score>=70:
+        elif spread_score >= 50:
 
-            summary="High misinformation risk signals detected."
-
-
-        elif spread_score>=50:
-
-            summary="Multiple spread indicators detected."
-
+            summary = (
+                "Multiple spread indicators detected."
+            )
 
         else:
 
-            summary="Low spread indicators detected."
-
-
+            summary = (
+                "Low spread indicators detected."
+            )
 
         return {
 
-            "status":"success",
+            "status": "success",
 
-            "module":"Spread Prediction",
+            "module": "Spread Prediction",
 
-            "data":{
+            "data": {
 
-                "predicted_reach":predicted_reach,
+                "predicted_reach": predicted_reach,
 
-                "spread_probability":spread_probability,
+                "spread_probability": spread_probability,
 
-                "risk_level":risk_level,
+                "risk_level": risk_level,
 
-                "virality_score":round(
+                "virality_score": virality_score,
 
-                    (
+                "features_used": {
 
-                        spread_score*0.6
+                    "likes": likes,
 
-                    )+
+                    "shares": shares,
 
-                    (
+                    "comments": comments,
 
-                        spread_probability*0.4
+                    "views": views,
 
-                    ),
+                    "saves": saves,
 
-                    2
+                    "spread_score": spread_score,
 
-                ),
+                    "risk_score": risk_score,
 
-                "features_used":{
-
-                    "likes":likes,
-
-                    "shares":shares,
-
-                    "comments":comments,
-
-                    "views":views,
-
-                    "saves":saves,
-
-                    "spread_score":spread_score,
-
-                    "risk_score":risk_score,
-
-                    "engagement_score":engagement_score
+                    "engagement_score": engagement_score
 
                 }
 
             },
 
-            "analysis_summary":summary
+            "analysis_summary": summary
 
         }
 
 
-
-prediction_service=PredictionService()
+prediction_service = PredictionService()

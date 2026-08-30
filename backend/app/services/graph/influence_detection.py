@@ -12,7 +12,7 @@ class InfluenceDetection:
     - calculates degree centrality
     - calculates betweenness
     - calculates closeness
-    - combines graph + account signals
+    - combines graph and account signals
     - returns only genuine influencer-type nodes
     """
 
@@ -25,15 +25,7 @@ class InfluenceDetection:
         self.closeness: dict[str, float] = {}
         self.influence_scores: dict[str, float] = {}
 
-    # ============================================================
-    # MAIN PIPELINE
-    # ============================================================
-
     def analyze(self) -> dict:
-        """
-        Run the complete influence analysis pipeline.
-        """
-
         if self.graph.number_of_nodes() == 0:
             return {
                 "top_influencers": [],
@@ -54,12 +46,7 @@ class InfluenceDetection:
             "statistics": self._statistics(),
         }
 
-    # ============================================================
-    # PAGERANK
-    # ============================================================
-
     def _pagerank(self) -> dict[str, float]:
-
         if self.graph.number_of_nodes() == 0:
             return {}
 
@@ -69,37 +56,20 @@ class InfluenceDetection:
             weight="weight",
         )
 
-    # ============================================================
-    # DEGREE
-    # ============================================================
-
     def _degree_scores(self) -> dict:
-
         scores = {}
 
         for node in self.graph.nodes():
-
             scores[node] = {
-                "in_degree":
-                    self.graph.in_degree(node),
-
-                "out_degree":
-                    self.graph.out_degree(node),
-
-                "total_degree":
-                    self.graph.degree(node),
+                "in_degree": self.graph.in_degree(node),
+                "out_degree": self.graph.out_degree(node),
+                "total_degree": self.graph.degree(node),
             }
 
         return scores
 
-    # ============================================================
-    # BETWEENNESS
-    # ============================================================
-
     def _betweenness(self) -> dict[str, float]:
-
         if self.graph.number_of_nodes() <= 1:
-
             return {
                 node: 0.0
                 for node in self.graph.nodes()
@@ -111,12 +81,7 @@ class InfluenceDetection:
             normalized=True,
         )
 
-    # ============================================================
-    # CLOSENESS
-    # ============================================================
-
     def _closeness(self) -> dict[str, float]:
-
         if self.graph.number_of_nodes() == 0:
             return {}
 
@@ -124,14 +89,9 @@ class InfluenceDetection:
             self.graph
         )
 
-    # ============================================================
-    # INFLUENCE SCORE
-    # ============================================================
-
     def _calculate_influence_scores(
         self,
     ) -> dict[str, float]:
-
         scores = {}
 
         max_pr = max(
@@ -157,14 +117,9 @@ class InfluenceDetection:
             default=1,
         )
 
-        # --------------------------------------------------------
-        # Normalize follower counts
-        # --------------------------------------------------------
-
         followers_values = []
 
         for node in self.graph.nodes():
-
             followers = self._safe_number(
                 self.graph.nodes[node].get(
                     "followers",
@@ -181,15 +136,9 @@ class InfluenceDetection:
             default=1,
         )
 
-        # --------------------------------------------------------
-        # Calculate score
-        # --------------------------------------------------------
-
         for node in self.graph.nodes():
-
             data = self.graph.nodes[node]
 
-            # PageRank
             pr = (
                 self.pagerank.get(node, 0)
                 / max_pr
@@ -197,7 +146,6 @@ class InfluenceDetection:
                 else 0
             )
 
-            # Degree
             deg = (
                 self.degree[node]["total_degree"]
                 / max_degree
@@ -205,7 +153,6 @@ class InfluenceDetection:
                 else 0
             )
 
-            # Betweenness
             bet = (
                 self.betweenness.get(node, 0)
                 / max_between
@@ -213,7 +160,6 @@ class InfluenceDetection:
                 else 0
             )
 
-            # Closeness
             clo = (
                 self.closeness.get(node, 0)
                 / max_close
@@ -221,7 +167,6 @@ class InfluenceDetection:
                 else 0
             )
 
-            # Followers
             followers = self._safe_number(
                 data.get("followers", 0)
             )
@@ -232,7 +177,6 @@ class InfluenceDetection:
                 else 0
             )
 
-            # Existing AI influence score
             existing_influence = self._safe_number(
                 data.get(
                     "influenceScore",
@@ -243,19 +187,10 @@ class InfluenceDetection:
                 )
             )
 
-            # Normalize existing influence
             influence_score = min(
                 existing_influence / 100,
                 1,
             )
-
-            # ----------------------------------------------------
-            # Final influence formula
-            #
-            # Graph structure       65%
-            # Account influence     20%
-            # Followers             15%
-            # ----------------------------------------------------
 
             score = (
                 0.30 * pr
@@ -273,20 +208,11 @@ class InfluenceDetection:
 
         return scores
 
-    # ============================================================
-    # INFLUENCER VALIDATION
-    # ============================================================
-
     def _is_valid_influencer(
         self,
         node: str,
     ) -> bool:
-
         data = self.graph.nodes[node]
-
-        # --------------------------------------------------
-        # Normalize role/type values
-        # --------------------------------------------------
 
         role = str(
             data.get("role", "")
@@ -296,7 +222,6 @@ class InfluenceDetection:
             data.get("node_type", "")
         ).strip().lower()
 
-        # Support spaces / hyphens / underscores
         role_normalized = (
             role
             .replace("-", "_")
@@ -308,10 +233,6 @@ class InfluenceDetection:
             .replace("-", "_")
             .replace(" ", "_")
         )
-
-        # --------------------------------------------------
-        # Never classify these as influencers
-        # --------------------------------------------------
 
         if data.get("is_bot", False):
             return False
@@ -334,10 +255,6 @@ class InfluenceDetection:
         ):
             return False
 
-        # --------------------------------------------------
-        # Genuine influencer roles
-        # --------------------------------------------------
-
         valid_roles = {
             "influencer",
             "micro_influencer",
@@ -348,10 +265,6 @@ class InfluenceDetection:
             "creator",
         }
 
-        # --------------------------------------------------
-        # Accept if role OR node type identifies influencer
-        # --------------------------------------------------
-
         if role_normalized in valid_roles:
             return True
 
@@ -359,41 +272,17 @@ class InfluenceDetection:
             return True
 
         return False
-    
-    # ============================================================
-    # TOP INFLUENCERS
-    # ============================================================
 
     def _top_influencers(
         self,
         top_n: int = 10,
     ) -> list[dict]:
-
         candidates = [
             node
             for node in self.graph.nodes()
             if self._is_valid_influencer(node)
         ]
 
-        print("\n========== INFLUENCER DEBUG ==========")
-
-        for node in self.graph.nodes():
-
-            data = self.graph.nodes[node]
-
-            print(
-                node,
-                "| role =", data.get("role"),
-                "| node_type =", data.get("node_type"),
-                "| label =", data.get("label"),
-                "| display_name =", data.get("display_name"),
-                "| followers =", data.get("followers"),
-                "| valid =", self._is_valid_influencer(node),
-            )
-
-        print("VALID INFLUENCERS:", candidates)
-        print("======================================\n")
-                
         ranked = sorted(
             candidates,
             key=lambda node:
@@ -410,7 +299,6 @@ class InfluenceDetection:
             ranked[:top_n],
             start=1,
         ):
-
             data = self.graph.nodes[node]
 
             role = str(
@@ -423,12 +311,6 @@ class InfluenceDetection:
                 )
             )
 
-            # ----------------------------------------------------
-            # IMPORTANT:
-            # Preserve the actual source/name/label.
-            # Do NOT replace it with User X.
-            # ----------------------------------------------------
-
             label = (
                 data.get("label")
                 or data.get("name")
@@ -440,64 +322,42 @@ class InfluenceDetection:
             result.append(
                 {
                     "id": node,
-
                     "label": label,
-
-                    "name":
-                        data.get(
-                            "name",
-                            label,
-                        ),
-
-                    "username":
-                        data.get(
-                            "username",
-                            None,
-                        ),
-
-                    "type":
-                        data.get(
-                            "node_type",
-                            role,
-                        ),
-
+                    "name": data.get(
+                        "name",
+                        label,
+                    ),
+                    "username": data.get(
+                        "username",
+                        None,
+                    ),
+                    "type": data.get(
+                        "node_type",
+                        role,
+                    ),
                     "role": role,
-
-                    "community":
+                    "community": data.get(
+                        "community",
+                        0,
+                    ),
+                    "followers": self._safe_number(
                         data.get(
-                            "community",
+                            "followers",
                             0,
-                        ),
-
-                    "followers":
-                        self._safe_number(
-                            data.get(
-                                "followers",
-                                0,
-                            )
-                        ),
-
-                    "score":
-                        self.influence_scores.get(
-                            node,
-                            0,
-                        ),
-
+                        )
+                    ),
+                    "score": self.influence_scores.get(
+                        node,
+                        0,
+                    ),
                     "rank": rank,
-
-                    "is_top_influencer":
-                        True,
+                    "is_top_influencer": True,
                 }
             )
 
         return result
 
-    # ============================================================
-    # STATISTICS
-    # ============================================================
-
     def _statistics(self) -> dict:
-
         if self.graph.number_of_nodes() == 0:
             return {}
 
@@ -537,7 +397,6 @@ class InfluenceDetection:
         )
 
         return {
-
             "highest_pagerank":
                 self._node_summary(highest_pr),
 
@@ -565,15 +424,10 @@ class InfluenceDetection:
                 influencer_count,
         }
 
-    # ============================================================
-    # HELPERS
-    # ============================================================
-
     def _node_summary(
         self,
         node,
     ):
-
         if node is None:
             return None
 
@@ -593,7 +447,6 @@ class InfluenceDetection:
 
     @staticmethod
     def _safe_number(value) -> float:
-
         try:
             if value is None:
                 return 0.0

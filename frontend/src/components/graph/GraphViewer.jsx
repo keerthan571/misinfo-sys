@@ -189,6 +189,7 @@ function GraphControls() {
 }
 
 function GraphViewportController({ nodes, pdfMode }) {
+
   const {
     fitView,
     getNodes
@@ -217,14 +218,35 @@ function GraphViewportController({ nodes, pdfMode }) {
 
       fitView({
         nodes: currentNodes,
-        padding: pdfMode ? 0.04 : 0.06,
+
+        /*
+         * Small padding keeps the graph large
+         * instead of shrinking it unnecessarily.
+         */
+        padding: pdfMode ? 0.04 : 0.035,
+
         duration: 0,
-        minZoom: pdfMode ? 0.02 : 0.12,
+
+        /*
+         * IMPORTANT:
+         * Prevent React Flow from zooming out
+         * to an unreadably small graph.
+         */
+        minZoom: pdfMode ? 0.20 : 0.30,
         maxZoom: 1.5,
       });
+
     };
 
-    const timer = setTimeout(fitGraph, 300);
+    /*
+     * Wait until React Flow has measured the
+     * custom nodes before fitting.
+     */
+    const timer =
+      setTimeout(
+        fitGraph,
+        350
+      );
 
     return () => {
       clearTimeout(timer);
@@ -252,8 +274,37 @@ function normalizeEdgeType(edge) {
   return {
     ...edge,
 
-    type: "default",
+    type: "smoothstep",
   };
+}
+
+function isPropagationEdge(edge, nodes) {
+  if (!edge?.source || !edge?.target) {
+    return false;
+  }
+
+  const targetNode =
+    nodes.find(
+      node => node.id === edge.target
+    );
+
+  if (!targetNode) {
+    return false;
+  }
+
+  const targetData =
+    targetNode.data || {};
+
+  const parentId =
+    targetData.parentId ??
+    targetNode.parentId ??
+    null;
+
+  return (
+    parentId !== null &&
+    parentId !== undefined &&
+    String(parentId) === String(edge.source)
+  );
 }
 
 function normalizeSavedGraph(
@@ -757,56 +808,60 @@ function normalizeSavedGraph(
       }
     );
 
-  const normalizedEdges =
-    savedGraph.edges.map(
-      (edge, index) => {
+  const normalizedEdges = [];
 
-        const targetNode =
-          savedGraph.nodes.find(
-            node =>
-              node.id === edge.target
-          );
+  const nodeMap = new Map(
+    savedGraph.nodes.map(node => [
+      node.id,
+      node
+    ])
+  );
 
-        const targetParentId =
-          targetNode?.data?.parentId ??
-          targetNode?.parentId ??
-          null;
+  savedGraph.nodes.forEach((node) => {
 
-        let interaction =
-          edge.data?.interaction ||
-          edge.interaction ||
-          edge.edgeType ||
-          null;
+    const parentId =
+      node.data?.parentId ??
+      node.parentId ??
+      null;
 
-        if (!interaction) {
+    if (
+      !parentId ||
+      !nodeMap.has(parentId) ||
+      parentId === node.id
+    ) {
+      return;
+    }
 
-          if (
-            targetParentId &&
-            targetParentId === edge.source
-          ) {
-            interaction = "tree";
-          } else {
-            interaction = "cross";
-          }
-        }
+    normalizedEdges.push({
 
-        return {
-          ...edge,
+      id:
+        `tree-${parentId}-${node.id}`,
 
-          id:
-            edge.id ||
-            `saved-edge-${index}`,
+      source:
+        parentId,
 
-          type: "default",
+      target:
+        node.id,
 
-          data: {
-            ...(edge.data || {}),
+      type:
+        "smoothstep",
 
-            interaction,
-          },
-        };
+      animated:
+        false,
+
+      data: {
+        interaction: "tree",
+        color: "#ffffff"
+      },
+
+      style: {
+        stroke: "#ffffff",
+        strokeWidth: 2,
+        opacity: 0.9
       }
-    );
+    });
+
+  });
 
   const analytics =
     savedGraph.analytics ||
@@ -1243,14 +1298,57 @@ export default function GraphViewer({
            * Run the saved graph through ELK before
            * displaying it.
            */
+          const visualEdges =
+            normalized.edges
+              .filter(edge =>
+                isPropagationEdge(
+                  edge,
+                  normalized.nodes
+                )
+              )
+              .map((edge, index) => ({
+                ...edge,
+
+                id:
+                  edge.id ||
+                  `saved-edge-${index}`,
+
+                type: "smoothstep",
+
+                animated: false,
+
+                style: {
+                  stroke: "#ffffff",
+                  strokeWidth: 2,
+                  opacity: 0.9,
+                },
+
+                markerEnd: {
+                  type: "arrowclosed",
+                  color: "#ffffff",
+                },
+
+                data: {
+                  ...(edge.data || {}),
+
+                  interaction:
+                    edge.data?.interaction ||
+                    edge.interaction ||
+                    edge.edgeType ||
+                    null,
+
+                  color: "#ffffff",
+                },
+              }));
+
           const laidOutNodes =
             await ELKLayoutEngine.layout(
               normalized.nodes,
-              normalized.edges
+              visualEdges
             );
 
           setNodes(laidOutNodes);
-          setEdges(normalized.edges);
+          setEdges(visualEdges);
 
           setAnalytics(normalized.analytics);
           setInfluencers(normalized.influencers);
@@ -1288,6 +1386,15 @@ export default function GraphViewer({
           return;
         }
 
+        const visualEdges =
+          generatedGraph.edges.filter(
+            edge =>
+              isPropagationEdge(
+                edge,
+                generatedGraph.nodes
+              )
+          );
+
         const reactNodes =
           generatedGraph.nodes.map(
             node => ({
@@ -1296,12 +1403,10 @@ export default function GraphViewer({
             })
           );
 
-        setNodes(
-          reactNodes
-        );
+        setNodes(reactNodes);
 
         setEdges(
-          generatedGraph.edges.map(
+          visualEdges.map(
             (edge, index) => ({
               ...edge,
 
@@ -1309,7 +1414,20 @@ export default function GraphViewer({
                 edge.id ||
                 `generated-edge-${index}`,
 
-              type: "default",
+              type: "smoothstep",
+
+              animated: false,
+
+              style: {
+                stroke: "#ffffff",
+                strokeWidth: 2,
+                opacity: 0.9,
+              },
+
+              markerEnd: {
+                type: "arrowclosed",
+                color: "#ffffff",
+              },
 
               data: {
                 ...(edge.data || {}),
@@ -1318,8 +1436,9 @@ export default function GraphViewer({
                   edge.data?.interaction ||
                   edge.interaction ||
                   edge.edgeType ||
-                  edge.type ||
                   null,
+
+                color: "#ffffff",
               },
             })
           )
@@ -1380,57 +1499,11 @@ export default function GraphViewer({
     setSelectedNode(null);
   };
 
+
   const safeEdges = useMemo(() => {
-
-    const fallbackColors = {
-      tree: "#3b82f6",
-      publish: "#22c55e",
-      share: "#f59e0b",
-      cascade: "#a855f7",
-      bot: "#ef4444",
-
-      cross: "#38bdf8",
-      community: "#fbbf24",
-      reshare: "#fb7185",
-      bridge: "#c084fc",
-    };
 
     return (edges || []).map(
       (edge, index) => {
-
-        const interaction =
-          edge?.data?.interaction ||
-          edge?.interaction ||
-          edge?.edgeType ||
-          "share";
-
-        /*
-         * =====================================================
-         * IMPORTANT
-         *
-         * EdgeGenerator ALREADY assigns the correct color.
-         *
-         * DO NOT generate another branch color here.
-         *
-         * Priority:
-         * 1. edge.data.color
-         * 2. edge.style.stroke
-         * 3. fallback interaction color
-         * =====================================================
-         */
-
-        const edgeColor =
-          edge?.data?.color ||
-          edge?.style?.stroke ||
-          fallbackColors[interaction] ||
-          "#94a3b8";
-
-        const isPrimary =
-          interaction === "tree" ||
-          interaction === "publish" ||
-          interaction === "share" ||
-          interaction === "cascade" ||
-          interaction === "bot";
 
         return {
 
@@ -1440,69 +1513,44 @@ export default function GraphViewer({
             edge.id ||
             `edge-${index}`,
 
-          /*
-           * React Flow default edge =
-           * curved Bezier edge.
-           */
-          type: "default",
+          type:
+            "straight",
 
-          /*
-           * Preserve generator animation.
-           */
           animated:
-            edge.animated ??
-            (
-              interaction === "tree" ||
-              interaction === "reshare"
-            ),
+            false,
 
           style: {
 
             ...(edge.style || {}),
 
             /*
-             * USE THE COLOR GENERATED BY EDGEGENERATOR.
+             * ALL GRAPH CONNECTIONS ARE WHITE.
              */
-            stroke: edgeColor,
+            stroke:
+              "#ffffff",
 
             strokeWidth:
-              edge.style?.strokeWidth ||
-              (
-                isPrimary
-                  ? 2.5
-                  : 1.8
-              ),
+              2,
 
             opacity:
-              edge.style?.opacity ??
-              (
-                isPrimary
-                  ? 0.9
-                  : 0.65
-              ),
-
+              0.9
           },
 
           data: {
 
             ...(edge.data || {}),
 
-            interaction,
+            interaction:
+              "tree",
 
-            /*
-             * Keep the actual edge color available.
-             */
-            color: edgeColor,
-
-          },
-
+            color:
+              "#ffffff"
+          }
         };
-
       }
     );
 
   }, [edges]);
-
 
   const selectedData = {
     ...(selectedNode?.data?.originalData || {}),

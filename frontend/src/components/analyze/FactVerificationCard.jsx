@@ -50,12 +50,12 @@ export default function FactVerificationCard({ data }) {
   const verdictStyle = getVerdictStyle();
   const VerdictIcon = verdictStyle.icon;
 
-  const confidence = Number(
-    String(data.confidence ?? "0").replace("%", "")
-  ) || 0;
-
   return (
     <div className="mt-8">
+      {/* =====================================================
+          HEADER
+      ====================================================== */}
+
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center justify-center">
           <FileCheck2
@@ -76,6 +76,11 @@ export default function FactVerificationCard({ data }) {
       </div>
 
       <div className="space-y-5">
+
+        {/* =================================================
+            CLAIM
+        ================================================== */}
+
         <div className="bg-[#0F172A] border border-slate-700/70 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-3">
             <Search
@@ -94,6 +99,10 @@ export default function FactVerificationCard({ data }) {
             </p>
           </div>
         </div>
+
+        {/* =================================================
+            VERDICT
+        ================================================== */}
 
         <div className="bg-[#0F172A] border border-slate-700/70 rounded-2xl p-5">
           <div className="flex items-center justify-between gap-4">
@@ -124,32 +133,9 @@ export default function FactVerificationCard({ data }) {
           </div>
         </div>
 
-        <div className="bg-[#0F172A] border border-slate-700/70 rounded-2xl p-5">
-          <div className="flex justify-between items-center mb-3">
-            <div>
-              <p className="text-slate-500 text-xs uppercase tracking-wider font-semibold">
-                Verification Confidence
-              </p>
-
-              <p className="text-slate-300 text-sm mt-1">
-                Confidence in the verification result
-              </p>
-            </div>
-
-            <span className="text-blue-400 font-bold text-lg">
-              {confidence}%
-            </span>
-          </div>
-
-          <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-blue-600 to-blue-400 h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${Math.min(confidence, 100)}%`,
-              }}
-            />
-          </div>
-        </div>
+        {/* =================================================
+            VERIFICATION REASON
+        ================================================== */}
 
         <div className="bg-[#0F172A] border border-slate-700/70 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-3">
@@ -171,6 +157,10 @@ export default function FactVerificationCard({ data }) {
           </div>
         </div>
 
+        {/* =================================================
+            VERIFICATION SOURCES
+        ================================================== */}
+
         <div className="bg-[#0F172A] border border-slate-700/70 rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -191,39 +181,42 @@ export default function FactVerificationCard({ data }) {
             </div>
           </div>
 
-          {data.sources && data.sources.length > 0 ? (
+          {data.sources &&
+          data.sources.length > 0 ? (
             <div className="space-y-2">
-              {data.sources.map((source, index) => (
-                <a
-                  key={index}
-                  href={source}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="
-                    flex
-                    items-center
-                    gap-3
-                    bg-slate-950/70
-                    border
-                    border-slate-800
-                    rounded-xl
-                    p-3
-                    text-sm
-                    text-blue-400
-                    hover:text-blue-300
-                    hover:border-blue-500/30
-                    transition-all
-                    break-all
-                  "
-                >
-                  <ExternalLink
-                    size={15}
-                    className="shrink-0"
-                  />
+              {data.sources.map(
+                (source, index) => (
+                  <a
+                    key={index}
+                    href={source}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="
+                      flex
+                      items-center
+                      gap-3
+                      bg-slate-950/70
+                      border
+                      border-slate-800
+                      rounded-xl
+                      p-3
+                      text-sm
+                      text-blue-400
+                      hover:text-blue-300
+                      hover:border-blue-500/30
+                      transition-all
+                      break-all
+                    "
+                  >
+                    <ExternalLink
+                      size={15}
+                      className="shrink-0"
+                    />
 
-                  <span>{source}</span>
-                </a>
-              ))}
+                    <span>{source}</span>
+                  </a>
+                )
+              )}
             </div>
           ) : (
             <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4">
@@ -233,6 +226,7 @@ export default function FactVerificationCard({ data }) {
             </div>
           )}
         </div>
+
       </div>
     </div>
   );

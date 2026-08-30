@@ -7,7 +7,6 @@ import {
 
 import {
     createSeededRandom,
-    generatePosition
 } from "./GraphUtils";
 
 export default class NodeGenerator {
@@ -65,83 +64,83 @@ export default class NodeGenerator {
             type: event.type,
             position: this.calculatePosition(event),
             data: {
-                    ...DEFAULT_NODE_DATA,
+                ...DEFAULT_NODE_DATA,
 
-                    id: event.id,
+                id: event.id,
 
-                    label: this.generateLabel(event),
+                label: this.generateLabel(event),
 
-                    displayName:
-                        this.generateUsername(event.id),
+                displayName:
+                    this.generateUsername(event.id),
 
-                    nodeType: event.type,
+                nodeType: event.type,
 
-                    color:
-                        this.resolveColor(event.type),
+                color:
+                    this.resolveColor(event.type),
 
-                    followers:
-                        event.followers,
+                followers:
+                    event.followers,
 
-                    formattedFollowers:
-                        this.formatFollowers(event.followers),
+                formattedFollowers:
+                    this.formatFollowers(event.followers),
 
-                    influenceScore:
-                        event.influence,
+                influenceScore:
+                    event.influence,
 
-                    influencePercent:
-                        event.influence,
+                influencePercent:
+                    event.influence,
 
-                    shareProbability:
-                        this.calculateShareProbability(event),
+                shareProbability:
+                    this.calculateShareProbability(event),
 
-                    verified:
-                        this.isVerified(event),
+                verified:
+                    this.isVerified(event),
 
-                    viral:
-                        event.type === NODE_TYPES.CLAIM,
+                viral:
+                    event.type === NODE_TYPES.CLAIM,
 
-                    publisher:
-                        event.type === NODE_TYPES.CLAIM,
+                publisher:
+                    event.type === NODE_TYPES.CLAIM,
 
-                    community:
-                        this.communityNames[
-                            event.community %
-                            this.communityNames.length
-                        ],
+                community:
+                    this.communityNames[
+                    event.community %
+                    this.communityNames.length
+                    ],
 
-                    reach: 0,
+                reach: 0,
 
-                    networkInfluence: 0,
+                networkInfluence: 0,
 
-                    networkInfluencePercent: 0,
+                networkInfluencePercent: 0,
 
-                    pageRank: 0,
+                pageRank: 0,
 
-                    pageRankScore: 0,
+                pageRankScore: 0,
 
-                    inDegree: 0,
+                inDegree: 0,
 
-                    outDegree: 0,
+                outDegree: 0,
 
-                    degree: 0,
+                degree: 0,
 
-                    weightedReach: 0,
+                weightedReach: 0,
 
-                    platform:
-                        this.blueprint.metadata.platform ||
-                        PLATFORMS.UNKNOWN,
+                platform:
+                    this.blueprint.metadata.platform ||
+                    PLATFORMS.UNKNOWN,
 
-                    parentId:
-                        event.parentId,
+                parentId:
+                    event.parentId,
 
-                    level:
-                        event.level,
+                level:
+                    event.level,
 
-                    createdAt:
-                        this.generateTimestamp(event.level),
+                createdAt:
+                    this.generateTimestamp(event.level),
 
-                    isBot:
-                        event.isBot
+                isBot:
+                    event.isBot
             }
         };
     }
@@ -167,12 +166,10 @@ export default class NodeGenerator {
     }
 
     calculatePosition(event) {
-        return generatePosition(
-            this.random,
-            event.level,
-            event.community,
-            this.blueprint.layout
-        );
+        return {
+            x: 0,
+            y: 0
+        };
     }
 
     generateLabel(event) {
@@ -241,8 +238,19 @@ export default class NodeGenerator {
     }
 
     generateTimestamp(level) {
+        const baseTime =
+            Date.UTC(
+                2026,
+                0,
+                1,
+                0,
+                0,
+                0
+            );
+
         return new Date(
-            Date.now() + level * 60000
+            baseTime +
+            Number(level || 0) * 60000
         ).toISOString();
     }
 
@@ -250,9 +258,9 @@ export default class NodeGenerator {
 
         const base =
             this.usernames[
-                Number(
-                    id.split("-")[1]
-                ) % this.usernames.length
+            Number(
+                id.split("-")[1]
+            ) % this.usernames.length
             ];
 
         const suffixes = [
@@ -270,9 +278,9 @@ export default class NodeGenerator {
 
         const suffix =
             suffixes[
-                Number(
-                    id.split("-")[1]
-                ) % suffixes.length
+            Number(
+                id.split("-")[1]
+            ) % suffixes.length
             ];
 
         return `@${base}${suffix}`;

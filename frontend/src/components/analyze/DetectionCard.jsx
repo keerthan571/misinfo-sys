@@ -1,4 +1,12 @@
-import { Brain, AlertTriangle, CheckCircle, FileText, Globe, KeyRound, ShieldAlert } from "lucide-react";
+import {
+  Brain,
+  AlertTriangle,
+  CheckCircle,
+  FileText,
+  Globe,
+  KeyRound,
+  ShieldAlert,
+} from "lucide-react";
 
 export default function DetectionCard({ data }) {
   if (!data) return null;
@@ -41,9 +49,6 @@ export default function DetectionCard({ data }) {
     };
   };
 
-  const confidenceValue =
-    Number(String(data.confidence || "0").replace("%", "")) || 0;
-
   const predictionStyle = getPredictionStyle(data.prediction);
   const PredictionIcon = predictionStyle.icon;
 
@@ -60,7 +65,7 @@ export default function DetectionCard({ data }) {
           </h2>
 
           <p className="text-slate-500 text-sm mt-0.5">
-            Natural language analysis of the submitted claim
+            Natural language analysis of the submitted content
           </p>
         </div>
       </div>
@@ -70,11 +75,11 @@ export default function DetectionCard({ data }) {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-slate-500 text-xs uppercase tracking-wider font-semibold">
-                Classification
+                NLP Assessment
               </p>
 
               <p className="text-slate-300 text-sm mt-1">
-                AI-generated classification
+                Factual claim assessment
               </p>
             </div>
 
@@ -89,36 +94,9 @@ export default function DetectionCard({ data }) {
               <span
                 className={`text-sm font-semibold ${predictionStyle.text}`}
               >
-                {data.prediction || "Unknown"}
+                {data.prediction || "Needs Verification"}
               </span>
             </div>
-          </div>
-        </div>
-
-        <div className="bg-[#0F172A] border border-slate-700/70 rounded-2xl p-5">
-          <div className="flex justify-between items-center mb-3">
-            <div>
-              <p className="text-slate-500 text-xs uppercase tracking-wider font-semibold">
-                Confidence
-              </p>
-
-              <p className="text-slate-300 text-sm mt-1">
-                Model confidence in classification
-              </p>
-            </div>
-
-            <span className="text-blue-400 font-bold text-lg">
-              {confidenceValue.toFixed(0)}%
-            </span>
-          </div>
-
-          <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-blue-600 to-blue-400 h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${Math.min(confidenceValue, 100)}%`,
-              }}
-            />
           </div>
         </div>
 

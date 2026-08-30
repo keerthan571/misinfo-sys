@@ -9,9 +9,31 @@ export default class BranchAllocator {
 
     allocate(parent, remaining) {
 
+        if (remaining <= 0) {
+            return 0;
+        }
+
+        const influence =
+            Number(parent.influence) || 0;
+
+        const spreadProbability =
+            Math.max(
+                0,
+                Math.min(
+                    1,
+                    Number(
+                        this.simulation.spreadProbability
+                    ) || 0
+                )
+            );
+
         let children = 0;
 
         switch (parent.type) {
+
+            // =========================================
+            // ORIGINAL CLAIM
+            // =========================================
 
             case "claim":
 
@@ -19,108 +41,205 @@ export default class BranchAllocator {
 
                 break;
 
+
+            // =========================================
+            // INFLUENCER
+            // =========================================
+
             case "influencer":
 
-                if (parent.influence >= 70) {
+                if (influence >= 70) {
 
                     children =
-                        this.random.chance(0.70)
+                        this.random.chance(
+                            0.75
+                        )
                             ? 4
                             : 3;
 
-                } else if (parent.influence >= 50) {
+                } else if (influence >= 50) {
 
                     children =
-                        this.random.chance(0.60)
+                        this.random.chance(
+                            0.70
+                        )
                             ? 3
                             : 2;
 
                 } else {
 
                     children = 2;
+                }
 
+                /*
+                 * Strong spread probability can add
+                 * one additional propagation branch.
+                 */
+                if (
+                    spreadProbability >= 0.70 &&
+                    children < 4 &&
+                    this.random.chance(
+                        spreadProbability * 0.35
+                    )
+                ) {
+                    children++;
                 }
 
                 break;
 
+
+            // =========================================
+            // BOT
+            // =========================================
+
             case "bot":
 
                 children =
-                    this.random.chance(0.60)
+                    this.random.chance(
+                        0.65
+                    )
                         ? 2
                         : 1;
 
                 break;
 
+
+            // =========================================
+            // NORMAL USER
+            // =========================================
+
             case "user":
 
-                if (parent.influence >= 35) {
+                if (influence >= 40) {
 
                     children =
-                        this.random.chance(0.65)
+                        this.random.chance(
+                            0.70
+                        )
                             ? 3
                             : 2;
 
-                } else if (parent.influence >= 20) {
+                } else if (influence >= 25) {
 
                     children =
-                        this.random.chance(0.55)
+                        this.random.chance(
+                            0.65
+                        )
                             ? 2
                             : 1;
 
-                } else if (parent.influence >= 10) {
+                } else if (influence >= 12) {
 
+                    /*
+                     * Previously this level had a
+                     * 60% chance of terminating.
+                     *
+                     * Keep at least one child for
+                     * meaningful propagation.
+                     */
                     children =
-                        this.random.chance(0.40)
-                            ? 1
-                            : 0;
+                        this.random.chance(
+                            0.75
+                        )
+                            ? 2
+                            : 1;
 
                 } else {
 
-                    children = 0;
-
+                    /*
+                     * Low influence should still be
+                     * capable of one final cascade.
+                     */
+                    children =
+                        this.random.chance(
+                            0.55 +
+                            spreadProbability * 0.20
+                        )
+                            ? 1
+                            : 0;
                 }
 
                 break;
+
 
             default:
 
                 children = 0;
         }
 
-        return Math.min(
-            children,
-            remaining
-        );
+
+        /*
+         * Never create more nodes than remain.
+         */
+        children =
+            Math.min(
+                children,
+                remaining
+            );
+
+
+        return children;
     }
 
+
+    /*
+     * Kept as a public helper for compatibility.
+     *
+     * PropagationSimulator currently uses allocate(),
+     * so this method is not part of the main path.
+     */
     allocateUserChildren(parent) {
 
         const influence =
-            parent.influence;
+            Number(parent.influence) || 0;
 
         const probability =
-            this.simulation.spreadProbability;
+            Math.max(
+                0,
+                Math.min(
+                    1,
+                    Number(
+                        this.simulation.spreadProbability
+                    ) || 0
+                )
+            );
 
         const decay =
-            this.simulation.cascadeDecay;
+            Math.max(
+                0,
+                Math.min(
+                    1,
+                    Number(
+                        this.simulation.cascadeDecay
+                    ) || 0
+                )
+            );
 
         if (influence >= 60) {
+
             return this.random.chance(
                 0.70 * (1 - decay)
-            ) ? 3 : 2;
+            )
+                ? 3
+                : 2;
         }
 
         if (influence >= 40) {
+
             return this.random.chance(
                 0.60 * probability
-            ) ? 2 : 1;
+            )
+                ? 2
+                : 1;
         }
 
         if (influence >= 20) {
+
             return this.random.chance(
                 0.45 * probability
-            ) ? 1 : 0;
+            )
+                ? 1
+                : 0;
         }
 
         return 0;

@@ -83,7 +83,6 @@ class CommunityDetector:
 
                 follower_value = data.get("followers")
 
-                # Only use follower counts that are actually available.
                 if follower_value is not None:
                     followers.append(
                         follower_value
@@ -135,7 +134,7 @@ class CommunityDetector:
         )
 
         return summary
-    
+
     def _risk_score(
         self,
         bots: int,
@@ -143,11 +142,37 @@ class CommunityDetector:
         average_followers: float,
         size: int,
     ) -> float:
-        score = (
-            bots * 3
-            + influencers * 5
-            + average_followers / 10000
-            + size
+        if size <= 0:
+            return 0.0
+
+        bot_ratio = min(
+            bots / size,
+            1.0
         )
 
-        return score
+        influencer_ratio = min(
+            influencers / size,
+            1.0
+        )
+
+        follower_signal = min(
+            average_followers / 10000,
+            1.0
+        )
+
+        size_signal = min(
+            size / 100,
+            1.0
+        )
+
+        score = (
+            bot_ratio * 40
+            + influencer_ratio * 25
+            + follower_signal * 15
+            + size_signal * 20
+        )
+
+        return max(
+            0.0,
+            min(score, 100.0)
+        )

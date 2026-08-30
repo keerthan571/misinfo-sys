@@ -1,20 +1,21 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.services.graph.graph_generator import graph_generator
 
 router = APIRouter()
 
-# Request Model
+
 class GraphRequest(BaseModel):
-    content: str
-    reposts: int
+    analysis: dict
+    engagement: dict
+    spread_prediction: dict
 
 
-# API Endpoint
 @router.post("/")
 def get_graph(request: GraphRequest):
-    """
-    Generate propagation graph based on content and repost count
-    """
-    result = build_graph(request.content, request.reposts)
-    return result
+    return graph_generator.generate({
+        "analysis": request.analysis,
+        "engagement": request.engagement,
+        "spread_prediction": request.spread_prediction,
+    })

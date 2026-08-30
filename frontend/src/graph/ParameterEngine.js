@@ -6,7 +6,6 @@ import {
 
 export default class ParameterEngine {
     constructor(apiResponse = {}) {
-
         this.analysisData = apiResponse.final_result ?? {};
 
         this.engagement =
@@ -33,15 +32,36 @@ export default class ParameterEngine {
     }
 
     percentage(value) {
-        return this.clamp(Number(value) || 0, 0, 100);
+        return this.clamp(
+            Number(value) || 0,
+            0,
+            100
+        );
     }
 
     probability(value) {
-        return this.clamp(Number(value) || 0, 0, 1);
-    }
-    normalizeLog(value, maxValue) {
+        const number = Number(value) || 0;
 
-        value = Math.max(0, Number(value) || 0);
+        if (number > 1) {
+            return this.clamp(
+                number / 100,
+                0,
+                1
+            );
+        }
+
+        return this.clamp(
+            number,
+            0,
+            1
+        );
+    }
+
+    normalizeLog(value, maxValue) {
+        value = Math.max(
+            0,
+            Number(value) || 0
+        );
 
         return this.clamp(
             (
@@ -54,7 +74,6 @@ export default class ParameterEngine {
     }
 
     normalizeReach() {
-
         return this.normalizeLog(
             this.spread.predicted_reach,
             100000
@@ -62,7 +81,6 @@ export default class ParameterEngine {
     }
 
     normalizeViews() {
-
         return this.normalizeLog(
             this.engagement.views,
             100000
@@ -70,7 +88,6 @@ export default class ParameterEngine {
     }
 
     normalizeShares() {
-
         return this.normalizeLog(
             this.engagement.shares,
             100
@@ -78,7 +95,6 @@ export default class ParameterEngine {
     }
 
     calculatePropagationScore() {
-
         const weights =
             PROPAGATION_RULES.SCORE_WEIGHTS;
 
@@ -108,11 +124,12 @@ export default class ParameterEngine {
             virality * weights.virality +
             probability * weights.probability;
 
-        return Number(score.toFixed(2));
+        return Number(
+            score.toFixed(2)
+        );
     }
 
     calculateTotalNodes(score) {
-
         const min =
             GRAPH_LIMITS.MIN_NODES;
 
@@ -132,11 +149,12 @@ export default class ParameterEngine {
             max
         );
     }
-    
-    calculateBranchFactor() {
 
+    calculateBranchFactor() {
         const shares =
-            Number(this.engagement.shares) || 0;
+            Number(
+                this.engagement.shares
+            ) || 0;
 
         const virality =
             this.percentage(
@@ -176,9 +194,10 @@ export default class ParameterEngine {
     }
 
     calculateInfluencers() {
-
         const followers =
-            Number(this.engagement.followers) || 0;
+            Number(
+                this.engagement.followers
+            ) || 0;
 
         const tier =
             PROPAGATION_RULES.FOLLOWER_TIERS.find(
@@ -189,12 +208,10 @@ export default class ParameterEngine {
     }
 
     graph() {
-
         const propagationScore =
             this.calculatePropagationScore();
 
         return {
-
             propagationScore,
 
             totalNodes:
@@ -203,7 +220,6 @@ export default class ParameterEngine {
                 ),
 
             depth: (() => {
-
                 const probability =
                     this.probability(
                         this.spread.spread_probability
@@ -222,7 +238,6 @@ export default class ParameterEngine {
                     4,
                     8
                 );
-
             })(),
 
             branchFactor:
@@ -234,37 +249,81 @@ export default class ParameterEngine {
     }
 
     composition(graph) {
-        const influencers = this.calculateInfluencers();
-        const bots = this.calculateBots(graph.totalNodes);
-        const users = Math.max(
-            1,
-            graph.totalNodes - influencers - bots - 1
-        );
+        const influencers =
+            this.calculateInfluencers();
+
+        const bots =
+            this.calculateBots(
+                graph.totalNodes
+            );
+
+        const users =
+            Math.max(
+                1,
+                graph.totalNodes -
+                influencers -
+                bots -
+                1
+            );
 
         return {
             claims: 1,
             influencers,
             users,
             bots,
-            communities: this.calculateCommunities()
+            communities:
+                this.calculateCommunities()
         };
     }
 
     propagation() {
         return {
-            riskLevel: this.analysisData.risk_level ?? "Unknown",
-            prediction: this.analysisData.prediction ?? "Unknown",
-            confidence: this.percentage(this.analysisData.confidence),
-            viralityScore: this.percentage(this.spread.virality_score),
-            spreadProbability: this.probability(this.spread.spread_probability),
-            predictedReach: Number(this.spread.predicted_reach) || 0,
-            expectedDepth: Number(this.spread.expected_depth) || 0,
-            estimatedReposts: Number(this.spread.estimated_reposts) || 0,
-            lifetimeHours: Number(this.spread.predicted_lifetime_hours) || 0
+            riskLevel:
+                this.analysisData.risk_level ??
+                "Unknown",
+
+            prediction:
+                this.analysisData.prediction ??
+                "Unknown",
+
+            confidence:
+                this.percentage(
+                    this.analysisData.confidence
+                ),
+
+            viralityScore:
+                this.percentage(
+                    this.spread.virality_score
+                ),
+
+            spreadProbability:
+                this.probability(
+                    this.spread.spread_probability
+                ),
+
+            predictedReach:
+                Number(
+                    this.spread.predicted_reach
+                ) || 0,
+
+            expectedDepth:
+                Number(
+                    this.spread.expected_depth
+                ) || 0,
+
+            estimatedReposts:
+                Number(
+                    this.spread.estimated_reposts
+                ) || 0,
+
+            lifetimeHours:
+                Number(
+                    this.spread.predicted_lifetime_hours
+                ) || 0
         };
     }
-    simulation() {
 
+    simulation() {
         const propagationScore =
             this.calculatePropagationScore();
 
@@ -274,18 +333,20 @@ export default class ParameterEngine {
             );
 
         const risk =
-            (this.analysisData.risk_level || "")
-                .toLowerCase();
+            (
+                this.analysisData.risk_level ||
+                ""
+            ).toLowerCase();
 
         return {
-
             propagationScore,
 
             maxChildren:
                 this.calculateBranchFactor(),
 
             botProbability:
-                PROPAGATION_RULES.BOT_PERCENTAGE[risk] ?? 0,
+                PROPAGATION_RULES
+                    .BOT_PERCENTAGE[risk] ?? 0,
 
             influencerProbability:
                 Math.min(
@@ -301,19 +362,17 @@ export default class ParameterEngine {
                 ),
 
             cascadeDecay:
-            Number(
-            (
-            0.15 +
-            (1 - probability) * 0.5
-            ).toFixed(2)
-            )
+                Number(
+                    (
+                        0.15 +
+                        (1 - probability) * 0.5
+                    ).toFixed(2)
+                )
         };
     }
 
     layout() {
-
         return {
-
             direction: "TB",
 
             levelGap:
@@ -333,10 +392,12 @@ export default class ParameterEngine {
                 min: 100000,
                 max: 1000000
             },
+
             user: {
                 min: 200,
                 max: 10000
             },
+
             bot: {
                 min: 0,
                 max: 500
@@ -365,32 +426,51 @@ export default class ParameterEngine {
             );
 
         return {
-            average: Math.round(
-                base * 0.75
-            ),
-            maximum: base
+            average:
+                Math.round(
+                    base * 0.75
+                ),
+
+            maximum:
+                base
         };
     }
 
     metadataInfo() {
         return {
-            platform: this.platform,
-            verification: this.analysisData.verification_status ?? "Unknown",
-            seed: this.generateSeed()
+            platform:
+                this.platform,
+
+            verification:
+                this.analysisData
+                    .verification_status ??
+                "Unknown",
+
+            seed:
+                this.generateSeed()
         };
     }
 
     calculateDensity() {
-
         const views =
             Math.max(
                 1,
-                Number(this.engagement.views) || 1
+                Number(
+                    this.engagement.views
+                ) || 1
             );
 
         const interactions =
-            (Number(this.engagement.shares) || 0) +
-            (Number(this.engagement.comments) || 0);
+            (
+                Number(
+                    this.engagement.shares
+                ) || 0
+            ) +
+            (
+                Number(
+                    this.engagement.comments
+                ) || 0
+            );
 
         const engagementRate =
             interactions / views;
@@ -405,10 +485,11 @@ export default class ParameterEngine {
     }
 
     calculateBots(totalNodes) {
-
         const risk =
-            (this.analysisData.risk_level || "")
-                .toLowerCase();
+            (
+                this.analysisData.risk_level ||
+                ""
+            ).toLowerCase();
 
         const probability =
             this.probability(
@@ -417,9 +498,14 @@ export default class ParameterEngine {
 
         const percentage =
             (
-                PROPAGATION_RULES.BOT_PERCENTAGE[risk]
-                ?? 0
-            ) * (0.6 + probability);
+                PROPAGATION_RULES
+                    .BOT_PERCENTAGE[risk] ??
+                0
+            ) *
+            (
+                0.6 +
+                probability
+            );
 
         return Math.round(
             totalNodes * percentage
@@ -427,10 +513,11 @@ export default class ParameterEngine {
     }
 
     calculateCommunities() {
-
         const risk =
-            (this.analysisData.risk_level || "")
-                .toLowerCase();
+            (
+                this.analysisData.risk_level ||
+                ""
+            ).toLowerCase();
 
         const virality =
             this.percentage(
@@ -438,7 +525,9 @@ export default class ParameterEngine {
             );
 
         let communities =
-            PROPAGATION_RULES.COMMUNITIES[risk] ?? 2;
+            PROPAGATION_RULES
+                .COMMUNITIES[risk] ??
+            2;
 
         if (virality > 70)
             communities++;
@@ -451,37 +540,69 @@ export default class ParameterEngine {
     }
 
     generateSeed() {
-        return `${this.metadata.analysis_id || "analysis"}-${this.metadata.timestamp || Date.now()}`;
+        const stableInput = JSON.stringify({
+            analysis: this.analysisData,
+            engagement: this.engagement,
+            spread: this.spread,
+            platform: this.platform
+        });
+
+        let hash = 0;
+
+        for (let i = 0; i < stableInput.length; i++) {
+            hash =
+                (
+                    (
+                        hash << 5
+                    ) -
+                    hash +
+                    stableInput.charCodeAt(i)
+                ) |
+                0;
+        }
+
+        return `graph-${Math.abs(hash)}`;
     }
+
     analysis() {
         return {
             pageRankIterations: 20,
             dampingFactor: 0.85
         };
     }
-    generate() {
 
-        const graph = this.graph();
+    generate() {
+        const graph =
+            this.graph();
 
         return {
-
             graph,
 
-            composition: this.composition(graph),
+            composition:
+                this.composition(
+                    graph
+                ),
 
-            propagation: this.propagation(),
+            propagation:
+                this.propagation(),
 
-            simulation: this.simulation(),
+            simulation:
+                this.simulation(),
 
-            followers: this.followers(),
+            followers:
+                this.followers(),
 
-            initialInfluence: this.initialInfluence(),
+            initialInfluence:
+                this.initialInfluence(),
 
-            layout: this.layout(),
+            layout:
+                this.layout(),
 
-            metadata: this.metadataInfo(),
+            metadata:
+                this.metadataInfo(),
 
-            analysis: this.analysis(),
+            analysis:
+                this.analysis(),
         };
     }
 }

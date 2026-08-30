@@ -8,15 +8,6 @@ import networkx as nx
 class GraphSerializer:
     """
     Converts a NetworkX graph into a frontend-ready JSON response.
-
-    The serializer preserves:
-    - node-level propagation metrics
-    - influence metrics
-    - community information
-    - graph statistics
-
-    It also exposes frontend-compatible aliases so the existing
-    React GraphViewer can consume the backend response cleanly.
     """
 
     def __init__(self, graph: nx.DiGraph):
@@ -33,17 +24,11 @@ class GraphSerializer:
 
         statistics = self._statistics()
 
-        # Backend InfluenceDetection returns:
-        # {
-        #     "top_influencers": [...],
-        #     "statistics": {...}
-        # }
         top_influencers = influence.get(
             "top_influencers",
             [],
         )
 
-        # Make a quick lookup for top influencer scores.
         influencer_scores = {
             item.get("id"): item.get("score", 0)
             for item in top_influencers
@@ -54,35 +39,25 @@ class GraphSerializer:
             influencer_scores=influencer_scores
         )
 
-        # CommunityDetector returns:
-        # {
-        #     "communities": [...],
-        #     "summary": [...]
-        # }
         community_list = communities.get(
             "communities",
-            []
+            [],
         )
 
         community_summary = communities.get(
             "summary",
-            []
+            [],
         )
 
-        # Determine the largest community from the actual
-        # detected community data.
         largest_community = self._largest_community(
             community_list
         )
 
-        # Influence statistics calculated by InfluenceDetection.
         influence_statistics = influence.get(
             "statistics",
-            {}
+            {},
         )
 
-        # Keep the original backend structure AND provide
-        # frontend-compatible aliases.
         analytics = {
             "totalNodes": statistics["node_count"],
             "totalEdges": statistics["edge_count"],
@@ -104,38 +79,16 @@ class GraphSerializer:
         }
 
         return {
-            # ==================================================
-            # Main graph
-            # ==================================================
-
             "nodes": nodes,
             "edges": self._edges(),
-
-            # ==================================================
-            # Original backend structures
-            # ==================================================
-
             "statistics": statistics,
             "influence": influence,
             "communities": communities,
-
-            # ==================================================
-            # Frontend-compatible structures
-            # ==================================================
-
             "analytics": analytics,
-
             "influencers": top_influencers,
-
             "communityAnalytics": community_summary,
-
-            # Useful graph metadata
             "largestCommunity": largest_community,
         }
-
-    # ==========================================================
-    # NODE SERIALIZATION
-    # ==========================================================
 
     def _nodes(
         self,
@@ -146,7 +99,6 @@ class GraphSerializer:
 
         nodes = []
 
-        # Find maximum propagation influence for normalization.
         raw_influences = [
             float(
                 data.get(
@@ -166,7 +118,26 @@ class GraphSerializer:
         if max_influence <= 0:
             max_influence = 1
 
-        for node_id, data in self.graph.nodes(data=True):
+        try:
+            page_rank_values = nx.pagerank(
+                self.graph,
+                alpha=0.85,
+                weight="weight",
+            )
+        except Exception:
+            page_rank_values = {}
+
+        max_page_rank = max(
+            page_rank_values.values(),
+            default=1.0,
+        )
+
+        if max_page_rank <= 0:
+            max_page_rank = 1.0
+
+        for node_id, data in self.graph.nodes(
+            data=True
+        ):
 
             influence_score = float(
                 data.get(
@@ -176,17 +147,15 @@ class GraphSerializer:
                 or 0
             )
 
-            # Prefer InfluenceDetection's normalized score
-            # for top influencers when available.
             detected_influence = influencer_scores.get(
                 node_id
             )
 
             if detected_influence is not None:
                 network_influence_percent = round(
-                float(detected_influence),
-                2,
-            )
+                    float(detected_influence),
+                    2,
+                )
             else:
                 network_influence_percent = round(
                     (
@@ -196,15 +165,11 @@ class GraphSerializer:
                     2,
                 )
 
-            # Preserve an explicitly calculated reach if
-            # the propagation engine already supplied one.
             reach = data.get(
                 "reach",
                 None,
             )
 
-            # If reach isn't present, calculate a deterministic
-            # graph-based reach from descendants.
             if reach is None:
                 try:
                     reach = len(
@@ -216,9 +181,10 @@ class GraphSerializer:
                 except Exception:
                     reach = 0
 
-            reach = int(reach or 0)
+            reach = int(
+                reach or 0
+            )
 
-            # Degree metrics
             in_degree = self.graph.in_degree(
                 node_id
             )
@@ -231,49 +197,21 @@ class GraphSerializer:
                 node_id
             )
 
-            # PageRank is calculated independently here so
-            # every node has a meaningful value available to
-            # the frontend.
-            page_rank = 0.0
+            page_rank = round(
+                page_rank_values.get(
+                    node_id,
+                    0.0,
+                ),
+                6,
+            )
 
-            try:
-                page_rank_values = nx.pagerank(
-                    self.graph,
-                    alpha=0.85,
-                    weight="weight",
-                )
-
-                page_rank = round(
-                    page_rank_values.get(
-                        node_id,
-                        0.0,
-                    ),
-                    6,
-                )
-
-            except Exception:
-                page_rank = 0.0
-
-            # Normalize PageRank for frontend display.
-            page_rank_score = 0.0
-
-            try:
-                max_page_rank = max(
-                    page_rank_values.values(),
-                    default=1.0,
-                )
-
-                if max_page_rank > 0:
-                    page_rank_score = round(
-                        (
-                            page_rank
-                            / max_page_rank
-                        ) * 100,
-                        2,
-                    )
-
-            except Exception:
-                page_rank_score = 0.0
+            page_rank_score = round(
+                (
+                    page_rank
+                    / max_page_rank
+                ) * 100,
+                2,
+            )
 
             followers = int(
                 data.get(
@@ -320,26 +258,29 @@ class GraphSerializer:
                 )
             )
 
+            parent_id = data.get(
+                "parent_id"
+            )
+
+            if parent_id is None:
+                predecessors = list(
+                    self.graph.predecessors(
+                        node_id
+                    )
+                )
+
+                if predecessors:
+                    parent_id = predecessors[0]
+
             nodes.append(
                 {
-                    # =========================================
-                    # Core fields
-                    # =========================================
-
                     "id": node_id,
-
                     "label": data.get(
                         "label",
                         node_id,
                     ),
-
                     "type": node_type,
-
                     "nodeType": node_type,
-
-                    # =========================================
-                    # Identity / classification
-                    # =========================================
 
                     "displayName": data.get(
                         "display_name",
@@ -357,27 +298,20 @@ class GraphSerializer:
                         ),
 
                     "leader": is_leader,
-
                     "isLeader": is_leader,
 
                     "bot": is_bot,
-
                     "isBot": is_bot,
 
                     "viral": is_viral,
-
                     "isViral": is_viral,
 
                     "verified": bool(
                         data.get(
                             "verified",
-                            is_leader,
+                            False,
                         )
                     ),
-
-                    # =========================================
-                    # Propagation metrics
-                    # =========================================
 
                     "influenceScore":
                         round(
@@ -402,19 +336,13 @@ class GraphSerializer:
                             4,
                         ),
 
-                    # =========================================
-                    # Network metrics
-                    # =========================================
-
                     "pageRank": page_rank,
 
                     "pageRankScore":
                         page_rank_score,
 
                     "inDegree": in_degree,
-
                     "outDegree": out_degree,
-
                     "degree": degree,
 
                     "weightedReach":
@@ -426,15 +354,7 @@ class GraphSerializer:
                             or 0
                         ),
 
-                    # =========================================
-                    # Community
-                    # =========================================
-
                     "community": community,
-
-                    # =========================================
-                    # Platform / publisher
-                    # =========================================
 
                     "platform": data.get(
                         "platform"
@@ -444,13 +364,7 @@ class GraphSerializer:
                         "publisher"
                     ),
 
-                    # =========================================
-                    # Propagation hierarchy
-                    # =========================================
-
-                    "parentId": data.get(
-                        "parent_id"
-                    ),
+                    "parentId": parent_id,
 
                     "level": data.get(
                         "level",
@@ -461,10 +375,6 @@ class GraphSerializer:
 
         return nodes
 
-    # ==========================================================
-    # EDGE SERIALIZATION
-    # ==========================================================
-
     def _edges(self) -> list[dict[str, Any]]:
 
         edges = []
@@ -473,40 +383,42 @@ class GraphSerializer:
             data=True
         ):
 
+            interaction = data.get(
+                "interaction"
+            )
+
             edges.append(
                 {
-                    "id": f"{source}-{target}",
+                    "id":
+                        f"{source}-{target}",
 
-                    "source": source,
+                    "source":
+                        source,
 
-                    "target": target,
+                    "target":
+                        target,
 
-                    "weight": round(
-                        float(
-                            data.get(
-                                "weight",
-                                1.0,
-                            )
-                            or 1.0
+                    "weight":
+                        round(
+                            float(
+                                data.get(
+                                    "weight",
+                                    1.0,
+                                )
+                                or 1.0
+                            ),
+                            3,
                         ),
-                        3,
-                    ),
 
-                    "interaction": data.get(
-                        "interaction"
-                    ),
+                    "interaction":
+                        interaction,
 
-                    "type": data.get(
-                        "interaction"
-                    ),
+                    "type":
+                        interaction,
                 }
             )
 
         return edges
-
-    # ==========================================================
-    # GRAPH STATISTICS
-    # ==========================================================
 
     def _statistics(self) -> dict[str, Any]:
 
@@ -590,10 +502,6 @@ class GraphSerializer:
                 node_types,
         }
 
-    # ==========================================================
-    # INFLUENCE
-    # ==========================================================
-
     def _average_influence(self) -> float:
 
         values = []
@@ -602,15 +510,15 @@ class GraphSerializer:
             data=True
         ):
 
-            value = float(
-                data.get(
-                    "influence_score",
-                    0,
+            values.append(
+                float(
+                    data.get(
+                        "influence_score",
+                        0,
+                    )
+                    or 0
                 )
-                or 0
             )
-
-            values.append(value)
 
         if not values:
             return 0.0
@@ -619,10 +527,6 @@ class GraphSerializer:
             sum(values) / len(values),
             2,
         )
-
-    # ==========================================================
-    # SPREAD EFFICIENCY
-    # ==========================================================
 
     def _spread_efficiency(self) -> float:
 
@@ -637,12 +541,6 @@ class GraphSerializer:
             self.graph.number_of_edges()
         )
 
-        # A tree-like propagation network has
-        # approximately N-1 edges.
-        #
-        # This represents how effectively the graph
-        # establishes propagation relationships relative
-        # to the minimum connected propagation structure.
         efficiency = (
             edge_count
             / (node_count - 1)
@@ -655,10 +553,6 @@ class GraphSerializer:
             ),
             2,
         )
-
-    # ==========================================================
-    # LARGEST COMMUNITY
-    # ==========================================================
 
     def _largest_community(
         self,
@@ -681,10 +575,6 @@ class GraphSerializer:
             "id",
             "-",
         )
-
-    # ==========================================================
-    # HELPERS
-    # ==========================================================
 
     @staticmethod
     def _format_followers(
