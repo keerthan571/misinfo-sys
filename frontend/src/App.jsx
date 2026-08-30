@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Layout from "./components/layout/Layout";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
-
+import { UserProvider } from "./context/UserContext";
 import Dashboard from "./pages/Dashboard";
 import Analyze from "./pages/Analyze";
 import Graph from "./pages/Graph";
@@ -22,6 +22,8 @@ function App() {
   return (
 
     <BrowserRouter>
+
+       <UserProvider>
 
       <Routes>
 
@@ -144,6 +146,7 @@ function App() {
 
 
       </Routes>
+      </UserProvider>
 
     </BrowserRouter>
 

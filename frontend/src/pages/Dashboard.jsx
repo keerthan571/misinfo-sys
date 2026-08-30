@@ -10,10 +10,12 @@ import Charts from "../components/dashboard/Charts";
 import StatCard from "../components/dashboard/StatCard";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 
-import { getCurrentUser } from "../api/authApi";
+import { useUser } from "../context/UserContext";
 import { getDashboardStats } from "../api/dashboardApi";
 
 export default function Dashboard() {
+  const { user } = useUser();
+
   const [dashboard, setDashboard] = useState({
     totalAnalyses: 0,
     verifiedTrue: 0,
@@ -33,7 +35,6 @@ export default function Dashboard() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [userName, setUserName] = useState("User");
 
   useEffect(() => {
     fetchDashboard();
@@ -41,10 +42,7 @@ export default function Dashboard() {
 
   const fetchDashboard = async () => {
     try {
-      const [dashboardData, userData] = await Promise.all([
-        getDashboardStats(),
-        getCurrentUser(),
-      ]);
+      const dashboardData = await getDashboardStats();
 
       setDashboard((prev) => ({
         ...prev,
@@ -55,8 +53,6 @@ export default function Dashboard() {
         avgConfidence: dashboardData.avgConfidence,
         weeklyAnalysis: dashboardData.weeklyAnalysis,
       }));
-
-      setUserName(userData.name);
     } catch (err) {
       console.error(err);
       setError("Failed to load dashboard.");
@@ -101,6 +97,7 @@ export default function Dashboard() {
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-full border-4 border-slate-700 border-t-blue-500 animate-spin" />
+
           <p className="text-slate-400 text-sm">
             Loading dashboard...
           </p>
@@ -121,8 +118,11 @@ export default function Dashboard() {
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
       <div className="mb-7">
-        <DashboardHeader userName={userName} />
+        <DashboardHeader
+          userName={user?.name || "User"}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-7">
@@ -145,6 +145,7 @@ export default function Dashboard() {
           weeklyAnalysis={dashboard.weeklyAnalysis}
         />
       </div>
+
     </div>
   );
 }
