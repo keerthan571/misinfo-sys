@@ -7,7 +7,7 @@ from typing import Any
 from dotenv import load_dotenv
 from groq import Groq
 from tavily import TavilyClient
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 load_dotenv()
 
@@ -351,34 +351,29 @@ def build_search_queries(claim: str) -> list[str]:
 # ============================================================
 
 def collect_evidence(claim: str):
-
+    
     """
-    Search multiple complementary queries and combine the
-    resulting evidence.
+    Search multiple complementary queries in parallel and combine
+    the resulting evidence.
 
-    Returns:
-        evidence_text
-        sources
+    Search quality is intentionally unchanged:
+    - Same 3 queries
+    - Same advanced Tavily search
+    - Same max_results=5
+    - Same evidence limits
+    - Same deduplication
     """
 
-    all_results = []
+    queries = build_search_queries(claim)
 
-    queries = build_search_queries(
-        claim
-    )
-
-    for query in queries:
+    def search_query(query):
 
         try:
 
             search = tavily_client.search(
-
                 query=query,
-
                 search_depth="advanced",
-
                 max_results=5
-
             )
 
             results = search.get(
@@ -386,14 +381,8 @@ def collect_evidence(claim: str):
                 []
             )
 
-            if isinstance(
-                results,
-                list
-            ):
-
-                all_results.extend(
-                    results
-                )
+            if isinstance(results, list):
+                return results
 
         except Exception:
 
@@ -401,6 +390,26 @@ def collect_evidence(claim: str):
                 "Tavily search failed for query: %s",
                 query
             )
+
+        return []
+
+    # Run the independent Tavily searches concurrently.
+    with ThreadPoolExecutor(
+        max_workers=len(queries)
+    ) as executor:
+
+        results_by_query = list(
+            executor.map(
+                search_query,
+                queries
+            )
+        )
+
+    # Preserve the original query ordering.
+    all_results = []
+
+    for results in results_by_query:
+        all_results.extend(results)
 
     # --------------------------------------------------------
     # Deduplicate results by URL
@@ -434,7 +443,6 @@ def collect_evidence(claim: str):
         )
 
     # Keep evidence manageable.
-
     unique_results = unique_results[:10]
 
     # --------------------------------------------------------
@@ -467,7 +475,6 @@ def collect_evidence(claim: str):
         )
 
         # Limit individual evidence chunks.
-
         content = content[:1800]
 
         evidence_parts.append(
@@ -508,8 +515,6 @@ Content:
         evidence,
         sources
     )
-
-
 # ============================================================
 # VERIFICATION PROMPT
 # ============================================================
