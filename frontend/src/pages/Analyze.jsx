@@ -182,6 +182,26 @@ export default function Analyze() {
         setOcrEngagement={setOcrEngagement}
       />
 
+      {/* Spread Analysis Tip */}
+      <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl px-5 py-4">
+        <div className="flex items-start gap-3">
+          <span className="text-xl mt-0.5">💡</span>
+
+          <div>
+            <p className="text-blue-300 font-semibold text-sm">
+              Tip for more accurate spread analysis
+            </p>
+
+            <p className="text-gray-400 text-sm leading-6 mt-1">
+              Upload a social-media screenshot with visible engagement metrics
+              such as <span className="text-gray-300">likes, comments, shares,
+                reposts, bookmarks, and views</span>. These metrics help the system
+              estimate content spread and propagation risk more accurately.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {error && (
         <div className="bg-red-500/10 border border-red-500 rounded-xl p-4 text-red-300">
           {error}
@@ -210,11 +230,10 @@ export default function Analyze() {
             </h2>
 
             <div
-              className={`grid grid-cols-1 ${
-                isTextMode
+              className={`grid grid-cols-1 ${isTextMode
                   ? "md:grid-cols-2"
                   : "md:grid-cols-3"
-              } gap-4 mb-6`}
+                } gap-4 mb-6`}
             >
               <div className="bg-slate-900 rounded-xl p-5">
                 <p className="text-gray-400 text-sm">
