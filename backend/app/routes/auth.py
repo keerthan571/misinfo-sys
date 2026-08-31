@@ -3,6 +3,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from secrets import token_urlsafe
 from datetime import datetime, timedelta
+import time
+import logging
 
 from app.models.user import UserRegister
 from app.models.password import (
@@ -20,6 +22,9 @@ from app.auth.security import (
 
 from app.auth.dependencies import get_current_user
 from app.auth.email import send_reset_email
+
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(
@@ -81,29 +86,104 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
 
+    login_start = time.perf_counter()
+
+    # -------------------------
+    # MongoDB lookup
+    # -------------------------
+
+    db_start = time.perf_counter()
+
     db_user = users_collection.find_one(
         {"email": form_data.username}
     )
 
+    db_time = (
+        time.perf_counter()
+        - db_start
+    )
+
+    logger.warning(
+        "LOGIN DATABASE LOOKUP TIME: %.2fs",
+        db_time
+    )
+
     if not db_user:
+        logger.warning(
+            "LOGIN FAILED: USER NOT FOUND"
+        )
+
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password"
         )
 
-    if not verify_password(
+    # -------------------------
+    # Password verification
+    # -------------------------
+
+    password_start = time.perf_counter()
+
+    password_valid = verify_password(
         form_data.password,
         db_user["password"]
-    ):
+    )
+
+    password_time = (
+        time.perf_counter()
+        - password_start
+    )
+
+    logger.warning(
+        "LOGIN PASSWORD VERIFICATION TIME: %.2fs",
+        password_time
+    )
+
+    if not password_valid:
+
+        logger.warning(
+            "LOGIN FAILED: INVALID PASSWORD"
+        )
+
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password"
         )
+
+    # -------------------------
+    # JWT creation
+    # -------------------------
+
+    token_start = time.perf_counter()
 
     token = create_access_token(
         {
             "sub": db_user["email"]
         }
+    )
+
+    token_time = (
+        time.perf_counter()
+        - token_start
+    )
+
+    logger.warning(
+        "LOGIN TOKEN CREATION TIME: %.2fs",
+        token_time
+    )
+
+    # -------------------------
+    # Total login time
+    # -------------------------
+
+    total_login_time = (
+        time.perf_counter()
+        - login_start
+    )
+
+    logger.warning(
+        "TOTAL LOGIN PROCESSING TIME: %.2fs",
+        total_login_time
     )
 
     return {
