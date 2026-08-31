@@ -166,18 +166,61 @@ class EngagementExtractor:
 
 
     def extract_numbers(self, image):
-    
+        
         gray = cv2.cvtColor(
             image,
             cv2.COLOR_BGR2GRAY
         )
 
+        original_width = gray.shape[1]
+        original_height = gray.shape[0]
+
+        scale = 5
+
+        target_width = original_width * scale
+        target_height = original_height * scale
+
+        max_dimension = 3000
+
+        longest_side = max(
+            target_width,
+            target_height
+        )
+
+        if longest_side > max_dimension:
+
+            ratio = (
+                max_dimension /
+                longest_side
+            )
+
+            target_width = max(
+                1,
+                int(target_width * ratio)
+            )
+
+            target_height = max(
+                1,
+                int(target_height * ratio)
+            )
+
         gray = cv2.resize(
             gray,
-            None,
-            fx=5,
-            fy=5,
+            (
+                target_width,
+                target_height
+            ),
             interpolation=cv2.INTER_CUBIC
+        )
+
+        scale_x = (
+            target_width /
+            original_width
+        )
+
+        scale_y = (
+            target_height /
+            original_height
         )
 
         tesseract_start = time.perf_counter()
@@ -217,12 +260,14 @@ class EngagementExtractor:
                 numbers.append(
                     {
                         "value": value,
-
-                        "x":
-                            data["left"][i] / 5,
-
-                        "y":
-                            data["top"][i] / 5
+                        "x": (
+                            data["left"][i]
+                            / scale_x
+                        ),
+                        "y": (
+                            data["top"][i]
+                            / scale_y
+                        )
                     }
                 )
 
@@ -232,7 +277,7 @@ class EngagementExtractor:
         )
 
         return numbers
-    
+   
     def extract_numbers_fast(
         self,
         image,
@@ -362,13 +407,42 @@ class EngagementExtractor:
             crop,
             cv2.COLOR_BGR2GRAY
         )
+       
+        scale = 5
 
+        target_width = gray.shape[1] * scale
+        target_height = gray.shape[0] * scale
+
+        max_dimension = 3000
+
+        longest_side = max(
+            target_width,
+            target_height
+        )
+
+        if longest_side > max_dimension:
+
+            ratio = (
+                max_dimension /
+                longest_side
+            )
+
+            target_width = max(
+                1,
+                int(target_width * ratio)
+            )
+
+            target_height = max(
+                1,
+                int(target_height * ratio)
+            )
 
         gray = cv2.resize(
             gray,
-            None,
-            fx=5,
-            fy=5,
+            (
+                target_width,
+                target_height
+            ),
             interpolation=cv2.INTER_CUBIC
         )
 
