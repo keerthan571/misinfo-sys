@@ -166,7 +166,7 @@ class EngagementExtractor:
 
 
     def extract_numbers(self, image):
-        
+    
         gray = cv2.cvtColor(
             image,
             cv2.COLOR_BGR2GRAY
@@ -180,7 +180,8 @@ class EngagementExtractor:
         target_width = original_width * scale
         target_height = original_height * scale
 
-        max_dimension = 3000
+        # Keep OCR image reasonably small for Render.
+        max_dimension = 2000
 
         longest_side = max(
             target_width,
@@ -260,10 +261,12 @@ class EngagementExtractor:
                 numbers.append(
                     {
                         "value": value,
+
                         "x": (
                             data["left"][i]
                             / scale_x
                         ),
+
                         "y": (
                             data["top"][i]
                             / scale_y
@@ -277,7 +280,6 @@ class EngagementExtractor:
         )
 
         return numbers
-   
     def extract_numbers_fast(
         self,
         image,
