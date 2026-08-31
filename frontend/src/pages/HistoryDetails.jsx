@@ -800,13 +800,6 @@ export default function HistoryDetails() {
             value:
               analysis.platform?.platform ||
               "Unknown"
-          },
-          {
-            label: "Confidence",
-            value:
-              `${analysis.platform?.confidence ??
-              100
-              }%`
           }
         ]);
 
@@ -846,33 +839,75 @@ export default function HistoryDetails() {
             "#graph-container"
           );
 
-        if (graphContainer) {
-
+        if (!graphContainer) {
+          console.error(
+            "GRAPH PDF ERROR: #graph-container not found."
+          );
+        } else {
           try {
 
-            // Give React Flow enough time to finish
-            // rendering and fit the complete graph.
+            /*
+             * ==========================================
+             * WAIT FOR GRAPH TO FINISH RENDERING
+             * ==========================================
+             */
+
             await new Promise(
               resolve =>
-                setTimeout(resolve, 2500)
+                setTimeout(resolve, 3000)
             );
 
+            /*
+             * ==========================================
+             * GET ACTUAL RENDERED GRAPH SIZE
+             * ==========================================
+             */
+
             const capturedGraphWidth =
-              graphContainer.scrollWidth;
+              graphContainer.clientWidth;
 
             const capturedGraphHeight =
-              graphContainer.scrollHeight;
+              graphContainer.clientHeight;
+
+            if (
+              capturedGraphWidth <= 0 ||
+              capturedGraphHeight <= 0
+            ) {
+              throw new Error(
+                `Invalid graph dimensions: ${capturedGraphWidth
+                } x ${capturedGraphHeight
+                }`
+              );
+            }
+
+            console.log(
+              "PDF GRAPH SIZE:",
+              capturedGraphWidth,
+              capturedGraphHeight
+            );
+
+            /*
+             * ==========================================
+             * CAPTURE GRAPH
+             * ==========================================
+             */
 
             const graphImage =
               await toPng(
                 graphContainer,
                 {
                   cacheBust: true,
-                  pixelRatio: 2,
-                  backgroundColor: "#1e293b",
 
-                  width: capturedGraphWidth,
-                  height: capturedGraphHeight,
+                  pixelRatio: 2,
+
+                  backgroundColor:
+                    "#1e293b",
+
+                  width:
+                    capturedGraphWidth,
+
+                  height:
+                    capturedGraphHeight,
 
                   style: {
                     width:
@@ -881,14 +916,48 @@ export default function HistoryDetails() {
                     height:
                       `${capturedGraphHeight}px`,
 
-                    overflow: "visible",
-                  },
+                    overflow:
+                      "hidden",
+
+                    maxWidth:
+                      "none",
+
+                    maxHeight:
+                      "none",
+                  }
                 }
               );
 
             /*
              * ==========================================
-             * LANDSCAPE GRAPH PAGE
+             * LOAD CAPTURED IMAGE
+             * ==========================================
+             */
+
+            const graphImg =
+              await new Promise(
+                (resolve, reject) => {
+
+                  const img =
+                    new Image();
+
+                  img.onload = () =>
+                    resolve(img);
+
+                  img.onerror = () =>
+                    reject(
+                      new Error(
+                        "Failed to load captured graph."
+                      )
+                    );
+
+                  img.src = graphImage;
+                }
+              );
+
+            /*
+             * ==========================================
+             * ADD LANDSCAPE PAGE
              * ==========================================
              */
 
@@ -906,7 +975,9 @@ export default function HistoryDetails() {
             const graphMargin = 12;
 
             /*
-             * Title
+             * ==========================================
+             * TITLE
+             * ==========================================
              */
 
             pdf.setFont(
@@ -929,7 +1000,9 @@ export default function HistoryDetails() {
             );
 
             /*
-             * Statistics
+             * ==========================================
+             * STATISTICS
+             * ==========================================
              */
 
             pdf.setFont(
@@ -966,7 +1039,7 @@ export default function HistoryDetails() {
 
             /*
              * ==========================================
-             * AVAILABLE GRAPH AREA
+             * AVAILABLE PAGE AREA
              * ==========================================
              */
 
@@ -978,13 +1051,25 @@ export default function HistoryDetails() {
               landscapeHeight -
               40;
 
+            /*
+             * ==========================================
+             * PRESERVE GRAPH ASPECT RATIO
+             * ==========================================
+             */
+
             const graphRatio =
               graphImg.width /
               graphImg.height;
 
+            let graphWidth =
+              availableWidth;
+
+            let graphHeight =
+              graphWidth /
+              graphRatio;
+
             /*
-             * Never allow graph to exceed
-             * the available page height.
+             * Scale down if graph is too tall.
              */
 
             if (
@@ -1001,7 +1086,9 @@ export default function HistoryDetails() {
             }
 
             /*
-             * Center horizontally.
+             * ==========================================
+             * CENTER GRAPH
+             * ==========================================
              */
 
             const graphX =
@@ -1011,10 +1098,6 @@ export default function HistoryDetails() {
                 graphWidth
               ) / 2;
 
-            /*
-             * Center vertically.
-             */
-
             const graphY =
               32 +
               (
@@ -1023,13 +1106,19 @@ export default function HistoryDetails() {
               ) / 2;
 
             /*
-             * Graph border
+             * ==========================================
+             * BORDER
+             * ==========================================
              */
 
             pdf.setDrawColor(
               190,
               195,
               205
+            );
+
+            pdf.setLineWidth(
+              0.4
             );
 
             pdf.roundedRect(
@@ -1042,7 +1131,9 @@ export default function HistoryDetails() {
             );
 
             /*
-             * FULL GRAPH
+             * ==========================================
+             * INSERT COMPLETE GRAPH
+             * ==========================================
              */
 
             pdf.addImage(
@@ -1055,8 +1146,15 @@ export default function HistoryDetails() {
             );
 
             /*
-             * Footer
+             * ==========================================
+             * FOOTER
+             * ==========================================
              */
+
+            pdf.setFont(
+              "helvetica",
+              "normal"
+            );
 
             pdf.setFontSize(8);
 
@@ -1096,15 +1194,15 @@ export default function HistoryDetails() {
           }
         }
 
-      }
-
-      /* ==========================================
-         SAVE
+        /* ==========================================
+        SAVE
       ========================================== */
 
-      pdf.save(
-        `analysis_${analysis.analysis_id}.pdf`
-      );
+        pdf.save(
+          `analysis_${analysis.analysis_id}.pdf`
+        );
+
+      }
 
     } catch (error) {
 
