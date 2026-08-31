@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import time
 from typing import Any
 
 from dotenv import load_dotenv
@@ -425,7 +426,11 @@ def collect_evidence(
         platform=platform,
     )
 
+    search_start = time.perf_counter()
+
     def search_query(query):
+    
+        query_start = time.perf_counter()
 
         try:
 
@@ -440,18 +445,35 @@ def collect_evidence(
                 []
             )
 
+            query_time = (
+                time.perf_counter()
+                - query_start
+            )
+
+            logger.info(
+                "TAVILY QUERY TIME: %.2fs | results=%s | query=%s",
+                query_time,
+                len(results) if isinstance(results, list) else 0,
+                query
+            )
+
             if isinstance(results, list):
                 return results
 
         except Exception:
 
+            query_time = (
+                time.perf_counter()
+                - query_start
+            )
+
             logger.exception(
-                "Tavily search failed for query: %s",
+                "Tavily search failed after %.2fs | query=%s",
+                query_time,
                 query
             )
 
         return []
-
     # Run the independent Tavily searches concurrently.
     with ThreadPoolExecutor(
         max_workers=len(queries)
@@ -464,6 +486,17 @@ def collect_evidence(
             )
         )
 
+    search_total_time = (
+        time.perf_counter()
+        - search_start
+    )
+
+    logger.info(
+        "TAVILY TOTAL TIME: %.2fs | queries=%s",
+        search_total_time,
+        len(queries)
+    )
+    
     # Preserve the original query ordering.
     all_results = []
 
@@ -931,13 +964,14 @@ Rules:
 # ============================================================
 # MAIN VERIFICATION FUNCTION
 # ============================================================
-
 def verify_claim(
     claim: str,
     context: str = "",
     publisher: str | None = None,
     platform: str | None = None,
 ):
+
+    verification_start = time.perf_counter()
 
     claim = normalize_text(
         claim
@@ -1097,12 +1131,24 @@ def verify_claim(
         # Verify using Groq
         # ----------------------------------------------------
 
+        groq_start = time.perf_counter()
+
         result = run_groq_verification(
             claim=claim,
             evidence=evidence,
             context=context,
             publisher=publisher,
             platform=platform,
+        )
+
+        groq_total_time = (
+            time.perf_counter()
+            - groq_start
+        )
+
+        logger.info(
+            "GROQ VERIFICATION TIME: %.2fs",
+            groq_total_time
         )
 
         # ----------------------------------------------------
@@ -1190,9 +1236,14 @@ def verify_claim(
         # SUCCESS
         # ----------------------------------------------------
 
+        verification_total_time = (
+            time.perf_counter()
+            - verification_start
+        )
+
         logger.info(
-            "Fact verification completed: verdict=%s "
-            "confidence=%s sources=%s",
+            "FACT VERIFICATION TOTAL: %.2fs | verdict=%s | confidence=%s | sources=%s",
+            verification_total_time,
             verdict,
             confidence,
             len(sources)
