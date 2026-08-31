@@ -480,11 +480,17 @@ class AnalysisPipeline:
         # ---------------------------------------------------------
         # NLP
         # ---------------------------------------------------------
-
+        nlp_start = time.perf_counter()
         detection = (
             nlp_service.analyze_text(
                 final_text
             )
+        )
+        nlp_time = time.perf_counter() - nlp_start
+
+        logger.warning(
+            "NLP TIME: %.2fs",
+            nlp_time
         )
 
         claim = detection.get(
@@ -594,13 +600,19 @@ class AnalysisPipeline:
                 detection.get("status") == "success"
                 and nlp_risk_score is not None
             ):
-
+                spread_start = time.perf_counter()
                 spread_analysis = (
                     spread_factor_service.analyze(
                         engagement,
                         detection,
                         platform
                     )
+                )
+                spread_time = time.perf_counter() - spread_start
+
+                logger.warning(
+                    "SPREAD ANALYSIS TIME: %.2fs",
+                    spread_time
                 )
 
                 spread_score = (
@@ -637,7 +649,7 @@ class AnalysisPipeline:
                     # a valid spread prediction exists.
 
                     if prediction and prediction.get("data"):
-
+                        graph_start = time.perf_counter()
                         graph = (
                             graph_generator.generate(
                                 {
@@ -666,6 +678,12 @@ class AnalysisPipeline:
                                         ]
                                 }
                             )
+                        )
+                        graph_time = time.perf_counter() - graph_start
+
+                        logger.warning(
+                            "GRAPH GENERATION TIME: %.2fs",
+                            graph_time
                         )
 
             else:
@@ -850,7 +868,8 @@ class AnalysisPipeline:
             if current_user
             else None
         )
-
+        
+        db_start = time.perf_counter()
         analysis_collection.insert_one(
             {
                 **response,
@@ -864,8 +883,14 @@ class AnalysisPipeline:
                     )
             }
         )
+        db_time = time.perf_counter() - db_start
 
-        logger.info(
+        logger.warning(
+            "DATABASE SAVE TIME: %.2fs",
+            db_time
+        )
+
+        logger.warning(
             "Analysis completed successfully. "
             "analysis_id=%s platform=%s social_input=%s "
             "graph_generated=%s processing_time=%.2fs",
