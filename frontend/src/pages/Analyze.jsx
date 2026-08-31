@@ -88,7 +88,10 @@ export default function Analyze() {
         response.data?.analysis?.image?.path;
 
       if (savedImage) {
-        preview = `http://127.0.0.1:8000/${savedImage.replace("\\", "/")}`;
+        const normalizedPath = savedImage.replace(/\\/g, "/");
+
+        preview = `${apiClient.defaults.baseURL}/${normalizedPath}`;
+
         setImagePreview(preview);
       } else {
         setImagePreview(null);
