@@ -166,12 +166,11 @@ class EngagementExtractor:
 
 
     def extract_numbers(self, image):
-
-        gray = cv2.cvtColor(
+    
+        gray = cv2.cvt(
             image,
             cv2.COLOR_BGR2GRAY
         )
-
 
         gray = cv2.resize(
             gray,
@@ -181,6 +180,7 @@ class EngagementExtractor:
             interpolation=cv2.INTER_CUBIC
         )
 
+        tesseract_start = time.perf_counter()
 
         data = pytesseract.image_to_data(
             gray,
@@ -188,40 +188,19 @@ class EngagementExtractor:
             output_type=pytesseract.Output.DICT
         )
 
-
-        numbers = []
-
-
-        for i, text in enumerate(data["text"]):
-
-            value = self.clean_number(
-                text
-            )
-
-
-            if value > 0:
-
-                numbers.append({
-
-                    "value": value,
-
-                    "x":
-                        data["left"][i] / 5,
-
-                    "y":
-                        data["top"][i] / 5
-
-                })
-
-
-        print(
-            "NUMBERS:",
-            numbers
+        tesseract_time = (
+            time.perf_counter()
+            - tesseract_start
         )
 
-
-        return numbers
-
+        print(
+            "TESSERACT TIME:",
+            round(
+                tesseract_time,
+                2
+            ),
+            "seconds"
+        )
 
     def extract_numbers_fast(
         self,
