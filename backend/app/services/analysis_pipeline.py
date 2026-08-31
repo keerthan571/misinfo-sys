@@ -246,11 +246,23 @@ class AnalysisPipeline:
             # =====================================================
 
             else:
+    
+                engagement_start = time.perf_counter()
 
                 opencv_engagement = (
                     engagement_extractor.analyze(
                         img
                     )
+                )
+
+                engagement_time = (
+                    time.perf_counter()
+                    - engagement_start
+                )
+
+                logger.warning(
+                    "ENGAGEMENT EXTRACTION TIME: %.2fs",
+                    engagement_time
                 )
 
                 engagement_values.update(
