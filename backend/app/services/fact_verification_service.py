@@ -450,7 +450,7 @@ def collect_evidence(
                 - query_start
             )
 
-            logger.info(
+            logger.warning(
                 "TAVILY QUERY TIME: %.2fs | results=%s | query=%s",
                 query_time,
                 len(results) if isinstance(results, list) else 0,
@@ -491,7 +491,7 @@ def collect_evidence(
         - search_start
     )
 
-    logger.info(
+    logger.warning(
         "TAVILY TOTAL TIME: %.2fs | queries=%s",
         search_total_time,
         len(queries)
@@ -1146,7 +1146,7 @@ def verify_claim(
             - groq_start
         )
 
-        logger.info(
+        logger.warning(
             "GROQ VERIFICATION TIME: %.2fs",
             groq_total_time
         )
@@ -1241,7 +1241,7 @@ def verify_claim(
             - verification_start
         )
 
-        logger.info(
+        logger.warning(
             "FACT VERIFICATION TOTAL: %.2fs | verdict=%s | confidence=%s | sources=%s",
             verification_total_time,
             verdict,
