@@ -3,6 +3,7 @@ import pytesseract
 import os
 import re
 import math
+import time
 
 
 BASE_DIR = os.path.dirname(
@@ -282,13 +283,15 @@ class EngagementExtractor:
 
 
         # Detect icons
+
+        icon_start = time.perf_counter()
+
         for key, template in self.templates.items():
 
             location = self.find_icon(
                 image,
                 template
             )
-
 
             if location is not None:
 
@@ -299,10 +302,40 @@ class EngagementExtractor:
 
                 }
 
+        icon_time = (
+            time.perf_counter()
+            - icon_start
+        )
+
+        print(
+            "ICON DETECTION TIME:",
+            round(
+                icon_time,
+                2
+            ),
+            "seconds"
+        )
 
 
+        ocr_start = time.perf_counter()
 
-        numbers = self.extract_numbers(image)
+        numbers = self.extract_numbers(
+            image
+        )
+
+        ocr_time = (
+            time.perf_counter()
+            - ocr_start
+        )
+
+        print(
+            "ENGAGEMENT OCR TIME:",
+            round(
+                ocr_time,
+                2
+            ),
+            "seconds"
+        )
 
 
         print(
