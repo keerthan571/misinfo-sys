@@ -167,7 +167,7 @@ class EngagementExtractor:
 
     def extract_numbers(self, image):
     
-        gray = cv2.cvt(
+        gray = cv2.cvtColor(
             image,
             cv2.COLOR_BGR2GRAY
         )
@@ -202,6 +202,37 @@ class EngagementExtractor:
             "seconds"
         )
 
+        numbers = []
+
+        for i, text in enumerate(
+            data["text"]
+        ):
+
+            value = self.clean_number(
+                text
+            )
+
+            if value > 0:
+
+                numbers.append(
+                    {
+                        "value": value,
+
+                        "x":
+                            data["left"][i] / 5,
+
+                        "y":
+                            data["top"][i] / 5
+                    }
+                )
+
+        print(
+            "NUMBERS:",
+            numbers
+        )
+
+        return numbers
+    
     def extract_numbers_fast(
         self,
         image,
