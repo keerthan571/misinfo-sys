@@ -251,7 +251,8 @@ class AnalysisPipeline:
 
                 opencv_engagement = (
                     engagement_extractor.analyze(
-                        img
+                        img,
+                        platform=platform
                     )
                 )
 

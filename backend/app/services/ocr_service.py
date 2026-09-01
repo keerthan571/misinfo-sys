@@ -76,7 +76,7 @@ class OCRService:
         "eng+hin+kan",
     }
 
-    DEFAULT_LANGUAGE = "eng"
+    DEFAULT_LANGUAGE = "eng+hin+kan"
 
     # -----------------------------------------------------
     # LANGUAGE NORMALIZATION
