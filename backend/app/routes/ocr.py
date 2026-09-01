@@ -777,7 +777,7 @@ ocr_service = OCRService()
 @router.post("/")
 async def extract_ocr(
     file: UploadFile = File(...),
-    language: str = "eng",
+    language: str = "eng+hin+kan",
 ):
 
     if not file.filename:
