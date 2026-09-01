@@ -1,11 +1,26 @@
 import cv2
 
-from app.services.engagement_extractor import engagement_extractor
+from app.services.engagement_extractor import (
+    engagement_extractor
+)
+
+
+IMAGE_PATH = r"C:\Users\Keerthan\OneDrive\Desktop\photo\WhatsApp Image 2026-08-08 at 4.48.22 PM.jpeg"
 
 
 image = cv2.imread(
-    "test_instagram.png"
+    IMAGE_PATH
 )
+
+
+if image is None:
+    print("ERROR: Could not load image")
+    raise SystemExit(1)
+
+
+print("\n==============================")
+print("STARTING ENGAGEMENT TEST")
+print("==============================\n")
 
 
 result = engagement_extractor.analyze(
@@ -13,5 +28,8 @@ result = engagement_extractor.analyze(
 )
 
 
-print("RESULT:")
+print("\n==============================")
+print("RESULT")
+print("==============================")
+
 print(result)
