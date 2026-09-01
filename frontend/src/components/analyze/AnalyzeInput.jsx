@@ -52,7 +52,15 @@ export default function AnalyzeInput({
       );
       console.log("OCR RESPONSE:", data);
       if (data.status === "success") {
-        setNews(data.extracted_text || "");
+        const extractedText =
+          data.extracted_text ||
+          data.post_text ||
+          "";
+
+        // Put the exact multilingual OCR result
+        // into the News Text box.
+        setNews(extractedText);
+
         setOcrEngagement({
           ...(data.ordered_values || {}),
           publisher: data.publisher || null,
