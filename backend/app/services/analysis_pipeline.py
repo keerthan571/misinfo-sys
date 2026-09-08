@@ -29,7 +29,9 @@ from app.services.graph.graph_generator import (
 from app.services.nlp_service import (
     nlp_service
 )
-
+from app.services.ocr_service import (
+    ocr_service
+)
 from app.services.prediction_service import (
     prediction_service
 )
@@ -49,6 +51,7 @@ from app.services.twitter_views_detector import (
 from app.services.vision_engagement_detector import (
     vision_engagement_detector
 )
+
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -530,27 +533,24 @@ class AnalysisPipeline:
                         flush=True
                     )
 
-        # ---------------------------------------------------------
+        # =========================================================
         # FINAL TEXT / NLP BOUNDARY
-        # ---------------------------------------------------------
-        #
-        # IMPORTANT:
-        # Engagement extraction is already handled separately.
-        # Do NOT modify engagement_values here.
-        #
-        # For screenshot/OCR input, prefer OCR post_text.
-        # post_text is the cleaned social-media content returned
-        # by OCR and is the only OCR text that should enter NLP.
-        #
-        # For manually supplied text, use input_text directly.
-        # ---------------------------------------------------------
+        # =========================================================
 
         if input_text:
-
+    
+            # Manual text input — use exactly what the user entered.
             final_text = input_text.strip()
 
-        elif ocr_text:
+        elif ocr_values.get("post_text"):
     
+            final_text = str(
+                ocr_values.get("post_text", "")
+            ).strip()
+
+        elif ocr_text:
+
+            # Compatibility fallback for older OCR responses.
             final_text = ocr_text.strip()
 
         else:
@@ -558,6 +558,45 @@ class AnalysisPipeline:
             final_text = extracted_text.strip()
 
 
+        print(
+            "\n" + "=" * 80,
+            flush=True
+        )
+
+        print(
+            "DEBUG: FINAL TEXT ENTERING TRANSLATION",
+            flush=True
+        )
+
+        print(
+            "=" * 80,
+            flush=True
+        )
+
+        print(
+            final_text,
+            flush=True
+        )
+
+        print(
+            "=" * 80 + "\n",
+            flush=True
+        )
+
+
+        cleaned_nlp_text = final_text
+
+        original_language = (
+            ocr_service.detect_text_language(
+                cleaned_nlp_text
+            )
+        )
+
+        print(
+            "DEBUG: ORIGINAL POST LANGUAGE:",
+            original_language,
+            flush=True
+        )
         print("\n" + "=" * 80, flush=True)
         print("DEBUG: OCR TEXT RECEIVED BY ANALYSIS PIPELINE", flush=True)
         print("=" * 80, flush=True)
@@ -660,6 +699,31 @@ class AnalysisPipeline:
         )
         nlp_time = time.perf_counter() - nlp_start
 
+        # =========================================================
+        # PRESERVE ORIGINAL POST LANGUAGE
+        # =========================================================
+        #
+        # NLP receives English translated text, so its own
+        # language field may become "English".
+        #
+        # The UI must show the language of the ORIGINAL POST,
+        # not the language used internally for NLP.
+        #
+        # OCR service already detected the original language.
+        # =========================================================
+
+        if (
+            detection.get("status") == "success"
+            and original_language
+            and original_language != "Unknown"
+        ):
+            detection["language"] = original_language
+
+        print(
+            "DEBUG: FINAL DISPLAY LANGUAGE:",
+            detection.get("language"),
+            flush=True
+        )
         print(
             f"NLP TIME: {nlp_time:.2f}s",
             flush=True
@@ -1193,21 +1257,46 @@ class AnalysisPipeline:
                             "Translate the user's OCR text into English.\n\n"
 
                             "The OCR may contain Kannada, Hindi, English, "
-                            "mixed languages, OCR spacing errors, and OCR noise.\n\n"
+                            "mixed languages, OCR spacing errors, character "
+                            "recognition errors, and social-media interface text.\n\n"
 
                             "Instructions:\n"
+
                             "1. Translate readable Kannada or Hindi into English.\n"
-                            "2. Preserve names, numbers, dates and factual claims.\n"
-                            "3. Preserve questions as questions.\n"
-                            "4. Ignore obvious social-media UI text such as "
-                            "More, See translation, Like, Comment, Share and Follow.\n"
-                            "5. Fix obvious OCR spacing errors when possible.\n"
-                            "6. Do not explain your reasoning.\n"
-                            "7. Do not describe the OCR quality.\n"
-                            "8. Do not summarize.\n"
-                            "9. If a portion is unreadable, omit only that "
-                            "unreadable portion rather than inventing content.\n"
-                            "10. Return ONLY the English translation."
+
+                            "2. Preserve proper names, people, organizations, "
+                            "abbreviations, numbers, dates and factual statements.\n"
+
+                            "3. Preserve the meaning of the original text exactly.\n"
+
+                            "4. Do NOT invent, expand, reinterpret or guess "
+                            "abbreviations, names or OCR-corrupted words.\n"
+
+                            "5. If an abbreviation or name is ambiguous, preserve "
+                            "the original Latin form instead of guessing its meaning.\n"
+
+                            "6. Do not convert an unclear OCR word into a different "
+                            "word merely because it seems more likely from context.\n"
+
+                            "7. Preserve questions as questions.\n"
+
+                            "8. Ignore obvious social-media UI text such as "
+                            "More, See translation, Like, Comment, Share, "
+                            "Follow and Show translation.\n"
+
+                            "9. Fix only obvious OCR spacing errors when the "
+                            "intended word is unambiguous.\n"
+
+                            "10. If a portion is genuinely unreadable, omit only "
+                            "that portion rather than inventing content.\n"
+
+                            "11. Do not explain your reasoning.\n"
+
+                            "12. Do not describe OCR quality.\n"
+
+                            "13. Do not summarize.\n"
+
+                            "14. Return ONLY the English translation."
                         )
                     },
 

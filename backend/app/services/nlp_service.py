@@ -22,10 +22,21 @@ nlp_model = spacy.load("en_core_web_sm")
 class NLPService:
 
     def extract_entities(self, text):
+        """
+        Extract entities from the submitted NLP text.
+
+        spaCy is used as a lightweight NER layer.
+        Generic/descriptive words that are incorrectly classified
+        as locations or other entities are rejected.
+
+        This function does NOT affect engagement extraction.
+        """
+
         if not text:
             return []
 
         try:
+
             doc = nlp_model(text)
 
             entity_map = {
@@ -38,6 +49,10 @@ class NLPService:
                 "MONEY": "Money",
                 "PRODUCT": "Product",
             }
+
+            # -----------------------------------------------------
+            # Generic words that are not useful entities.
+            # -----------------------------------------------------
 
             ignored_words = {
                 "the",
@@ -75,12 +90,63 @@ class NLPService:
                 "bookmarks",
                 "reply",
                 "replies",
+
+                # Generic descriptive / evaluative words
+                "toxic",
+                "viral",
+                "fake",
+                "real",
+                "true",
+                "false",
+                "important",
+                "controversial",
+                "sensational",
+                "dangerous",
+                "shocking",
+                "misleading",
+                "incorrect",
+                "wrong",
+                "alleged",
+                "allegedly",
+            }
+
+            # -----------------------------------------------------
+            # Words that should NEVER be treated as locations.
+            #
+            # This is intentionally generic rather than tied to
+            # one particular post.
+            # -----------------------------------------------------
+
+            location_rejection_words = {
+                "toxic",
+                "viral",
+                "fake",
+                "real",
+                "true",
+                "false",
+                "important",
+                "controversial",
+                "sensational",
+                "dangerous",
+                "shocking",
+                "misleading",
+                "incorrect",
+                "wrong",
+                "alleged",
+                "allegedly",
+                "official",
+                "breaking",
+                "latest",
+                "news",
+                "post",
+                "update",
             }
 
             entities = []
             seen = set()
 
             for ent in doc.ents:
+
                 value = ent.text.strip()
 
                 if not value:
@@ -88,37 +154,111 @@ class NLPService:
 
                 value_lower = value.lower()
 
+                # -------------------------------------------------
+                # Unsupported entity type
+                # -------------------------------------------------
+
                 if ent.label_ not in entity_map:
                     continue
+
+                # -------------------------------------------------
+                # Very short entity
+                # -------------------------------------------------
 
                 if len(value) < 3:
                     continue
 
+                # -------------------------------------------------
+                # Generic word
+                # -------------------------------------------------
+
                 if value_lower in ignored_words:
                     continue
 
-                if value_lower in seen:
+                # -------------------------------------------------
+                # Explicit false-location protection
+                # -------------------------------------------------
+
+                if (
+                    ent.label_ in {"GPE", "LOC"}
+                    and value_lower in location_rejection_words
+                ):
                     continue
+
+                # -------------------------------------------------
+                # Social-media handles
+                # -------------------------------------------------
 
                 if value.startswith("@"):
                     continue
 
+                # -------------------------------------------------
+                # Pure number
+                # -------------------------------------------------
+
                 if value.isdigit():
                     continue
 
-                entities.append({
-                    "name": value,
-                    "type": entity_map[ent.label_],
-                })
+                # -------------------------------------------------
+                # Numeric/date garbage
+                # -------------------------------------------------
+
+                if re.fullmatch(
+                    r"[\d\s.,:/\-]+",
+                    value
+                ):
+                    continue
+
+                # -------------------------------------------------
+                # Reject obvious single-word descriptors.
+                #
+                # spaCy occasionally labels descriptive adjectives
+                # as entities. Only apply this to single-word values.
+                # -------------------------------------------------
+
+                if (
+                    len(value.split()) == 1
+                    and value_lower.endswith(
+                        (
+                            "ing",
+                            "ed",
+                            "ous",
+                            "ful",
+                            "ive",
+                            "less",
+                            "al",
+                            "ic",
+                        )
+                    )
+                    and ent.label_ in {"GPE", "LOC"}
+                ):
+                    continue
+
+                # -------------------------------------------------
+                # Duplicate
+                # -------------------------------------------------
+
+                if value_lower in seen:
+                    continue
+
+                entities.append(
+                    {
+                        "name": value,
+                        "type": entity_map[ent.label_],
+                    }
+                )
 
                 seen.add(value_lower)
 
             return entities[:10]
 
         except Exception:
-            logger.exception("NLP entity extraction failed.")
-            return []
 
+            logger.exception(
+                "NLP entity extraction failed."
+            )
+
+            return []    
     @staticmethod
     def extract_json_response(output):
         if not output or not output.strip():

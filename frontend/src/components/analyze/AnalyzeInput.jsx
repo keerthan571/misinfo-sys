@@ -93,26 +93,18 @@ export default function AnalyzeInput({
         //
 
         const extractedText =
-          data.extracted_text ||
           data.post_text ||
+          data.extracted_text ||
           "";
 
-        // ---------------------------------------------------------
-        // PUT ORIGINAL OCR TEXT INTO NEWS TEXT BOX
-        // ---------------------------------------------------------
-
         setNews(extractedText);
-
-        // ---------------------------------------------------------
-        // PRESERVE SAME OCR TEXT FOR /api/analyze/
-        // ---------------------------------------------------------
 
         setOcrEngagement({
           ...(data.ordered_values || {}),
 
           // IMPORTANT:
-          // Send the exact same raw OCR text that is displayed
-          // in the News Text box.
+          // Always send CLEAN OCR post text to analysis.
+          // NEVER send raw_text.
           post_text: extractedText,
 
           publisher:

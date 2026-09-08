@@ -1168,8 +1168,21 @@ class OCRService:
             text = re.sub(r"[ \t]+", " ", text)
             return text.strip()
 
+        
         # -------------------------------------------------
         # Social-media UI phrases
+        #
+        # OCR is not always exact.
+        #
+        # Examples Tesseract may produce:
+        #   Show translation
+        #   Showtranslation
+        #   Show  translation
+        #   See translation
+        #   Seetranslation
+        #   More
+        #
+        # Keep this platform-agnostic.
         # -------------------------------------------------
 
         ui_phrases = {
@@ -1187,8 +1200,11 @@ class OCRService:
             "bookmarks",
             "reply",
             "replies",
+            "more",
             "show translation",
+            "showtranslation",
             "see translation",
+            "seetranslation",
             "translate",
             "translation",
         }
@@ -1210,35 +1226,77 @@ class OCRService:
             "bookmark",
         }
 
-        # -------------------------------------------------
-        # Detect a line that is PURE UI.
-        #
-        # IMPORTANT:
-        # Do NOT classify a mixed line as UI.
-        # A line containing Kannada + "More" is still
-        # probably actual post content.
-        # -------------------------------------------------
+
+        def normalize_ui_text(text):
+
+            value = normalized(text).lower()
+
+            # Remove spaces/punctuation only for UI comparison.
+            # This does NOT modify the actual returned post text.
+            comparison = re.sub(
+                r"[\s\W_]+",
+                "",
+                value,
+                flags=re.UNICODE
+            )
+
+            return value, comparison
+
 
         def is_ui_line(text):
 
-            lower = normalized(text).lower()
+            lower, compact = normalize_ui_text(text)
 
+            # Exact normal form.
             if lower in ui_phrases:
                 return True
 
+            # OCR may join words:
+            #
+            # Show translation -> Showtranslation
+            # See translation  -> Seetranslation
+            #
+            if compact in {
+                "follow",
+                "following",
+                "like",
+                "likes",
+                "comment",
+                "comments",
+                "share",
+                "shares",
+                "repost",
+                "reposts",
+                "bookmark",
+                "bookmarks",
+                "reply",
+                "replies",
+                "more",
+                "showtranslation",
+                "seetranslation",
+                "translate",
+                "translation",
+            }:
+                return True
+
+            # Token-based UI detection.
             tokens = {
-                token.strip(".,!?|:;·")
+                token.strip(
+                    ".,!?|:;·•-@()[]{}<>\"'“”‘’"
+                )
                 for token in lower.split()
             }
 
-            return bool(
+            tokens.discard("")
+
+            if (
                 tokens
                 and tokens.issubset(ui_phrases)
-            )
+            ):
+                return True
 
-        # -------------------------------------------------
-        # Pure metadata line.
-        # -------------------------------------------------
+            return False
+
 
         def is_metadata_line(text):
 
@@ -1251,9 +1309,9 @@ class OCRService:
                 )
             )
 
-            # If the line contains Kannada/Devanagari,
-            # do NOT throw away the whole line merely because
-            # it also contains "more", "translation", etc.
+            # If actual Kannada/Hindi content is present,
+            # do NOT delete the whole line merely because
+            # OCR also detected a UI word.
             has_kannada = bool(
                 re.search(
                     r"[\u0C80-\u0CFF]",
@@ -1272,15 +1330,13 @@ class OCRService:
                 return False
 
             return bool(
-                words &
-                metadata_words
+                words & metadata_words
             )
 
-        # -------------------------------------------------
-        # Timestamp detection
-        # -------------------------------------------------
 
         def is_timestamp(text):
+
+            value = normalized(text)
 
             return bool(
                 re.fullmatch(
@@ -1293,16 +1349,13 @@ class OCRService:
                         (?:am|pm)
                     )?
                     """,
-                    normalized(text),
+                    value,
                     flags=
                         re.IGNORECASE |
                         re.VERBOSE
                 )
             )
 
-        # -------------------------------------------------
-        # Numeric-only UI
-        # -------------------------------------------------
 
         def is_numeric_ui(text):
 
@@ -1325,7 +1378,6 @@ class OCRService:
                 )
                 for token in tokens
             )
-
         # -------------------------------------------------
         # Remove ONLY obvious UI fragments from a mixed line.
         #
@@ -2329,7 +2381,7 @@ class OCRService:
     # ============================================================
 
     def detect_text_language(self, text):
-
+        
         if not text:
             return "Unknown"
 
@@ -2351,7 +2403,7 @@ class OCRService:
             elif 0x0C80 <= code <= 0x0CFF:
                 kannada_count += 1
 
-            # Basic English alphabet
+            # English alphabet
             elif (
                 "A" <= char <= "Z"
                 or "a" <= char <= "z"
@@ -2367,37 +2419,68 @@ class OCRService:
         if total == 0:
             return "Unknown"
 
-        languages = []
+        # ---------------------------------------------------------
+        # Calculate script ratios
+        # ---------------------------------------------------------
 
-        # Require a meaningful amount of script
-        # before calling the text mixed.
+        english_ratio = english_count / total
+        hindi_ratio = hindi_count / total
+        kannada_ratio = kannada_count / total
 
-        if english_count / total >= 0.15:
-            languages.append("English")
+        # ---------------------------------------------------------
+        # Dominant-language detection
+        #
+        # Social-media screenshots commonly contain:
+        # - publisher names
+        # - timestamps
+        # - buttons
+        # - UI labels
+        # - English acronyms
+        #
+        # Therefore, a small amount of English should NOT turn
+        # an otherwise Kannada/Hindi post into "Mixed".
+        # ---------------------------------------------------------
 
-        if hindi_count / total >= 0.15:
-            languages.append("Hindi")
+        ratios = {
+            "English": english_ratio,
+            "Hindi": hindi_ratio,
+            "Kannada": kannada_ratio,
+        }
 
-        if kannada_count / total >= 0.15:
-            languages.append("Kannada")
+        sorted_languages = sorted(
+            ratios.items(),
+            key=lambda item: item[1],
+            reverse=True
+        )
 
-        if len(languages) == 0:
+        primary_language, primary_ratio = sorted_languages[0]
+        secondary_language, secondary_ratio = sorted_languages[1]
 
-            if english_count > hindi_count and english_count > kannada_count:
-                return "English"
+        # ---------------------------------------------------------
+        # Clearly dominant language
+        # ---------------------------------------------------------
 
-            if hindi_count > kannada_count:
-                return "Hindi"
+        if primary_ratio >= 0.60:
+            return primary_language
 
-            if kannada_count > 0:
-                return "Kannada"
+        # ---------------------------------------------------------
+        # Genuine mixed-language content
+        #
+        # Require both languages to have substantial presence.
+        # ---------------------------------------------------------
 
-            return "Unknown"
+        if (
+            primary_ratio >= 0.40
+            and secondary_ratio >= 0.30
+        ):
+            return "Mixed"
 
-        if len(languages) == 1:
-            return languages[0]
+        # ---------------------------------------------------------
+        # Otherwise use the dominant script.
+        # This prevents OCR/UI noise from producing Mixed.
+        # ---------------------------------------------------------
 
-        return "Mixed"
+        return primary_language
     # -----------------------------------------------------
     # OCR EXTRACTION
     # -----------------------------------------------------

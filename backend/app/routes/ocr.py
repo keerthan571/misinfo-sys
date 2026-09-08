@@ -164,38 +164,39 @@ class OCRService:
     def filter_social_media_ocr(
         self,
         text,
-        image_height
+        image_height,
     ):
         """
-        Generic social-media OCR cleanup.
+        Universal social-media OCR cleaner.
 
-        Removes common UI / metadata / engagement noise from
-        Facebook, Instagram, Twitter/X and similar screenshots.
+        PURPOSE:
+        Remove social-media UI/OCR noise while preserving
+        actual post content in Kannada, Hindi, English, etc.
 
         IMPORTANT:
-        - Does NOT translate text.
-        - Does NOT rewrite Kannada/Hindi/English content.
-        - Does NOT remove normal numbers from post content.
-        - Does NOT depend on a specific publisher or post.
+        - Does NOT translate.
+        - Does NOT rewrite content.
+        - Does NOT "correct" Indic OCR.
+        - Does NOT remove ordinary numbers from sentences.
+        - Engagement numbers are handled separately.
         """
 
         if not text:
             return ""
 
-        lines = text.splitlines()
+        lines = str(text).splitlines()
+
         cleaned_lines = []
 
-        # ====================================================
-        # 1. EXACT SOCIAL MEDIA UI LABELS
-        # ====================================================
+        # ========================================================
+        # EXACT SOCIAL MEDIA UI
+        # ========================================================
 
         ui_exact = {
             "more",
             "see more",
             "see translation",
             "show translation",
-            "translate post",
-            "translate",
             "follow",
             "following",
             "like",
@@ -213,116 +214,95 @@ class OCRService:
             "saved",
             "bookmark",
             "bookmarks",
-            "subscribe",
-            "view profile",
-            "view post",
-            "view replies",
-            "view more",
+            "view",
+            "views",
+            "translation",
+            "translate",
+            "seetranslation",
+            "showtranslation",
+            "seemore",
         }
 
-        # ====================================================
-        # 2. TIMESTAMP / POST METADATA
-        # ====================================================
+        # ========================================================
+        # UI PHRASES
+        # ========================================================
 
-        timestamp_only = re.compile(
-            r"^\s*"
-            r"(?:"
-            r"\d+\s*(?:s|sec|secs|m|min|mins|h|hr|hrs|d|day|days|w|wk|wks|mo|"
-            r"month|months|y|yr|yrs)"
-            r"|"
-            r"\d{1,2}:\d{2}\s*(?:am|pm)?"
-            r")"
-            r"(?:\s*[-@·•|])?"
-            r"\s*$",
-            re.IGNORECASE
-        )
+        ui_phrase_patterns = [
 
-        # ====================================================
-        # 3. DATE / TIME + VIEWS METADATA
-        #
+            # Facebook
+            r"\bsee\s+translation\b",
+            r"\bsee\s+more\b",
+
+            # Twitter / X
+            r"\bshow\s+translation\b",
+            r"\btranslate\s+post\b",
+            r"\bview\s+translation\b",
+
+            # Generic engagement labels
+            r"\blikes?\b",
+            r"\bcomments?\b",
+            r"\breposts?\b",
+            r"\breplies?\b",
+            r"\bshares?\b",
+            r"\bbookmarks?\b",
+            r"\bviews?\b",
+        ]
+
+        # ========================================================
+        # TIMESTAMPS
+        # ========================================================
+
+        timestamp_patterns = [
+
+            # 3h
+            r"^\d+\s*[smhdwy]$",
+
+            # 3h-@
+            r"^\d+\s*[smhdwy]\s*[-@·•]?$",
+
+            # 3:00 pm
+            r"^\d{1,2}:\d{2}\s*(?:am|pm)$",
+
+            # 02 Sept 26
+            r"^\d{1,2}\s+"
+            r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)"
+            r"(?:\s+\d{2,4})?$",
+
+            # 02 September 2026
+            r"^\d{1,2}\s+"
+            r"(?:January|February|March|April|May|June|July|August|"
+            r"September|October|November|December)"
+            r"(?:\s+\d{2,4})?$",
+        ]
+
+        compiled_timestamp_patterns = [
+            re.compile(
+                pattern,
+                re.IGNORECASE
+            )
+            for pattern in timestamp_patterns
+        ]
+
+        # ========================================================
+        # KNOWN OCR UI GARBAGE
+        # ========================================================
+
         # Examples:
-        #   3:00 pm · 02 Sept 26 · 1.9K Views
-        #   3:00 PM · Sep 2 · 1.9K Views
-        #   02 Sept 26 · 1.9K Views
-        # ====================================================
+        # (J
+        # ©}
+        # > 
+        # ©
+        # []
+        # icon fragments
 
-        views_metadata = re.compile(
-            r"^\s*"
-            r".*?"
-            r"(?:"
-            r"\d+(?:\.\d+)?\s*[KMB]?\s*"
-            r"(?:views?|view)"
-            r"|"
-            r"views?"
-            r")"
-            r"\s*$",
-            re.IGNORECASE
+        standalone_garbage_pattern = re.compile(
+            r"^[\W_]+$",
+            re.UNICODE
         )
 
-        date_metadata = re.compile(
-            r"^\s*"
-            r"(?:"
-            r"\d{1,2}:\d{2}\s*(?:am|pm)?"
-            r"|"
-            r"\d{1,2}\s+"
-            r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
-            r"(?:[a-z]*)?"
-            r"(?:\s+\d{2,4})?"
-            r")"
-            r".*?"
-            r"(?:·|-|\|)"
-            r".*"
-            r"(?:views?|view)"
-            r"\s*$",
-            re.IGNORECASE
-        )
-
-        # ====================================================
-        # 4. ENGAGEMENT-ONLY LINE
-        #
-        # Examples:
-        #   3 17 129 1
-        #   3 17 129 1 5
-        #   160 45 7
-        #
-        # Only remove when the line is essentially numbers
-        # and separators. Normal sentence numbers are preserved.
-        # ====================================================
-
-        engagement_only = re.compile(
-            r"^\s*"
-            r"(?:"
-            r"[0-9]+"
-            r"|"
-            r"[0-9.,KMB]+"
-            r"|"
-            r"[0-9೦-೯०-९]+"
-            r")"
-            r"(?:"
-            r"\s*"
-            r"[\W_]*"
-            r"(?:"
-            r"[0-9]+"
-            r"|"
-            r"[0-9.,KMB]+"
-            r"|"
-            r"[0-9೦-೯०-९]+"
-            r")"
-            r")+"
-            r"\s*$",
-            re.IGNORECASE
-        )
-
-        # ====================================================
-        # 5. COMMON OCR GARBAGE
-        # ====================================================
-
-        known_ui_garbage = {
-            "x",
-            "©",
-            "®",
-            "™",
-        }
+        # ========================================================
+        # PROCESS LINES
+        # ========================================================
 
         for raw_line in lines:
 
@@ -330,6 +310,10 @@ class OCRService:
 
             if not line:
                 continue
+
+            # ----------------------------------------------------
+            # Normalize whitespace only
+            # ----------------------------------------------------
 
             normalized = re.sub(
                 r"\s+",
@@ -341,157 +325,270 @@ class OCRService:
                 continue
 
             lower = normalized.lower()
+            
+            # ====================================================
+            # SOCIAL-MEDIA TRANSLATION UI
+            #
+            # Handles OCR variations such as:
+            #   Show translation
+            #   Showtranslation
+            #   See translation
+            #   Seetranslation
+            #
+            # These are UI elements, never post content.
+            # ====================================================
 
-            # ====================================================
-            # EXACT UI
-            # ====================================================
+            translation_ui = re.sub(
+                r"[\s]+",
+                "",
+                lower
+            )
+
+            if translation_ui in {
+                "showtranslation",
+                "seetranslation",
+            }:
+                continue
+
+            # ----------------------------------------------------
+            # 1. Exact UI
+            # ----------------------------------------------------
 
             if lower in ui_exact:
                 continue
 
-            # ====================================================
-            # STANDALONE TIMESTAMP
-            # ====================================================
+            # ----------------------------------------------------
+            # 2. Timestamp-only lines
+            # ----------------------------------------------------
 
-            if timestamp_only.match(normalized):
+            if any(
+                pattern.fullmatch(normalized)
+                for pattern in compiled_timestamp_patterns
+            ):
                 continue
 
-            # ====================================================
-            # VIEWS / POST METADATA
-            # ====================================================
+            # ----------------------------------------------------
+            # 3. Pure punctuation / icon garbage
+            # ----------------------------------------------------
 
-            if views_metadata.match(normalized):
+            if standalone_garbage_pattern.fullmatch(
+                normalized
+            ):
                 continue
 
-            if date_metadata.match(normalized):
-                continue
-
-            # ====================================================
-            # ENGAGEMENT-ONLY NUMBERS
-            # ====================================================
-
-            if engagement_only.match(normalized):
-                continue
-
-            # ====================================================
-            # STANDALONE OCR UI GARBAGE
-            # ====================================================
-
-            if lower in known_ui_garbage:
-                continue
-
-            # ====================================================
-            # INLINE "MORE"
+            # ----------------------------------------------------
+            # 4. Remove timestamp + metadata from END
             #
-            # Kannada text ... More
-            # English text ... More
-            # ====================================================
+            # Example:
+            #
+            # 3:00 pm * 02 Sept 26 - 1.9K Views
+            #
+            # This entire line is metadata, not post text.
+            # ----------------------------------------------------
+
+            if re.search(
+                r"\b\d{1,2}:\d{2}\s*(?:am|pm)\b",
+                normalized,
+                flags=re.IGNORECASE
+            ):
+
+                # If the line contains Views / engagement metadata,
+                # it is almost certainly a social-media metadata line.
+
+                if re.search(
+                    r"\bviews?\b",
+                    normalized,
+                    flags=re.IGNORECASE
+                ):
+                    continue
+
+            # ----------------------------------------------------
+            # 5. Remove UI phrases at the END
+            # ----------------------------------------------------
 
             normalized = re.sub(
-                r"\s+(?:more|see\s+more)\s*$",
+                r"\s+(?:More|See\s+more|See\s+translation|"
+                r"Show\s+translation)\s*$",
                 "",
                 normalized,
                 flags=re.IGNORECASE
             ).strip()
 
-            # ====================================================
-            # INLINE TRANSLATION LABEL
-            #
-            # Do NOT remove the actual sentence.
-            #
-            # Example:
-            #   Kannada sentence Show translation
-            #
-            # becomes:
-            #   Kannada sentence
-            # ====================================================
+            # ----------------------------------------------------
+            # 6. Remove UI phrases at BEGINNING
+            # ----------------------------------------------------
 
             normalized = re.sub(
-                r"\s+"
-                r"(?:"
-                r"show\s+translation"
-                r"|see\s+translation"
-                r"|translate\s+post"
-                r"|translate"
-                r")"
-                r"\s*$",
+                r"^(?:Show\s+translation|See\s+translation|"
+                r"See\s+more)\s+",
                 "",
                 normalized,
                 flags=re.IGNORECASE
             ).strip()
 
-            # ====================================================
-            # TIMESTAMP PREFIX
+            # ----------------------------------------------------
+            # 7. Remove standalone timestamp at BEGINNING
             #
             # Example:
-            #   3h-@ Kannada text
             #
-            # becomes:
-            #   Kannada text
-            # ====================================================
+            # 3h-@ Kannada text
+            #
+            # -> Kannada text
+            # ----------------------------------------------------
 
             normalized = re.sub(
-                r"^\s*"
-                r"\d+\s*"
-                r"(?:s|sec|secs|m|min|mins|h|hr|hrs|d|day|days|w|wk|wks|mo|"
-                r"month|months|y|yr|yrs)"
-                r"(?:\s*[-@·•|])?"
-                r"\s+",
+                r"^\s*\d+\s*[smhdwy]"
+                r"(?:\s*[-@·•])?\s+",
                 "",
                 normalized,
                 flags=re.IGNORECASE
             ).strip()
 
-            # ====================================================
-            # KNOWN HEADER SEPARATOR GARBAGE
-            #
-            # Example:
-            #   . \ Kannada Prabha eee x
-            # ====================================================
+            # ----------------------------------------------------
+            # 8. Remove common OCR icon prefix
+            # ----------------------------------------------------
 
             normalized = re.sub(
-                r"^[.\\\/\s]+",
+                r"^[\(\[\{<«“\"']?\s*[JjIiLlTt]\s*"
+                r"(?:\)|\]|\}|>|»|”|\"|'|©|®|™)?\s+",
                 "",
                 normalized
             ).strip()
 
-            normalized = re.sub(
-                r"^(Kannada Prabha)"
-                r"(?:\s+(?:eee|ee|e))?"
-                r"(?:\s+x)?\s*$",
-                r"\1",
-                normalized,
-                flags=re.IGNORECASE
-            ).strip()
-
-            # ====================================================
-            # KNOWN OCR ARTIFACT:
-            # "MO waves"
+            # ----------------------------------------------------
+            # 9. Remove obvious social-media metadata suffix
             #
-            # Only remove it when it appears at the beginning.
+            # IMPORTANT:
+            # Only remove when the line is clearly metadata.
+            #
+            # Do NOT remove ordinary numbers from actual sentences.
+            # ----------------------------------------------------
+
+            metadata_suffix = re.compile(
+                r"(?:"
+                r"\d+(?:\.\d+)?[KMB]?\s*"
+                r"(?:likes?|comments?|reposts?|replies?|"
+                r"shares?|bookmarks?|views?)"
+                r")"
+                r"(?:\s+.*)?$",
+                re.IGNORECASE
+            )
+
+            if metadata_suffix.search(normalized):
+
+                # If line has substantial non-Latin / Indic text,
+                # preserve the text and only remove the metadata tail.
+
+                normalized = metadata_suffix.sub(
+                    "",
+                    normalized
+                ).strip()
+
             # ====================================================
+            # 10. Remove obvious social-media engagement UI line
+            #
+            # IMPORTANT:
+            # This affects ONLY OCR post text.
+            # It does NOT modify engagement extraction.
+            #
+            # Typical OCR:
+            #   © 3 1, 17 9) 129 ಕ ०2
+            #   3 17 129 1
+            #   ♡ 129  💬 3  ↻ 17
+            #
+            # These lines belong to the bottom engagement/UI area,
+            # not to the actual post.
+            # ====================================================
+
+            ui_symbol_count = len(
+                re.findall(
+                    r"[©®™○●◦•·|(){}\[\]<>]",
+                    normalized,
+                    flags=re.UNICODE
+                )
+            )
+
+            ui_digit_count = len(
+                re.findall(
+                    r"[0-9೦-೯०-९]",
+                    normalized,
+                    flags=re.UNICODE
+                )
+            )
+
+            ui_kannada_count = len(
+                re.findall(
+                    r"[\u0C80-\u0CFF]",
+                    normalized
+                )
+            )
+
+            ui_latin_count = len(
+                re.findall(
+                    r"[A-Za-z]",
+                    normalized
+                )
+            )
+
+            # Very short mixed OCR lines containing mostly numbers,
+            # symbols and isolated script characters are usually
+            # engagement/UI OCR rather than post content.
+            if (
+                len(normalized) <= 40
+                and ui_digit_count >= 2
+                and (
+                    ui_symbol_count >= 1
+                    or ui_kannada_count <= 2
+                )
+                and ui_latin_count <= 2
+            ):
+                continue
+            # ----------------------------------------------------
+            # 11. Remove obvious isolated OCR icon fragments
+            # ----------------------------------------------------
+
+            if len(normalized) <= 3:
+
+                # Keep meaningful Indic words.
+                meaningful_indic = re.search(
+                    r"[\u0900-\u097F\u0C80-\u0CFF]",
+                    normalized
+                )
+
+                meaningful_latin = re.fullmatch(
+                    r"[A-Za-z]{2,3}",
+                    normalized
+                )
+
+                if (
+                    not meaningful_indic
+                    and not meaningful_latin
+                ):
+                    continue
+
+            # ----------------------------------------------------
+            # 12. Remove leading OCR separator garbage
+            # ----------------------------------------------------
 
             normalized = re.sub(
-                r"^\s*"
-                r"[“\"'‘’]?"
-                r"\s*MO\s+waves"
-                r"\s*",
+                r"^[.\\\/|•·\-_=]+\s*",
                 "",
-                normalized,
-                flags=re.IGNORECASE
+                normalized
             ).strip()
 
-            # ====================================================
-            # REMOVE PURE NUMBER / SYMBOL GARBAGE AGAIN
-            # after cleanup above.
-            # ====================================================
+            # ----------------------------------------------------
+            # 13. Remove trailing OCR separator garbage
+            # ----------------------------------------------------
 
-            if engagement_only.match(normalized):
-                continue
+            normalized = re.sub(
+                r"\s*[|•·_=]+$",
+                "",
+                normalized
+            ).strip()
 
-            # ====================================================
-            # FINAL EMPTY CHECK
-            # ====================================================
+            # ----------------------------------------------------
+            # 14. Final check
+            # ----------------------------------------------------
 
             if not normalized:
                 continue
@@ -500,9 +597,16 @@ class OCRService:
                 normalized
             )
 
-        return "\n".join(
+        # ========================================================
+        # FINAL CLEANUP
+        # ========================================================
+
+        result = "\n".join(
             cleaned_lines
         ).strip()
+
+        return result
+    
     # ========================================================
     # PUBLISHER DETECTION
     # ========================================================
