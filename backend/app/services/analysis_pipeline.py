@@ -308,7 +308,7 @@ class AnalysisPipeline:
 
         ocr_text = str(
             ocr_values.get(
-                "raw_text",
+                "post_text",
                 ""
             )
         ).strip()

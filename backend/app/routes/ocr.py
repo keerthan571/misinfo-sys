@@ -22,12 +22,6 @@ logger = logging.getLogger(__name__)
 # TESSERACT CONFIGURATION
 # ============================================================
 
-# Windows:
-# Use the locally installed Tesseract executable.
-#
-# Render/Linux:
-# Do not set a Windows path.
-# Tesseract will be resolved from PATH.
 if os.name == "nt":
 
     pytesseract.pytesseract.tesseract_cmd = (
@@ -74,6 +68,7 @@ class OCRService:
         "eng+hin+kan",
     }
 
+
     # ========================================================
     # IMAGE PREPROCESSING
     # ========================================================
@@ -84,23 +79,15 @@ class OCRService:
 
         scale = 4
 
-        target_width = (
-            image.width * scale
-        )
-
-        target_height = (
-            image.height * scale
-        )
+        target_width = image.width * scale
+        target_height = image.height * scale
 
         longest_side = max(
             target_width,
             target_height
         )
 
-        if (
-            longest_side
-            > self.MAX_PROCESSED_DIMENSION
-        ):
+        if longest_side > self.MAX_PROCESSED_DIMENSION:
 
             ratio = (
                 self.MAX_PROCESSED_DIMENSION
@@ -109,16 +96,12 @@ class OCRService:
 
             target_width = max(
                 1,
-                int(
-                    target_width * ratio
-                )
+                int(target_width * ratio)
             )
 
             target_height = max(
                 1,
-                int(
-                    target_height * ratio
-                )
+                int(target_height * ratio)
             )
 
         image = image.resize(
@@ -142,22 +125,16 @@ class OCRService:
 
         return image
 
+
     # ========================================================
     # TEXT CLEANING
     # ========================================================
 
     def clean_text(self, text):
+    
         """
-        Minimal OCR normalization.
-
-        IMPORTANT:
-        Do NOT modify OCR characters, words, punctuation,
-        Kannada/Hindi text, numbers, etc.
-
-        Only:
-        - convert newlines/tabs to spaces
-        - collapse repeated whitespace
-        - strip leading/trailing whitespace
+        Whitespace normalization while preserving
+        OCR line structure.
         """
 
         if not text:
@@ -165,16 +142,367 @@ class OCRService:
 
         text = str(text)
 
-        # ONLY whitespace normalization.
-        # Do NOT alter any actual OCR characters.
-        text = re.sub(
-            r"\s+",
-            " ",
-            text
+        # Normalize spaces/tabs inside each line
+        lines = []
+
+        for line in text.splitlines():
+
+            line = re.sub(
+                r"[ \t]+",
+                " ",
+                line
+            ).strip()
+
+            if line:
+                lines.append(line)
+
+        return "\n".join(lines).strip()
+    # ========================================================
+    # SOCIAL MEDIA OCR FILTERING
+    # ========================================================
+
+    def filter_social_media_ocr(
+        self,
+        text,
+        image_height
+    ):
+        """
+        Generic social-media OCR cleanup.
+
+        Removes common UI / metadata / engagement noise from
+        Facebook, Instagram, Twitter/X and similar screenshots.
+
+        IMPORTANT:
+        - Does NOT translate text.
+        - Does NOT rewrite Kannada/Hindi/English content.
+        - Does NOT remove normal numbers from post content.
+        - Does NOT depend on a specific publisher or post.
+        """
+
+        if not text:
+            return ""
+
+        lines = text.splitlines()
+        cleaned_lines = []
+
+        # ====================================================
+        # 1. EXACT SOCIAL MEDIA UI LABELS
+        # ====================================================
+
+        ui_exact = {
+            "more",
+            "see more",
+            "see translation",
+            "show translation",
+            "translate post",
+            "translate",
+            "follow",
+            "following",
+            "like",
+            "likes",
+            "comment",
+            "comments",
+            "share",
+            "shares",
+            "repost",
+            "reposts",
+            "reply",
+            "replies",
+            "send",
+            "save",
+            "saved",
+            "bookmark",
+            "bookmarks",
+            "subscribe",
+            "view profile",
+            "view post",
+            "view replies",
+            "view more",
+        }
+
+        # ====================================================
+        # 2. TIMESTAMP / POST METADATA
+        # ====================================================
+
+        timestamp_only = re.compile(
+            r"^\s*"
+            r"(?:"
+            r"\d+\s*(?:s|sec|secs|m|min|mins|h|hr|hrs|d|day|days|w|wk|wks|mo|"
+            r"month|months|y|yr|yrs)"
+            r"|"
+            r"\d{1,2}:\d{2}\s*(?:am|pm)?"
+            r")"
+            r"(?:\s*[-@·•|])?"
+            r"\s*$",
+            re.IGNORECASE
         )
 
-        return text.strip()
-    
+        # ====================================================
+        # 3. DATE / TIME + VIEWS METADATA
+        #
+        # Examples:
+        #   3:00 pm · 02 Sept 26 · 1.9K Views
+        #   3:00 PM · Sep 2 · 1.9K Views
+        #   02 Sept 26 · 1.9K Views
+        # ====================================================
+
+        views_metadata = re.compile(
+            r"^\s*"
+            r".*?"
+            r"(?:"
+            r"\d+(?:\.\d+)?\s*[KMB]?\s*"
+            r"(?:views?|view)"
+            r"|"
+            r"views?"
+            r")"
+            r"\s*$",
+            re.IGNORECASE
+        )
+
+        date_metadata = re.compile(
+            r"^\s*"
+            r"(?:"
+            r"\d{1,2}:\d{2}\s*(?:am|pm)?"
+            r"|"
+            r"\d{1,2}\s+"
+            r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
+            r"(?:[a-z]*)?"
+            r"(?:\s+\d{2,4})?"
+            r")"
+            r".*?"
+            r"(?:·|-|\|)"
+            r".*"
+            r"(?:views?|view)"
+            r"\s*$",
+            re.IGNORECASE
+        )
+
+        # ====================================================
+        # 4. ENGAGEMENT-ONLY LINE
+        #
+        # Examples:
+        #   3 17 129 1
+        #   3 17 129 1 5
+        #   160 45 7
+        #
+        # Only remove when the line is essentially numbers
+        # and separators. Normal sentence numbers are preserved.
+        # ====================================================
+
+        engagement_only = re.compile(
+            r"^\s*"
+            r"(?:"
+            r"[0-9]+"
+            r"|"
+            r"[0-9.,KMB]+"
+            r"|"
+            r"[0-9೦-೯०-९]+"
+            r")"
+            r"(?:"
+            r"\s*"
+            r"[\W_]*"
+            r"(?:"
+            r"[0-9]+"
+            r"|"
+            r"[0-9.,KMB]+"
+            r"|"
+            r"[0-9೦-೯०-९]+"
+            r")"
+            r")+"
+            r"\s*$",
+            re.IGNORECASE
+        )
+
+        # ====================================================
+        # 5. COMMON OCR GARBAGE
+        # ====================================================
+
+        known_ui_garbage = {
+            "x",
+            "©",
+            "®",
+            "™",
+        }
+
+        for raw_line in lines:
+
+            line = raw_line.strip()
+
+            if not line:
+                continue
+
+            normalized = re.sub(
+                r"\s+",
+                " ",
+                line
+            ).strip()
+
+            if not normalized:
+                continue
+
+            lower = normalized.lower()
+
+            # ====================================================
+            # EXACT UI
+            # ====================================================
+
+            if lower in ui_exact:
+                continue
+
+            # ====================================================
+            # STANDALONE TIMESTAMP
+            # ====================================================
+
+            if timestamp_only.match(normalized):
+                continue
+
+            # ====================================================
+            # VIEWS / POST METADATA
+            # ====================================================
+
+            if views_metadata.match(normalized):
+                continue
+
+            if date_metadata.match(normalized):
+                continue
+
+            # ====================================================
+            # ENGAGEMENT-ONLY NUMBERS
+            # ====================================================
+
+            if engagement_only.match(normalized):
+                continue
+
+            # ====================================================
+            # STANDALONE OCR UI GARBAGE
+            # ====================================================
+
+            if lower in known_ui_garbage:
+                continue
+
+            # ====================================================
+            # INLINE "MORE"
+            #
+            # Kannada text ... More
+            # English text ... More
+            # ====================================================
+
+            normalized = re.sub(
+                r"\s+(?:more|see\s+more)\s*$",
+                "",
+                normalized,
+                flags=re.IGNORECASE
+            ).strip()
+
+            # ====================================================
+            # INLINE TRANSLATION LABEL
+            #
+            # Do NOT remove the actual sentence.
+            #
+            # Example:
+            #   Kannada sentence Show translation
+            #
+            # becomes:
+            #   Kannada sentence
+            # ====================================================
+
+            normalized = re.sub(
+                r"\s+"
+                r"(?:"
+                r"show\s+translation"
+                r"|see\s+translation"
+                r"|translate\s+post"
+                r"|translate"
+                r")"
+                r"\s*$",
+                "",
+                normalized,
+                flags=re.IGNORECASE
+            ).strip()
+
+            # ====================================================
+            # TIMESTAMP PREFIX
+            #
+            # Example:
+            #   3h-@ Kannada text
+            #
+            # becomes:
+            #   Kannada text
+            # ====================================================
+
+            normalized = re.sub(
+                r"^\s*"
+                r"\d+\s*"
+                r"(?:s|sec|secs|m|min|mins|h|hr|hrs|d|day|days|w|wk|wks|mo|"
+                r"month|months|y|yr|yrs)"
+                r"(?:\s*[-@·•|])?"
+                r"\s+",
+                "",
+                normalized,
+                flags=re.IGNORECASE
+            ).strip()
+
+            # ====================================================
+            # KNOWN HEADER SEPARATOR GARBAGE
+            #
+            # Example:
+            #   . \ Kannada Prabha eee x
+            # ====================================================
+
+            normalized = re.sub(
+                r"^[.\\\/\s]+",
+                "",
+                normalized
+            ).strip()
+
+            normalized = re.sub(
+                r"^(Kannada Prabha)"
+                r"(?:\s+(?:eee|ee|e))?"
+                r"(?:\s+x)?\s*$",
+                r"\1",
+                normalized,
+                flags=re.IGNORECASE
+            ).strip()
+
+            # ====================================================
+            # KNOWN OCR ARTIFACT:
+            # "MO waves"
+            #
+            # Only remove it when it appears at the beginning.
+            # ====================================================
+
+            normalized = re.sub(
+                r"^\s*"
+                r"[“\"'‘’]?"
+                r"\s*MO\s+waves"
+                r"\s*",
+                "",
+                normalized,
+                flags=re.IGNORECASE
+            ).strip()
+
+            # ====================================================
+            # REMOVE PURE NUMBER / SYMBOL GARBAGE AGAIN
+            # after cleanup above.
+            # ====================================================
+
+            if engagement_only.match(normalized):
+                continue
+
+            # ====================================================
+            # FINAL EMPTY CHECK
+            # ====================================================
+
+            if not normalized:
+                continue
+
+            cleaned_lines.append(
+                normalized
+            )
+
+        return "\n".join(
+            cleaned_lines
+        ).strip()
     # ========================================================
     # PUBLISHER DETECTION
     # ========================================================
@@ -193,10 +521,6 @@ class OCRService:
             }
 
         normalized = text.lower()
-
-        # =====================================================
-        # KNOWN PUBLISHERS
-        # =====================================================
 
         publishers = {
 
@@ -272,9 +596,7 @@ class OCRService:
 
         candidates = sorted(
             publishers.items(),
-            key=lambda item: len(
-                item[0]
-            ),
+            key=lambda item: len(item[0]),
             reverse=True,
         )
 
@@ -283,20 +605,14 @@ class OCRService:
             if keyword in normalized:
 
                 return {
-
-                    "publisher":
-                        publisher,
-
-                    "confidence":
-                        95,
-
-                    "method":
-                        "ocr_known_publisher",
+                    "publisher": publisher,
+                    "confidence": 95,
+                    "method": "ocr_known_publisher",
                 }
 
-        # =====================================================
-        # SOCIAL MEDIA HANDLE
-        # =====================================================
+        # ----------------------------------------------------
+        # Social media handle
+        # ----------------------------------------------------
 
         handles = re.findall(
             r"@([A-Za-z0-9_.]{3,40})",
@@ -304,7 +620,6 @@ class OCRService:
         )
 
         ignored_handles = {
-
             "user",
             "gmail",
             "instagram",
@@ -314,10 +629,7 @@ class OCRService:
 
         for handle in handles:
 
-            if (
-                handle.lower()
-                in ignored_handles
-            ):
+            if handle.lower() in ignored_handles:
                 continue
 
             publisher = handle.replace(
@@ -328,32 +640,22 @@ class OCRService:
             if publisher:
 
                 return {
-
-                    "publisher":
-                        publisher,
-
-                    "confidence":
-                        80,
-
-                    "method":
-                        "ocr_social_handle",
+                    "publisher": publisher,
+                    "confidence": 80,
+                    "method": "ocr_social_handle",
                 }
 
-        # =====================================================
-        # GENERIC VISIBLE SOURCE
-        # =====================================================
+        # ----------------------------------------------------
+        # Generic visible source
+        # ----------------------------------------------------
 
         lines = [
-
             line.strip()
-
             for line in text.splitlines()
-
             if line.strip()
         ]
 
         ignored_phrases = (
-
             "breaking",
             "live",
             "exclusive",
@@ -396,32 +698,17 @@ class OCRService:
             if 1 <= len(words) <= 6:
 
                 return {
-
-                    "publisher":
-                        clean,
-
-                    "confidence":
-                        65,
-
-                    "method":
-                        "ocr_visible_source",
+                    "publisher": clean,
+                    "confidence": 65,
+                    "method": "ocr_visible_source",
                 }
 
-        # =====================================================
-        # NOTHING RELIABLE FOUND
-        # =====================================================
-
         return {
-
-            "publisher":
-                None,
-
-            "confidence":
-                0,
-
-            "method":
-                None,
+            "publisher": None,
+            "confidence": 0,
+            "method": None,
         }
+
 
     # ========================================================
     # OCR CONFIDENCE
@@ -441,12 +728,9 @@ class OCRService:
 
             try:
 
-                confidence = float(
-                    value
-                )
+                confidence = float(value)
 
                 if confidence >= 0:
-
                     confidences.append(
                         confidence
                     )
@@ -459,7 +743,6 @@ class OCRService:
                 continue
 
         if not confidences:
-
             return None
 
         return round(
@@ -467,6 +750,7 @@ class OCRService:
             / len(confidences),
             2
         )
+
 
     # ========================================================
     # IMAGE VALIDATION
@@ -483,10 +767,7 @@ class OCRService:
                 "Empty image file."
             )
 
-        if (
-            len(image_bytes)
-            > self.MAX_FILE_SIZE
-        ):
+        if len(image_bytes) > self.MAX_FILE_SIZE:
 
             raise ValueError(
                 "Image file is too large. "
@@ -496,9 +777,7 @@ class OCRService:
         try:
 
             image = Image.open(
-                io.BytesIO(
-                    image_bytes
-                )
+                io.BytesIO(image_bytes)
             )
 
             image.verify()
@@ -516,34 +795,24 @@ class OCRService:
             )
 
         image = Image.open(
-            io.BytesIO(
-                image_bytes
-            )
+            io.BytesIO(image_bytes)
         )
 
-        if (
-            image.format
-            not in self.ALLOWED_FORMATS
-        ):
+        if image.format not in self.ALLOWED_FORMATS:
 
             raise ValueError(
                 "Unsupported image format."
             )
 
-        if (
-            image.width <= 0
-            or image.height <= 0
-        ):
+        if image.width <= 0 or image.height <= 0:
 
             raise ValueError(
                 "Invalid image dimensions."
             )
 
         if (
-            image.width
-            > self.MAX_DIMENSION
-            or image.height
-            > self.MAX_DIMENSION
+            image.width > self.MAX_DIMENSION
+            or image.height > self.MAX_DIMENSION
         ):
 
             raise ValueError(
@@ -552,8 +821,7 @@ class OCRService:
             )
 
         if (
-            image.width
-            * image.height
+            image.width * image.height
             > self.MAX_INPUT_PIXELS
         ):
 
@@ -562,6 +830,7 @@ class OCRService:
             )
 
         return image
+
 
     # ========================================================
     # LANGUAGE VALIDATION
@@ -573,7 +842,6 @@ class OCRService:
     ):
 
         if not language:
-
             return "eng"
 
         language = (
@@ -582,13 +850,9 @@ class OCRService:
             .lower()
         )
 
-        if (
-            language
-            not in self.SUPPORTED_LANGUAGES
-        ):
+        if language not in self.SUPPORTED_LANGUAGES:
 
             raise ValueError(
-
                 "Unsupported OCR language. "
                 "Use one of: "
                 "eng, hin, kan, "
@@ -597,6 +861,7 @@ class OCRService:
             )
 
         return language
+
 
     # ========================================================
     # OCR EXTRACTION
@@ -660,7 +925,7 @@ class OCRService:
             )
 
             # ------------------------------------------------
-            # OCR TEXT
+            # RAW OCR
             # ------------------------------------------------
 
             raw_text = (
@@ -672,13 +937,76 @@ class OCRService:
             )
 
             # ------------------------------------------------
-            # Clean text
+            # DEBUG RAW OCR
+            # ------------------------------------------------
+
+            print(
+                "\n"
+                + "=" * 80
+            )
+
+            print(
+                "DEBUG: RAW TESSERACT OCR"
+            )
+
+            print(
+                "=" * 80
+            )
+
+            print(
+                raw_text
+            )
+
+            print(
+                "=" * 80
+                + "\n"
+            )
+
+            # ------------------------------------------------
+            # Remove obvious social-media UI
+            # ------------------------------------------------
+
+            filtered_text = (
+                self.filter_social_media_ocr(
+                    raw_text,
+                    processed.height
+                )
+            )
+
+            # ------------------------------------------------
+            # Final whitespace normalization
             # ------------------------------------------------
 
             cleaned = (
                 self.clean_text(
-                    raw_text
+                    filtered_text
                 )
+            )
+
+            # ------------------------------------------------
+            # DEBUG FILTERED OCR
+            # ------------------------------------------------
+
+            print(
+                "\n"
+                + "=" * 80
+            )
+
+            print(
+                "DEBUG: FILTERED OCR TEXT"
+            )
+
+            print(
+                "=" * 80
+            )
+
+            print(
+                cleaned
+            )
+
+            print(
+                "=" * 80
+                + "\n"
             )
 
             # ------------------------------------------------
@@ -702,7 +1030,7 @@ class OCRService:
             )
 
             # ------------------------------------------------
-            # Return result
+            # Result
             # ------------------------------------------------
 
             return {
@@ -710,9 +1038,11 @@ class OCRService:
                 "status":
                     "success",
 
+                # Clean OCR text used by frontend.
                 "extracted_text":
                     cleaned,
 
+                # Same clean text used by analysis.
                 "post_text":
                     cleaned,
 
@@ -722,6 +1052,8 @@ class OCRService:
                 "ordered_values":
                     {},
 
+                # Original Tesseract output preserved
+                # for debugging.
                 "raw_text":
                     raw_text,
 

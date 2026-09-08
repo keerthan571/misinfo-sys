@@ -21,6 +21,11 @@ async def analyze(
         ocr_values = json.loads(
             ocr_engagement
         )
+        print("\n" + "=" * 80)
+        print("DEBUG: OCR ENGAGEMENT RECEIVED BY ANALYZE")
+        print("=" * 80)
+        print(ocr_values)
+        print("=" * 80 + "\n")
     except Exception:
         ocr_values = {}
 

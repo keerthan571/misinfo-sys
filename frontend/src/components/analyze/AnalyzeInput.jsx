@@ -93,7 +93,6 @@ export default function AnalyzeInput({
         //
 
         const extractedText =
-          data.raw_text ||
           data.extracted_text ||
           data.post_text ||
           "";
