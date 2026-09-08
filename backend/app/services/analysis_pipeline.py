@@ -1,8 +1,12 @@
 import io
 import logging
 import os
+import re
 import time
 import uuid
+
+from dotenv import load_dotenv
+from groq import Groq
 
 import cv2
 import numpy as np
@@ -45,8 +49,40 @@ from app.services.twitter_views_detector import (
 from app.services.vision_engagement_detector import (
     vision_engagement_detector
 )
+load_dotenv()
 
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
+GROQ_MODEL = os.getenv(
+    "GROQ_MODEL",
+    "openai/gpt-oss-20b"
+)
+print("🔥 ENV TRANSLATION_MODEL:", os.getenv("TRANSLATION_MODEL"), flush=True)
+TRANSLATION_MODEL = os.getenv(
+    "TRANSLATION_MODEL",
+    "qwen/qwen3.8-27b"
+)
+print("🔥 FINAL TRANSLATION_MODEL:", TRANSLATION_MODEL, flush=True)
+groq_client = (
+    Groq(api_key=GROQ_API_KEY)
+    if GROQ_API_KEY
+    else None
+)
+if groq_client:
+    try:
+        models = groq_client.models.list()
+
+        print("\n" + "=" * 80)
+        print("AVAILABLE GROQ MODELS")
+        print("=" * 80)
+
+        for model in models.data:
+            print(model.id)
+
+        print("=" * 80 + "\n")
+
+    except Exception as e:
+        print("FAILED TO LIST GROQ MODELS:", e)
 logger = logging.getLogger(__name__)
 
 
@@ -261,25 +297,46 @@ class AnalysisPipeline:
                     - engagement_start
                 )
 
-                logger.warning(
-                    "ENGAGEMENT EXTRACTION TIME: %.2fs",
-                    engagement_time
+                print(
+                    f"ENGAGEMENT EXTRACTION TIME: {engagement_time:.2f}s",
+                    flush=True
                 )
 
                 engagement_values.update(
                     opencv_engagement
                 )
 
-        # ---------------------------------------------------------
-        # VISION / OCR TEXT SELECTION
-        # ---------------------------------------------------------
-
         ocr_text = str(
             ocr_values.get(
-                "extracted_text",
+                "raw_text",
                 ""
             )
         ).strip()
+        print("\n" + "=" * 80, flush=True)
+        print("DEBUG: OCR VALUES ENTERING ANALYSIS PIPELINE", flush=True)
+        print("=" * 80, flush=True)
+        print("POST_TEXT:", repr(ocr_values.get("post_text")), flush=True)
+        print("EXTRACTED_TEXT:", repr(ocr_values.get("extracted_text")), flush=True)
+        print("RAW_TEXT:", repr(ocr_values.get("raw_text")), flush=True)
+        print("=" * 80 + "\n", flush=True)
+
+        # IMPORTANT:
+        # Use raw_text from OCR as the source for NLP.
+        #
+        # raw_text is the original selected Tesseract OCR output.
+        # Do NOT use post_text here because post_text may contain
+        # coordinate-based processing that can damage OCR characters.
+        #
+        # Only whitespace normalization should happen before NLP.
+
+        if ocr_text:
+            logger.info(
+                "Using cleaned OCR post_text for NLP."
+            )
+        else:
+            logger.info(
+                "No cleaned OCR post_text available."
+            )
 
         vision_fallback_used = False
 
@@ -296,12 +353,7 @@ class AnalysisPipeline:
             )
 
         elif ocr_text:
-
-            extracted_text = ocr_text
-
-            logger.info(
-                "Using OCR extracted text; Vision fallback skipped."
-            )
+            final_text = ocr_text.strip()
 
         elif image:
 
@@ -473,54 +525,183 @@ class AnalysisPipeline:
                     TypeError
                 ):
 
-                    logger.warning(
-                        "Could not parse OCR engagement value: "
-                        "%s=%s",
-                        key,
-                        value
+                    print(
+                        f"Could not parse OCR engagement value: {key}={value}",
+                        flush=True
                     )
 
         # ---------------------------------------------------------
-        # FINAL TEXT
+        # FINAL TEXT / NLP BOUNDARY
+        # ---------------------------------------------------------
+        #
+        # IMPORTANT:
+        # Engagement extraction is already handled separately.
+        # Do NOT modify engagement_values here.
+        #
+        # For screenshot/OCR input, prefer OCR post_text.
+        # post_text is the cleaned social-media content returned
+        # by OCR and is the only OCR text that should enter NLP.
+        #
+        # For manually supplied text, use input_text directly.
         # ---------------------------------------------------------
 
-        final_text = (
-            input_text
-            if input_text
-            else extracted_text
-        ).strip()
+        if input_text:
 
+            final_text = input_text.strip()
+
+        elif ocr_text:
+    
+            final_text = ocr_text.strip()
+
+        else:
+
+            final_text = extracted_text.strip()
+
+
+        print("\n" + "=" * 80, flush=True)
+        print("DEBUG: OCR TEXT RECEIVED BY ANALYSIS PIPELINE", flush=True)
+        print("=" * 80, flush=True)
+        print(ocr_text, flush=True)
+        print("=" * 80 + "\n", flush=True)
+
+
+        # =========================================================
+        # FINAL NLP TEXT
+        # =========================================================
+
+        # =========================================================
+        # RAW OCR TEXT -> TRANSLATION
+        # =========================================================
+        #
+        # IMPORTANT:
+        # Do NOT pass OCR text through prepare_text_for_nlp().
+        #
+        # prepare_text_for_nlp() may remove/filter/alter OCR content.
+        #
+        # The OCR text should reach translation exactly as received,
+        # except for the whitespace normalization already performed
+        # by OCR service.
+        # =========================================================
+
+        cleaned_nlp_text = final_text
+
+        print("\n" + "=" * 80, flush=True)
+        print("DEBUG: RAW OCR TEXT BEFORE TRANSLATION", flush=True)
+        print("=" * 80, flush=True)
+        print(cleaned_nlp_text, flush=True)
+        print("=" * 80 + "\n", flush=True)
+
+
+        # =========================================================
+        # TRANSLATION
+        # =========================================================
+        #
+        # OCR text may be Kannada / Hindi / another Indic language.
+        # NLP and spaCy entity extraction currently work primarily
+        # with English text.
+        #
+        # Therefore:
+        #
+        #     Clean OCR
+        #         ↓
+        #     Translation
+        #         ↓
+        #     English NLP
+        #
+        # Engagement is completely untouched.
+        # =========================================================
+
+        translation_start = time.perf_counter()
+
+        nlp_text = self.translate_to_english(
+            cleaned_nlp_text
+        )
+
+        translation_time = (
+            time.perf_counter()
+            - translation_start
+        )
+
+        print("\n" + "=" * 80, flush=True)
+        print("DEBUG: FINAL NLP TEXT AFTER TRANSLATION", flush=True)
+        print("=" * 80, flush=True)
+        print(nlp_text, flush=True)
+        print("=" * 80 + "\n", flush=True)
+
+        logger.info(
+            "NLP INPUT TEXT AFTER TRANSLATION: %s",
+            nlp_text
+        )
+
+        print("\n" + "=" * 80, flush=True)
+        print("DEBUG: FINAL NLP TEXT", flush=True)
+        print("=" * 80, flush=True)
+        print(nlp_text, flush=True)
+        print("=" * 80 + "\n", flush=True)
+                
+
+        print("\n" + "=" * 80, flush=True)
+        print("DEBUG: FINAL NLP TEXT", flush=True)
+        print("=" * 80, flush=True)
+        print(nlp_text, flush=True)
+        print("=" * 80 + "\n", flush=True)
+        logger.info(
+            "NLP INPUT TEXT: %s",
+            nlp_text
+        )
         # ---------------------------------------------------------
         # NLP
         # ---------------------------------------------------------
         nlp_start = time.perf_counter()
         detection = (
             nlp_service.analyze_text(
-                final_text
+                nlp_text
             )
         )
         nlp_time = time.perf_counter() - nlp_start
 
-        logger.warning(
-            "NLP TIME: %.2fs",
-            nlp_time
+        print(
+            f"NLP TIME: {nlp_time:.2f}s",
+            flush=True
         )
 
-        claim = detection.get(
-            "claim",
-            final_text
-        )
+        claim = str(
+            detection.get(
+                "claim",
+                ""
+            )
+        ).strip()
 
-        # ---------------------------------------------------------
-        # FACT VERIFICATION
-        # ---------------------------------------------------------
+        if (
+            not claim
+            or claim.lower() in {
+                "unknown",
+                "n/a",
+                "none",
+                "null",
+            }
+        ):
 
-        fact_result = verify_claim(
-            claim=claim,
-            context=final_text,
-            publisher=publisher,
-            platform=platform,
-        )
+            fact_result = {
+                "status": "error",
+                "claim": "",
+                "verdict": "Verification Unavailable",
+                "reason": (
+                    "NLP could not extract a valid factual claim "
+                    "from the submitted content."
+                ),
+                "confidence": None,
+                "sources": [],
+            }
+
+        else:
+
+            fact_result = verify_claim(
+                claim=claim,
+                context=nlp_text,
+                publisher=publisher,
+                platform=platform,
+            )
 
         # ---------------------------------------------------------
         # ENGAGEMENT OBJECT
@@ -608,10 +789,19 @@ class AnalysisPipeline:
             nlp_risk_score = detection.get(
                 "risk_score"
             )
-
+            valid_nlp_claim = bool(
+                claim
+                and claim.lower() not in {
+                    "unknown",
+                    "n/a",
+                    "none",
+                    "null",
+                }
+            )
             if (
                 detection.get("status") == "success"
                 and nlp_risk_score is not None
+                and claim
             ):
                 spread_start = time.perf_counter()
                 spread_analysis = (
@@ -623,9 +813,9 @@ class AnalysisPipeline:
                 )
                 spread_time = time.perf_counter() - spread_start
 
-                logger.warning(
-                    "SPREAD ANALYSIS TIME: %.2fs",
-                    spread_time
+                print(
+                    f"SPREAD ANALYSIS TIME: {spread_time:.2f}s",
+                    flush=True
                 )
 
                 spread_score = (
@@ -694,16 +884,17 @@ class AnalysisPipeline:
                         )
                         graph_time = time.perf_counter() - graph_start
 
-                        logger.warning(
-                            "GRAPH GENERATION TIME: %.2fs",
-                            graph_time
+                        print(
+                            f"GRAPH GENERATION TIME: {graph_time:.2f}s",
+                            flush=True
                         )
 
             else:
 
-                logger.warning(
+                print(
                     "Skipping spread prediction because "
-                    "NLP analysis did not provide a valid risk score."
+                    "NLP analysis did not provide a valid risk score.",
+                    flush=True
                 )
 
         else:
@@ -898,20 +1089,19 @@ class AnalysisPipeline:
         )
         db_time = time.perf_counter() - db_start
 
-        logger.warning(
-            "DATABASE SAVE TIME: %.2fs",
-            db_time
+        print(
+            f"DATABASE SAVE TIME: {db_time:.2f}s",
+            flush=True
         )
 
-        logger.warning(
+        print(
             "Analysis completed successfully. "
-            "analysis_id=%s platform=%s social_input=%s "
-            "graph_generated=%s processing_time=%.2fs",
-            analysis_id,
-            platform,
-            has_social_media_input,
-            bool(graph),
-            time.time() - start
+            f"analysis_id={analysis_id} "
+            f"platform={platform} "
+            f"social_input={has_social_media_input} "
+            f"graph_generated={bool(graph)} "
+            f"processing_time={time.time() - start:.2f}s",
+            flush=True
         )
 
         return {
@@ -919,6 +1109,294 @@ class AnalysisPipeline:
                 response
         }
 
+    # ---------------------------------------------------------
+    # TRANSLATE CLEANED POST TEXT TO ENGLISH
+    # ---------------------------------------------------------
+
+    @staticmethod
+    def translate_to_english(text):
+    
+        print(
+            "🔥🔥🔥 TRANSLATION STARTED 🔥🔥🔥",
+            flush=True
+        )
+
+        if not text:
+            return ""
+
+        text = str(text).strip()
+
+        if not text:
+            return ""
+
+        # ---------------------------------------------------------
+        # Detect Indic scripts
+        # ---------------------------------------------------------
+
+        has_indic_script = bool(
+            re.search(
+                r"[\u0900-\u0DFF]",
+                text
+            )
+        )
+
+        # Already English / Latin text
+        if not has_indic_script:
+
+            logger.info(
+                "Translation skipped: text appears to be English."
+            )
+
+            return text
+
+        # ---------------------------------------------------------
+        # Check Groq client
+        # ---------------------------------------------------------
+
+        if not groq_client:
+
+            logger.error(
+                "TRANSLATION FAILED: Groq client is not initialized."
+            )
+
+            return text
+
+        translation_start = time.perf_counter()
+
+        try:
+
+            print(
+                f"🔥 TRANSLATION MODEL: {TRANSLATION_MODEL}",
+                flush=True
+            )
+
+            response = groq_client.chat.completions.create(
+
+                model=TRANSLATION_MODEL,
+
+                temperature=0,
+
+                # IMPORTANT:
+                # Qwen 3.6 supports reasoning_effort="none".
+                # This prevents reasoning from consuming the
+                # entire completion budget.
+                reasoning_effort="none",
+
+                max_completion_tokens=600,
+
+                messages=[
+
+                    {
+                        "role": "system",
+
+                        "content": (
+                            "Translate the user's OCR text into English.\n\n"
+
+                            "The OCR may contain Kannada, Hindi, English, "
+                            "mixed languages, OCR spacing errors, and OCR noise.\n\n"
+
+                            "Instructions:\n"
+                            "1. Translate readable Kannada or Hindi into English.\n"
+                            "2. Preserve names, numbers, dates and factual claims.\n"
+                            "3. Preserve questions as questions.\n"
+                            "4. Ignore obvious social-media UI text such as "
+                            "More, See translation, Like, Comment, Share and Follow.\n"
+                            "5. Fix obvious OCR spacing errors when possible.\n"
+                            "6. Do not explain your reasoning.\n"
+                            "7. Do not describe the OCR quality.\n"
+                            "8. Do not summarize.\n"
+                            "9. If a portion is unreadable, omit only that "
+                            "unreadable portion rather than inventing content.\n"
+                            "10. Return ONLY the English translation."
+                        )
+                    },
+
+                    {
+                        "role": "user",
+                        "content": text
+                    }
+
+                ]
+            )
+
+            # ---------------------------------------------------------
+            # DEBUG
+            # ---------------------------------------------------------
+
+            print(
+                "\n" + "=" * 80,
+                flush=True
+            )
+
+            print(
+                "🔥 RAW GROQ TRANSLATION RESPONSE",
+                flush=True
+            )
+
+            print(
+                response,
+                flush=True
+            )
+
+            print(
+                "=" * 80,
+                flush=True
+            )
+
+            choices = getattr(
+                response,
+                "choices",
+                None
+            )
+
+            if not choices:
+
+                logger.error(
+                    "TRANSLATION FAILED: Groq returned no choices."
+                )
+
+                return text
+
+            message = getattr(
+                choices[0],
+                "message",
+                None
+            )
+
+            if not message:
+
+                logger.error(
+                    "TRANSLATION FAILED: Groq message missing."
+                )
+
+                return text
+
+            # ---------------------------------------------------------
+            # ONLY use actual content
+            # ---------------------------------------------------------
+
+            translated = getattr(
+                message,
+                "content",
+                None
+            )
+
+            if not translated and isinstance(
+                message,
+                dict
+            ):
+
+                translated = message.get(
+                    "content"
+                )
+
+            translated = str(
+                translated or ""
+            ).strip()
+
+            # ---------------------------------------------------------
+            # Debug
+            # ---------------------------------------------------------
+
+            finish_reason = getattr(
+                choices[0],
+                "finish_reason",
+                None
+            )
+
+            reasoning = getattr(
+                message,
+                "reasoning",
+                None
+            )
+
+            print(
+                f"🔥 TRANSLATION FINISH REASON: "
+                f"{finish_reason}",
+                flush=True
+            )
+
+            print(
+                f"🔥 TRANSLATION CONTENT LENGTH: "
+                f"{len(translated)}",
+                flush=True
+            )
+
+            print(
+                f"🔥 REASONING PRESENT: "
+                f"{bool(reasoning)}",
+                flush=True
+            )
+
+            # ---------------------------------------------------------
+            # Empty translation
+            # ---------------------------------------------------------
+
+            if not translated:
+
+                logger.error(
+                    "TRANSLATION FAILED: Groq returned empty content."
+                )
+
+                return text
+
+            # ---------------------------------------------------------
+            # Success
+            # ---------------------------------------------------------
+
+            translation_time = (
+                time.perf_counter()
+                - translation_start
+            )
+
+            print(
+                f"TRANSLATION TIME: "
+                f"{translation_time:.2f}s",
+                flush=True
+            )
+
+            print(
+                "\n" + "=" * 80,
+                flush=True
+            )
+
+            print(
+                "🔥 TRANSLATION SUCCESS",
+                flush=True
+            )
+
+            print(
+                "=" * 80,
+                flush=True
+            )
+
+            print(
+                "BEFORE:",
+                text,
+                flush=True
+            )
+
+            print(
+                "AFTER:",
+                translated,
+                flush=True
+            )
+
+            print(
+                "=" * 80 + "\n",
+                flush=True
+            )
+
+            return translated
+
+        except Exception as e:
+
+            logger.exception(
+                "TRANSLATION ERROR: %s",
+                e
+            )
+
+            return text
     # ---------------------------------------------------------
     # CONFIDENCE CONVERSION
     # ---------------------------------------------------------
@@ -966,5 +1444,311 @@ class AnalysisPipeline:
 
             return None
 
+    @staticmethod
+    def prepare_text_for_nlp(
+        text,
+        engagement_values=None
+    ):
+        """
+        Prepare OCR text before NLP.
 
+        Removes social-media UI / metadata while preserving
+        legitimate claim content, including numbers and dates.
+
+        IMPORTANT:
+        Engagement extraction is NOT modified here.
+
+        This function only controls what reaches NLP.
+        """
+
+        if not text:
+            return ""
+
+        text = str(
+            text
+        )
+
+        engagement_values = (
+            engagement_values
+            if isinstance(
+                engagement_values,
+                dict
+            )
+            else {}
+        )
+
+        lines = text.splitlines()
+
+        cleaned_lines = []
+
+        # ---------------------------------------------------------
+        # Obvious social-media UI labels
+        # ---------------------------------------------------------
+
+        ui_phrases = {
+            "follow",
+            "following",
+            "like",
+            "likes",
+            "comment",
+            "comments",
+            "share",
+            "shares",
+            "repost",
+            "reposts",
+            "bookmark",
+            "bookmarks",
+            "reply",
+            "replies",
+            "more",
+            "show translation",
+            "translate",
+            "translation",
+        }
+
+        # ---------------------------------------------------------
+        # Words which strongly indicate that a line is metadata
+        # rather than post content.
+        # ---------------------------------------------------------
+
+        metadata_words = {
+            "views",
+            "view",
+            "replies",
+            "reply",
+            "comments",
+            "comment",
+            "likes",
+            "like",
+            "reposts",
+            "repost",
+            "bookmarks",
+            "bookmark",
+        }
+
+        # ---------------------------------------------------------
+        # Convert engagement values into strings.
+        #
+        # Example:
+        # 1500 -> "1500"
+        # 1.5K is handled separately below.
+        # ---------------------------------------------------------
+
+        engagement_numbers = set()
+
+        for value in engagement_values.values():
+
+            if value in (
+                None,
+                "",
+                0
+            ):
+                continue
+
+            try:
+                number = int(
+                    float(value)
+                )
+
+                engagement_numbers.add(
+                    str(number)
+                )
+
+            except (
+                ValueError,
+                TypeError
+            ):
+                continue
+
+        # ---------------------------------------------------------
+        # Helpers
+        # ---------------------------------------------------------
+
+        def normalize_line(line):
+            return re.sub(
+                r"\s+",
+                " ",
+                line
+            ).strip()
+
+        def is_time_only(line):
+
+            return bool(
+                re.fullmatch(
+                    r"""
+                    \d{1,2}
+                    :
+                    \d{2}
+                    (?:
+                        \s*
+                        (?:am|pm)
+                    )?
+                    """,
+                    line,
+                    flags=re.IGNORECASE |
+                        re.VERBOSE
+                )
+            )
+
+        def contains_metadata_word(line):
+
+            lower = line.lower()
+
+            words = set(
+                re.findall(
+                    r"[a-z]+",
+                    lower
+                )
+            )
+
+            return bool(
+                words &
+                metadata_words
+            )
+
+        def is_engagement_only(line):
+
+            compact = (
+                line
+                .replace(",", "")
+                .strip()
+                .lower()
+            )
+
+            # Direct match.
+            if compact in engagement_numbers:
+                return True
+
+            # Handle OCR output such as:
+            #
+            # 3 1
+            # 12 5 2
+            #
+            # when every token corresponds to a detected
+            # engagement number.
+            tokens = compact.split()
+
+            if (
+                tokens
+                and len(tokens) <= 8
+            ):
+                numeric_tokens = []
+
+                for token in tokens:
+
+                    token = (
+                        token
+                        .replace(".", "")
+                    )
+
+                    if token.isdigit():
+                        numeric_tokens.append(
+                            token
+                        )
+
+                if (
+                    len(numeric_tokens)
+                    == len(tokens)
+                ):
+                    if all(
+                        token in engagement_numbers
+                        for token in numeric_tokens
+                    ):
+                        return True
+
+            return False
+
+        def is_ui_only(line):
+
+            lower = line.lower()
+
+            # Exact UI label.
+            if lower in ui_phrases:
+                return True
+
+            # A line made only from UI labels.
+            tokens = lower.split()
+
+            if tokens:
+
+                normalized_tokens = {
+                    token.strip(
+                        ".,!?|:;·"
+                    )
+                    for token in tokens
+                }
+
+                if normalized_tokens and \
+                normalized_tokens.issubset(
+                    ui_phrases
+                ):
+                    return True
+
+            return False
+
+        # ---------------------------------------------------------
+        # Process OCR lines
+        # ---------------------------------------------------------
+
+        for raw_line in lines:
+
+            line = normalize_line(
+                raw_line
+            )
+
+            if not line:
+                continue
+
+            # -----------------------------------------------------
+            # 1. Obvious UI
+            # -----------------------------------------------------
+
+            if is_ui_only(line):
+                continue
+
+            # -----------------------------------------------------
+            # 2. Timestamp-only line
+            #
+            # Example:
+            # 3:00 pm
+            # -----------------------------------------------------
+
+            if is_time_only(line):
+                continue
+
+            # -----------------------------------------------------
+            # 3. Metadata / engagement line
+            #
+            # Example:
+            # Sep 26 · 1.9K Views
+            #
+            # We remove this because "Views" makes it clearly
+            # social-media metadata rather than claim content.
+            #
+            # A date appearing inside an ordinary claim is NOT
+            # removed.
+            # -----------------------------------------------------
+
+            if contains_metadata_word(line):
+                continue
+
+            # -----------------------------------------------------
+            # 4. Standalone engagement numbers
+            # -----------------------------------------------------
+
+            if is_engagement_only(line):
+                continue
+
+            # -----------------------------------------------------
+            # 5. Keep everything else
+            # -----------------------------------------------------
+
+            cleaned_lines.append(
+                line
+            )
+
+        return "\n".join(
+            cleaned_lines
+        ).strip()
+        
 analysis_pipeline = AnalysisPipeline()

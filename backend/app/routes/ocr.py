@@ -147,17 +147,26 @@ class OCRService:
     # ========================================================
 
     def clean_text(self, text):
+        """
+        Minimal OCR normalization.
 
-        # Keep Unicode characters so that
-        # Hindi and Kannada text are NOT destroyed.
+        IMPORTANT:
+        Do NOT modify OCR characters, words, punctuation,
+        Kannada/Hindi text, numbers, etc.
 
-        text = re.sub(
-            r"[^\w\s.,!?@#%:/\-]",
-            " ",
-            text,
-            flags=re.UNICODE
-        )
+        Only:
+        - convert newlines/tabs to spaces
+        - collapse repeated whitespace
+        - strip leading/trailing whitespace
+        """
 
+        if not text:
+            return ""
+
+        text = str(text)
+
+        # ONLY whitespace normalization.
+        # Do NOT alter any actual OCR characters.
         text = re.sub(
             r"\s+",
             " ",
@@ -165,7 +174,7 @@ class OCRService:
         )
 
         return text.strip()
-
+    
     # ========================================================
     # PUBLISHER DETECTION
     # ========================================================

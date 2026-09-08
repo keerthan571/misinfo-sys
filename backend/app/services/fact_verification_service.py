@@ -981,21 +981,37 @@ def verify_claim(
     # INPUT VALIDATION
     # ========================================================
 
-    if len(claim) < 5:
+    INVALID_CLAIMS = {
+        "",
+        "unknown",
+        "none",
+        "null",
+        "n/a",
+        "na",
+        "not available",
+        "unavailable",
+    }
+
+    if (
+        claim.lower() in INVALID_CLAIMS
+        or len(claim) < 5
+    ):
 
         return {
 
-            "status": "error",
+            "status": "success",
 
             "claim": claim,
 
             "verdict":
-                "Verification Unavailable",
+                "Insufficient Evidence",
 
-            "reason":
-                "A valid claim is required for verification.",
+            "reason": (
+                "No meaningful claim was extracted "
+                "from the provided text."
+            ),
 
-            "confidence": None,
+            "confidence": 0,
 
             "sources": []
 

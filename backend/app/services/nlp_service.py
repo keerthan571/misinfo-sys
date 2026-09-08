@@ -40,11 +40,41 @@ class NLPService:
             }
 
             ignored_words = {
-                "the", "and", "or", "but", "this", "that",
-                "these", "those", "today", "tomorrow",
-                "yesterday", "new", "latest", "live",
-                "news", "post", "update", "official",
+                "the",
+                "and",
+                "or",
+                "but",
+                "this",
+                "that",
+                "these",
+                "those",
+                "today",
+                "tomorrow",
+                "yesterday",
+                "new",
+                "latest",
+                "live",
+                "news",
+                "post",
+                "update",
+                "official",
                 "breaking",
+
+                # Social-media UI
+                "follow",
+                "following",
+                "like",
+                "likes",
+                "comment",
+                "comments",
+                "share",
+                "shares",
+                "repost",
+                "reposts",
+                "bookmark",
+                "bookmarks",
+                "reply",
+                "replies",
             }
 
             entities = []
@@ -121,7 +151,9 @@ class NLPService:
         result = json.loads(match.group(0))
 
         if not isinstance(result, dict):
-            raise ValueError("Extracted AI response is not a JSON object.")
+            raise ValueError(
+                "Extracted AI response is not a JSON object."
+            )
 
         return result
 
@@ -169,7 +201,13 @@ class NLPService:
         prompt = f"""
 Analyze the following submitted social-media content.
 
-TEXT:
+The submitted content may come from OCR of a screenshot.
+Therefore, it may contain OCR errors, social-media interface
+text, usernames, hashtags, engagement counts, publisher
+information, unrelated text, and text in languages unrelated
+to the main claim.
+
+OCR / SUBMITTED TEXT:
 {text[:2000]}
 
 Your task is NLP analysis, NOT factual verification.
@@ -183,12 +221,44 @@ using external evidence.
 
 Your responsibilities:
 
-1. Extract the main factual claim.
-2. Classify the claim type.
-3. Identify the language.
-4. Extract important keywords.
-5. Identify manipulation signals actually present.
+1. Extract the MAIN factual claim.
+
+2. Classify the MAIN claim type.
+
+3. Determine the language of the MAIN claim.
+
+4. Extract important keywords from the MAIN claim.
+
+5. Identify manipulation signals actually present in the
+   submitted content.
+
 6. Estimate linguistic/manipulation risk.
+
+IMPORTANT LANGUAGE RULES:
+
+- Determine language from the MAIN CLAIM, not from the entire
+  OCR text.
+- Ignore social-media UI text, usernames, hashtags,
+  engagement numbers, publisher names, OCR artifacts,
+  unrelated text, and unrelated multilingual text.
+- First identify the MAIN factual claim.
+- Then determine the language in which that MAIN claim is
+  written.
+- If the MAIN claim is entirely English, return "English".
+- If the MAIN claim is entirely Hindi, return "Hindi".
+- If the MAIN claim is entirely Kannada, return "Kannada".
+- Return "Mixed" ONLY when the MAIN CLAIM itself genuinely
+  contains two or more languages in a meaningful way.
+- Do NOT return "Mixed" merely because unrelated OCR text
+  contains another script or language.
+- OCR noise or isolated words from another language must not
+  cause the result to become "Mixed".
+
+The language value MUST be exactly one of:
+English
+Hindi
+Kannada
+Mixed
 
 Claim types must be exactly one of:
 Political
@@ -272,7 +342,13 @@ Return ONLY valid JSON.
                                         "type": "number"
                                     },
                                     "language": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "enum": [
+                                            "English",
+                                            "Hindi",
+                                            "Kannada",
+                                            "Mixed",
+                                        ],
                                     },
                                     "keywords": {
                                         "type": "array",
@@ -307,6 +383,9 @@ Return ONLY valid JSON.
                             "content": (
                                 "You are an expert NLP analysis system. "
                                 "Analyze linguistic and manipulation signals. "
+                                "Determine language from the MAIN CLAIM only. "
+                                "Ignore unrelated OCR text and social-media "
+                                "interface text when determining language. "
                                 "Do not determine factual truth. "
                                 "Return only structured JSON."
                             ),
@@ -326,7 +405,67 @@ Return ONLY valid JSON.
 
             result = self.extract_json_response(output)
 
-            claim = str(result.get("claim", "Unknown")).strip() or "Unknown"
+            claim = str(
+                    result.get("claim", "")
+                ).strip()
+
+            invalid_claims = {
+                    "",
+                    "unknown",
+                    "n/a",
+                    "none",
+                    "null",
+                    "not a factual claim",
+                }
+
+            if claim.lower() in invalid_claims:
+
+                    prediction = str(
+                        result.get(
+                            "prediction",
+                            "Not a Factual Claim"
+                        )
+                    ).strip()
+
+                    if prediction not in {
+                        "Needs Verification",
+                        "Not a Factual Claim",
+                    }:
+                        prediction = "Not a Factual Claim"
+
+                    return {
+                        "status": "success",
+                        "claim": "",
+                        "claim_type": "General",
+                        "prediction": prediction,
+                        "confidence": 0,
+                        "risk_score": 0,
+                        "keywords": [],
+                        "entities": [],
+                        "language": str(
+                            result.get(
+                                "language",
+                                "Unknown"
+                            )
+                        ).strip(),
+                        "manipulation_signals": [],
+                    }
+
+            claim = text[:500].strip()
+
+            if not claim:
+                    return {
+                        "status": "error",
+                        "claim": "Unknown",
+                        "claim_type": "General",
+                        "prediction": "Verification Unavailable",
+                        "confidence": None,
+                        "risk_score": None,
+                        "language": "Unknown",
+                        "keywords": [],
+                        "entities": [],
+                        "manipulation_signals": [],
+                    }
 
             allowed_claim_types = {
                 "Political",
@@ -346,7 +485,10 @@ Return ONLY valid JSON.
                 claim_type = "General"
 
             prediction = str(
-                result.get("prediction", "Needs Verification")
+                result.get(
+                    "prediction",
+                    "Needs Verification"
+                )
             ).strip()
 
             if prediction not in {
@@ -369,8 +511,39 @@ Return ONLY valid JSON.
                 0,
             )
 
-            confidence = int(confidence) if confidence.is_integer() else confidence
-            risk_score = int(risk_score) if risk_score.is_integer() else risk_score
+            confidence = (
+                int(confidence)
+                if confidence.is_integer()
+                else confidence
+            )
+
+            risk_score = (
+                int(risk_score)
+                if risk_score.is_integer()
+                else risk_score
+            )
+
+            # ---------------------------------------------
+            # LANGUAGE VALIDATION
+            # ---------------------------------------------
+
+            language = str(
+                result.get("language", "English")
+            ).strip()
+
+            allowed_languages = {
+                "English",
+                "Hindi",
+                "Kannada",
+                "Mixed",
+            }
+
+            if language not in allowed_languages:
+                language = "English"
+
+            # ---------------------------------------------
+            # KEYWORDS
+            # ---------------------------------------------
 
             keywords = result.get("keywords", [])
 
@@ -382,6 +555,10 @@ Return ONLY valid JSON.
                 for keyword in keywords
                 if str(keyword).strip()
             ][:15]
+
+            # ---------------------------------------------
+            # MANIPULATION SIGNALS
+            # ---------------------------------------------
 
             manipulation_signals = result.get(
                 "manipulation_signals",
@@ -397,6 +574,10 @@ Return ONLY valid JSON.
                 if str(signal).strip()
             ][:10]
 
+            # ---------------------------------------------
+            # FINAL RESULT
+            # ---------------------------------------------
+
             return {
                 "status": "success",
                 "claim": claim,
@@ -404,9 +585,7 @@ Return ONLY valid JSON.
                 "prediction": prediction,
                 "confidence": confidence,
                 "risk_score": risk_score,
-                "language": str(
-                    result.get("language", "English")
-                ).strip() or "English",
+                "language": language,
                 "keywords": keywords,
                 "entities": self.extract_entities(text),
                 "manipulation_signals": manipulation_signals,
