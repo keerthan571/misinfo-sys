@@ -622,7 +622,7 @@ export default function HistoryDetails() {
 
         pdf.text(
           imageUrl
-            ? "Original Text"
+            ? "Analyzed Text"
             : "Submitted Text",
           margin,
           y
@@ -631,7 +631,7 @@ export default function HistoryDetails() {
         y += 7;
 
         addTextBlock(
-          analysis.text
+          analysis.display_text || analysis.text
         );
       }
 
@@ -1370,13 +1370,13 @@ export default function HistoryDetails() {
             <div>
 
               <h3 className="text-lg font-semibold text-slate-300 mb-4">
-                Original Text
+                Analyzed Text
               </h3>
 
               <div className="bg-slate-900 rounded-xl border border-slate-700 p-6 max-h-[500px] overflow-y-auto">
 
                 <p className="text-slate-300 leading-8 whitespace-pre-wrap">
-                  {analysis.text}
+                  {analysis.display_text || analysis.text}
                 </p>
 
               </div>
@@ -1410,13 +1410,13 @@ export default function HistoryDetails() {
           <div>
 
             <h3 className="text-lg font-semibold text-slate-300 mb-4">
-              Original Text
+              Analyzed Text
             </h3>
 
             <div className="bg-slate-900 rounded-xl border border-slate-700 p-6 max-h-[500px] overflow-y-auto">
 
               <p className="text-slate-300 leading-8 whitespace-pre-wrap">
-                {analysis.text}
+                 {analysis.display_text || analysis.text}
               </p>
 
             </div>

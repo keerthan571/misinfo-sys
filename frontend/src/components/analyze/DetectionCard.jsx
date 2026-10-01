@@ -199,35 +199,6 @@ export default function DetectionCard({ data }) {
           </div>
         )}
 
-        {data.entities?.length > 0 && (
-          <div className="bg-[#0F172A] border border-slate-700/70 rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Globe size={18} className="text-cyan-400" />
-
-              <h3 className="text-sm font-semibold text-white">
-                Extracted Entities
-              </h3>
-            </div>
-
-            <div className="space-y-2">
-              {data.entities.map((entity, index) => (
-                <div
-                  key={index}
-                  className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex justify-between items-center gap-4"
-                >
-                  <span className="text-slate-300">
-                    {entity.name}
-                  </span>
-
-                  <span className="px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold">
-                    {entity.type}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className="flex items-center justify-between bg-[#0F172A] border border-slate-700/70 rounded-2xl p-5">
           <div>
             <p className="text-slate-500 text-xs uppercase tracking-wider font-semibold">

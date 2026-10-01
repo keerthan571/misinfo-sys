@@ -736,7 +736,50 @@ class AnalysisPipeline:
             )
         ).strip()
 
-        if (
+        nlp_prediction = str(
+            detection.get(
+                "prediction",
+                ""
+            )
+        ).strip()
+
+        # ---------------------------------------------------------
+        # FACT VERIFICATION BOUNDARY
+        # ---------------------------------------------------------
+        #
+        # Fact verification must only run for an actual factual claim.
+        #
+        # Examples:
+        #
+        #   "India is the world's most populous country."
+        #       → Needs Verification
+        #       → run verify_claim()
+        #
+        #   "I really enjoyed watching this movie."
+        #       → Not a Factual Claim
+        #       → DO NOT run verify_claim()
+        #
+        #   "hello"
+        #       → Not a Factual Claim / no usable claim
+        #       → DO NOT run verify_claim()
+        #
+        # This prevents opinions, emotions, greetings, jokes, etc.
+        # from being incorrectly labeled as Verified/False information.
+        # ---------------------------------------------------------
+
+        is_non_factual = (
+            nlp_prediction.lower()
+            in {
+                "not a factual claim",
+                "non-factual",
+                "non factual",
+                "opinion",
+                "emotion",
+                "joke",
+            }
+        )
+
+        invalid_claim = (
             not claim
             or claim.lower() in {
                 "unknown",
@@ -744,7 +787,24 @@ class AnalysisPipeline:
                 "none",
                 "null",
             }
-        ):
+        )
+
+        if is_non_factual:
+
+            fact_result = {
+                "status": "not_applicable",
+                "claim": claim,
+                "verdict": "Not a Factual Claim",
+                "reason": (
+                    "NLP determined that the submitted content "
+                    "does not contain a factual claim requiring "
+                    "evidence-based verification."
+                ),
+                "confidence": None,
+                "sources": [],
+            }
+
+        elif invalid_claim:
 
             fact_result = {
                 "status": "error",
@@ -925,6 +985,14 @@ class AnalysisPipeline:
                                         "text":
                                             final_text,
 
+                                        "display_text":
+                                            (
+                                                nlp_text
+                                                if str(original_language).strip().lower()
+                                                in {"kannada", "hindi"}
+                                                else final_text
+                                            ),
+
                                         "platform":
                                             platform,
 
@@ -1028,6 +1096,14 @@ class AnalysisPipeline:
 
             "text":
                 final_text,
+
+            "display_text":
+                (
+                    nlp_text
+                    if str(original_language).strip().lower()
+                    in {"kannada", "hindi"}
+                    else final_text
+                ),
 
             "platform": {
                 "platform":

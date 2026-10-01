@@ -140,36 +140,37 @@ export default function Prediction() {
   const engagementLabels = {
     likes: "Likes",
     comments: "Comments",
-    replies: "Replies",
     reposts: "Reposts",
     shares: "Shares",
-    bookmarks: "Bookmarks",
-    views: "Views"
+    bookmarks: "Bookmarks"
   };
+
+  // Only these engagement fields are valid for the UI.
+  // Do NOT display replies or views.
+  const allowedEngagementKeys = [
+    "likes",
+    "comments",
+    "reposts",
+    "shares",
+    "bookmarks"
+  ];
 
   const engagementMetrics =
     Object.entries(engagement)
       .filter(
         ([key, value]) =>
-          key !== "metrics" &&
-          key !== "followers" &&
+          allowedEngagementKeys.includes(key) &&
           typeof value === "number" &&
           value >= 0
       )
       .map(
         ([key, value]) => ({
           key,
-          label:
-            engagementLabels[key] ||
-            key
-              .replace(/_/g, " ")
-              .replace(/\b\w/g, c =>
-                c.toUpperCase()
-              ),
+          label: engagementLabels[key],
           value
         })
       );
-
+      
   const formatNumber = (value) => {
     if (
       value === null ||

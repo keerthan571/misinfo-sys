@@ -4,6 +4,7 @@ import io
 import logging
 import os
 import re
+import unicodedata
 
 import pytesseract
 from PIL import (
@@ -320,6 +321,36 @@ class OCRService:
         )
 
         return gray  
+    
+    # ---------------------------------------------------------
+    # UNICODE NORMALIZATION
+    # ---------------------------------------------------------
+
+    def normalize_unicode(self, text):
+        """
+        Normalize OCR text to canonical Unicode form.
+
+        This is important for Kannada, Hindi and other
+        Indic scripts because visually identical characters
+        can sometimes be represented using different
+        Unicode sequences.
+
+        IMPORTANT:
+        - Does NOT translate text.
+        - Does NOT correct OCR mistakes.
+        - Does NOT replace Kannada characters.
+        - Does NOT remove punctuation or numbers.
+        """
+
+        if not text:
+            return ""
+
+        text = str(text)
+
+        return unicodedata.normalize(
+            "NFC",
+            text
+        )
     # -----------------------------------------------------
     # TEXT CLEANING
     #
@@ -2484,12 +2515,11 @@ class OCRService:
     # -----------------------------------------------------
     # OCR EXTRACTION
     # -----------------------------------------------------
-
     def extract_text_from_image(
-        self,
-        image_bytes,
-        language="eng+hin+kan"
-    ):
+            self,
+            image_bytes,
+            language="eng+hin+kan"
+        ):
 
         try:
 
@@ -2497,17 +2527,9 @@ class OCRService:
             # Validate language
             # ---------------------------------------------
 
-            language = (
-                self.normalize_language(
-                    language
-                )
-            )
+            language = self.normalize_language(language)
 
-            language = (
-                self.validate_language_models(
-                    language
-                )
-            )
+            language = self.validate_language_models(language)
 
             logger.info(
                 "OCR language selected: %s",
@@ -2518,19 +2540,13 @@ class OCRService:
             # Validate image
             # ---------------------------------------------
 
-            image = self.validate_image(
-                image_bytes
-            )
+            image = self.validate_image(image_bytes)
 
             # ---------------------------------------------
             # Preprocess
             # ---------------------------------------------
 
-            processed = (
-                self.preprocess_image(
-                    image
-                )
-            )
+            processed = self.preprocess_image(image)
 
             # ---------------------------------------------
             # OCR
@@ -2541,24 +2557,9 @@ class OCRService:
                 language
             )
 
-            # -------------------------------------------------
+            # ---------------------------------------------
             # RAW OCR TEXT
-            # -------------------------------------------------
-            #
-            # IMPORTANT:
-            # Use the selected Tesseract raw_text directly.
-            #
-            # Do NOT use:
-            # - post_text
-            # - structured_text
-            # - coordinate-based post extraction
-            # - character replacement
-            # - Kannada/Hindi repair
-            # - social-media text filtering
-            #
-            # The only processing below is whitespace
-            # normalization through clean_text().
-            #
+            # ---------------------------------------------
 
             ocr_raw_text = str(
                 ocr_result.get(
@@ -2567,28 +2568,41 @@ class OCRService:
                 )
             )
 
-            # -------------------------------------------------
+            # ---------------------------------------------
+            # UNICODE NORMALIZATION
+            # ---------------------------------------------
+            #
+            # NFC normalizes equivalent Unicode sequences
+            # without translating or replacing Kannada text.
+            #
+            # IMPORTANT:
+            # Do NOT use ASCII encoding/decoding.
+            # Do NOT replace Kannada characters manually.
+            # Do NOT remove combining marks.
+            #
+
+            ocr_raw_text = unicodedata.normalize(
+                "NFC",
+                ocr_raw_text
+            )
+
+            # ---------------------------------------------
             # FINAL TEXT FOR NLP
-            # -------------------------------------------------
-            #
-            # This is the ONLY transformation applied to
-            # the raw OCR before sending it to analysis.
-            #
-            # clean_text() only:
-            #   1. converts newlines/tabs/etc. to spaces
-            #   2. collapses repeated whitespace
-            #   3. strips leading/trailing whitespace
-            #
-            # No OCR characters are changed.
-            #
+            # ---------------------------------------------
 
             analysis_text = self.clean_text(
                 ocr_raw_text
             )
 
-            # -------------------------------------------------
+            # Normalize once more after whitespace cleanup.
+            analysis_text = unicodedata.normalize(
+                "NFC",
+                analysis_text
+            )
+
+            # ---------------------------------------------
             # DEBUG
-            # -------------------------------------------------
+            # ---------------------------------------------
 
             print(
                 "\n================================================="
@@ -2666,14 +2680,9 @@ class OCRService:
                 "status":
                     "success",
 
-                # This is the whitespace-normalized
-                # raw Tesseract text that goes to NLP.
                 "extracted_text":
                     analysis_text,
 
-                # Keep this identical to extracted_text
-                # so downstream analysis receives the
-                # same text.
                 "post_text":
                     analysis_text,
 
@@ -2683,7 +2692,6 @@ class OCRService:
                 "ordered_values":
                     {},
 
-                # Original raw Tesseract output preserved.
                 "raw_text":
                     ocr_raw_text,
 
@@ -2735,5 +2743,4 @@ class OCRService:
                 "message":
                     str(e),
             }
-
 ocr_service = OCRService()

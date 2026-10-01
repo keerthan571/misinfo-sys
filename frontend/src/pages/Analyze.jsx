@@ -253,7 +253,9 @@ export default function Analyze() {
                 </p>
 
                 <p className="text-lg font-bold text-green-400">
-                  {result.analysis.final_result?.confidence}%
+                  {result.analysis.final_result?.confidence != null
+                    ? `${Math.round(result.analysis.final_result.confidence)}%`
+                    : "N/A"}
                 </p>
               </div>
 

@@ -474,6 +474,7 @@ def collect_evidence(
             )
 
         return []
+    
     # Run the independent Tavily searches concurrently.
     with ThreadPoolExecutor(
         max_workers=len(queries)
@@ -607,6 +608,7 @@ Content:
         evidence,
         sources
     )
+
 # ============================================================
 # VERIFICATION PROMPT
 # ============================================================
@@ -640,29 +642,58 @@ def build_verification_prompt(
 IMPORTANT:
 
 1. Use ONLY the provided evidence.
-2. Do not use your own memory or outside knowledge.
-3. Pay close attention to dates and years.
-4. A claim about a specific year must be evaluated against
-   evidence referring to that same year.
-5. Do not treat an article about an earlier or later year as
-   proof of the current claim.
-6. If evidence clearly states that another person, team,
-   organization, event, result, date or outcome occurred
-   instead of what the claim states, that is evidence
-   contradicting the claim.
-7. Do not mark a claim false merely because evidence does
-   not explicitly repeat the exact wording.
-8. If multiple reliable sources consistently support the
-   claim, mark it Verified Information.
-9. If reliable evidence clearly contradicts the claim,
-   mark it False Information.
-10. If the claim contains a mixture of supported and
-    materially distorted information, mark it
-    Misleading Information.
-11. If the available evidence is insufficient to determine
-    whether the claim is true or false, mark it
-    Insufficient Evidence.
-
+2. Do not use your own memory, assumptions, medical knowledge,
+   general knowledge, or outside information.
+3. Evaluate the COMPLETE claim, not just individual keywords.
+4. Every important part of the claim must be considered,
+   including:
+   - who/what
+   - action or event
+   - date/year
+   - location
+   - quantity or measurement
+   - certainty words such as "completely", "always", "never",
+     "only", or "guarantees"
+5. Evidence is relevant only if it directly addresses the
+   claim or a material part of the claim.
+6. Evidence can contradict a claim even when it does not use
+   exactly the same wording as the claim.
+7. If reliable evidence explicitly states that the claimed
+   effect does NOT occur, treat that as contradictory evidence.
+8. If the claim says that an action "prevents", "cures",
+   "guarantees", "always", "never", "completely", or otherwise
+   makes an absolute claim, require strong evidence for that
+   exact effect.
+9. Do NOT mark a claim as False merely because the evidence
+   does not mention it.
+10. Mark the claim as False Information when reliable evidence
+    directly contradicts the central factual assertion.
+11. Mark the claim as Misleading Information when part of the
+    claim is supported but the claim materially exaggerates,
+    distorts, or extends that evidence.
+12. Mark the claim as Insufficient Evidence only when the
+    provided evidence neither clearly supports nor clearly
+    contradicts the central claim.
+13. For health claims, do not infer medical effects from general
+    hydration benefits. Evidence that water is beneficial for
+    hydration is NOT evidence that it prevents or cures a disease.
+14. When evaluating a claim containing an absolute word such as
+    "completely", the evidence must support that absolute claim.
+    Evidence showing that the proposed action does not prevent
+    the disease is sufficient to classify the claim as False
+    Information.
+15. Pay close attention to dates and years.
+16. A claim about a specific date or year must be evaluated using
+    evidence relevant to that same date or year.
+17. Evidence about an earlier or later event must not automatically
+    be treated as evidence about the claimed date.
+18. Do not mark a claim False merely because no source repeats
+    the exact wording.
+19. Do not mark a claim Verified merely because the sources discuss
+    the same general topic.
+20. When sources disagree, consider the actual statements made
+    by the sources and determine whether they directly support,
+    contradict, or fail to resolve the claim.
 Return ONLY valid JSON.
 
 Use exactly this structure:

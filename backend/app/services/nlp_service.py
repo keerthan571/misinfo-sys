@@ -3,7 +3,7 @@ import logging
 import os
 import re
 
-import spacy
+
 from dotenv import load_dotenv
 from groq import Groq
 
@@ -16,249 +16,8 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
-nlp_model = spacy.load("en_core_web_sm")
-
-
 class NLPService:
 
-    def extract_entities(self, text):
-        """
-        Extract entities from the submitted NLP text.
-
-        spaCy is used as a lightweight NER layer.
-        Generic/descriptive words that are incorrectly classified
-        as locations or other entities are rejected.
-
-        This function does NOT affect engagement extraction.
-        """
-
-        if not text:
-            return []
-
-        try:
-
-            doc = nlp_model(text)
-
-            entity_map = {
-                "PERSON": "Person",
-                "GPE": "Location",
-                "LOC": "Location",
-                "ORG": "Organization",
-                "EVENT": "Event",
-                "DATE": "Date",
-                "MONEY": "Money",
-                "PRODUCT": "Product",
-            }
-
-            # -----------------------------------------------------
-            # Generic words that are not useful entities.
-            # -----------------------------------------------------
-
-            ignored_words = {
-                "the",
-                "and",
-                "or",
-                "but",
-                "this",
-                "that",
-                "these",
-                "those",
-                "today",
-                "tomorrow",
-                "yesterday",
-                "new",
-                "latest",
-                "live",
-                "news",
-                "post",
-                "update",
-                "official",
-                "breaking",
-
-                # Social-media UI
-                "follow",
-                "following",
-                "like",
-                "likes",
-                "comment",
-                "comments",
-                "share",
-                "shares",
-                "repost",
-                "reposts",
-                "bookmark",
-                "bookmarks",
-                "reply",
-                "replies",
-
-                # Generic descriptive / evaluative words
-                "toxic",
-                "viral",
-                "fake",
-                "real",
-                "true",
-                "false",
-                "important",
-                "controversial",
-                "sensational",
-                "dangerous",
-                "shocking",
-                "misleading",
-                "incorrect",
-                "wrong",
-                "alleged",
-                "allegedly",
-            }
-
-            # -----------------------------------------------------
-            # Words that should NEVER be treated as locations.
-            #
-            # This is intentionally generic rather than tied to
-            # one particular post.
-            # -----------------------------------------------------
-
-            location_rejection_words = {
-                "toxic",
-                "viral",
-                "fake",
-                "real",
-                "true",
-                "false",
-                "important",
-                "controversial",
-                "sensational",
-                "dangerous",
-                "shocking",
-                "misleading",
-                "incorrect",
-                "wrong",
-                "alleged",
-                "allegedly",
-                "official",
-                "breaking",
-                "latest",
-                "news",
-                "post",
-                "update",
-            }
-
-            entities = []
-            seen = set()
-
-            for ent in doc.ents:
-
-                value = ent.text.strip()
-
-                if not value:
-                    continue
-
-                value_lower = value.lower()
-
-                # -------------------------------------------------
-                # Unsupported entity type
-                # -------------------------------------------------
-
-                if ent.label_ not in entity_map:
-                    continue
-
-                # -------------------------------------------------
-                # Very short entity
-                # -------------------------------------------------
-
-                if len(value) < 3:
-                    continue
-
-                # -------------------------------------------------
-                # Generic word
-                # -------------------------------------------------
-
-                if value_lower in ignored_words:
-                    continue
-
-                # -------------------------------------------------
-                # Explicit false-location protection
-                # -------------------------------------------------
-
-                if (
-                    ent.label_ in {"GPE", "LOC"}
-                    and value_lower in location_rejection_words
-                ):
-                    continue
-
-                # -------------------------------------------------
-                # Social-media handles
-                # -------------------------------------------------
-
-                if value.startswith("@"):
-                    continue
-
-                # -------------------------------------------------
-                # Pure number
-                # -------------------------------------------------
-
-                if value.isdigit():
-                    continue
-
-                # -------------------------------------------------
-                # Numeric/date garbage
-                # -------------------------------------------------
-
-                if re.fullmatch(
-                    r"[\d\s.,:/\-]+",
-                    value
-                ):
-                    continue
-
-                # -------------------------------------------------
-                # Reject obvious single-word descriptors.
-                #
-                # spaCy occasionally labels descriptive adjectives
-                # as entities. Only apply this to single-word values.
-                # -------------------------------------------------
-
-                if (
-                    len(value.split()) == 1
-                    and value_lower.endswith(
-                        (
-                            "ing",
-                            "ed",
-                            "ous",
-                            "ful",
-                            "ive",
-                            "less",
-                            "al",
-                            "ic",
-                        )
-                    )
-                    and ent.label_ in {"GPE", "LOC"}
-                ):
-                    continue
-
-                # -------------------------------------------------
-                # Duplicate
-                # -------------------------------------------------
-
-                if value_lower in seen:
-                    continue
-
-                entities.append(
-                    {
-                        "name": value,
-                        "type": entity_map[ent.label_],
-                    }
-                )
-
-                seen.add(value_lower)
-
-            return entities[:10]
-
-        except Exception:
-
-            logger.exception(
-                "NLP entity extraction failed."
-            )
-
-            return []    
     @staticmethod
     def extract_json_response(output):
         if not output or not output.strip():
@@ -305,9 +64,105 @@ class NLPService:
         except (TypeError, ValueError):
             return default
 
+    @staticmethod
+    def is_question_only(text):
+        """
+        Returns True when the submitted content is primarily
+        an interrogative question rather than a factual assertion.
+        """
+        text = (text or "").strip()
+
+        if not text:
+            return False
+
+        # Strong signal: the entire submission ends as a question.
+        if not text.endswith("?"):
+            return False
+
+        # Common English question starters.
+        question_starters = (
+            "who ",
+            "what ",
+            "when ",
+            "where ",
+            "why ",
+            "how ",
+            "is ",
+            "are ",
+            "am ",
+            "was ",
+            "were ",
+            "do ",
+            "does ",
+            "did ",
+            "has ",
+            "have ",
+            "had ",
+            "can ",
+            "could ",
+            "will ",
+            "would ",
+            "should ",
+            "shall ",
+            "may ",
+            "might ",
+            "which ",
+        )
+
+        lowered = text.lower()
+
+        return lowered.startswith(question_starters)
+    
+    @staticmethod
+    def is_opinion_only(text):
+        text = (text or "").strip().lower()
+
+        opinion_starters = (
+            "i think ",
+            "i feel ",
+            "i believe ",
+            "in my opinion ",
+            "imo ",
+            "personally ",
+            "i would say ",
+            "i consider ",
+        )
+
+        return text.startswith(opinion_starters)
     def analyze_text(self, text):
         text = (text or "").strip()
 
+        # ---------------------------------------------------------
+        # QUESTION-ONLY CONTENT
+        # ---------------------------------------------------------
+        # A question is not itself a factual assertion.
+        # Do not send question-only content to fact verification.
+        if self.is_question_only(text):
+            return {
+                "status": "success",
+                "claim": "",
+                "claim_type": "General",
+                "prediction": "Not a Factual Claim",
+                "confidence": 0,
+                "risk_score": 0,
+                "keywords": [],
+                "language": "English",
+                "manipulation_signals": [],
+            }
+
+        if self.is_opinion_only(text):
+                return {
+                    "status": "success",
+                    "claim": "",
+                    "claim_type": "Opinion",
+                    "prediction": "Not a Factual Claim",
+                    "confidence": 0,
+                    "risk_score": 0,
+                    "keywords": [],
+                    "language": "English",
+                    "manipulation_signals": [],
+                }
+        
         if len(text) < 5:
             return {
                 "status": "error",
@@ -317,7 +172,7 @@ class NLPService:
                 "confidence": None,
                 "risk_score": None,
                 "keywords": [],
-                "entities": [],
+                 
                 "language": "Unknown",
                 "manipulation_signals": [],
             }
@@ -326,16 +181,15 @@ class NLPService:
             logger.error("Groq is not configured.")
 
             return {
-                "status": "error",
-                "claim": text[:200],
-                "claim_type": "General",
-                "prediction": "Verification Unavailable",
-                "confidence": None,
-                "risk_score": None,
-                "keywords": [],
-                "entities": self.extract_entities(text),
-                "language": "Unknown",
-                "manipulation_signals": [],
+                "status": "success",
+                "claim": claim,
+                "claim_type": claim_type,
+                "prediction": prediction,
+                "confidence": confidence,
+                "risk_score": risk_score,
+                "language": language,
+                "keywords": keywords,
+                "manipulation_signals": manipulation_signals,
             }
 
         prompt = f"""
@@ -359,20 +213,59 @@ is correct. Current events may have changed.
 The separate Fact Verification module verifies factual claims
 using external evidence.
 
+
+IMPORTANT QUESTION RULE:
+
+- A question is NOT itself a factual assertion.
+- If the submitted content is solely a question asking whether,
+  when, where, why, who, what, or how something happened,
+  do NOT extract the question as a factual claim.
+- For a question-only submission, return:
+  claim = ""
+  prediction = "Not a Factual Claim"
+- Do NOT send question-only content for factual verification.
+- Examples:
+  "Did the Bengaluru Metro Purple Line extension open on
+   September 28, 2026?"
+  -> claim = ""
+  -> prediction = "Not a Factual Claim"
+
+  "Is drinking warm water enough to prevent diabetes?"
+  -> claim = ""
+  -> prediction = "Not a Factual Claim"
+
+  "When did the Bengaluru Metro Purple Line extension open?"
+  -> claim = ""
+  -> prediction = "Not a Factual Claim"
+
+- A question may contain factual information as part of its wording,
+  but the question itself must not automatically be treated as a
+  factual assertion.
+- Only extract a claim if the submitted content also contains a
+  separate factual assertion outside the question.
+  
 Your responsibilities:
 
-1. Extract the MAIN factual claim.
+1. Identify whether the submitted content contains at least
+   one independently verifiable factual assertion.
 
-2. Classify the MAIN claim type.
+2. If one or more factual assertions are present, extract the
+   MOST IMPORTANT factual assertion as the claim.
 
-3. Determine the language of the MAIN claim.
+3. If the content contains both non-factual content and factual
+   assertions, extract the factual assertion rather than
+   classifying the entire post as non-factual.
 
-4. Extract important keywords from the MAIN claim.
+4. Classify the claim type.
 
-5. Identify manipulation signals actually present in the
+5. Determine the language of the MAIN CLAIM.
+
+6. Extract important keywords from the MAIN CLAIM.
+
+7. Identify manipulation signals actually present in the
    submitted content.
 
-6. Estimate linguistic/manipulation risk.
+8. Estimate linguistic/manipulation risk.
 
 IMPORTANT LANGUAGE RULES:
 
@@ -409,12 +302,28 @@ Technology
 Entertainment
 General
 
-For factual claims, prediction MUST be:
-"Needs Verification"
+PREDICTION RULES:
 
-For opinions, jokes, emotions, or other non-factual content,
-prediction may be:
-"Not a Factual Claim"
+- If the submitted content contains at least one independently
+  verifiable factual assertion, prediction MUST be:
+  "Needs Verification"
+
+- If the submitted content contains no independently verifiable
+  factual assertion, prediction MUST be:
+  "Not a Factual Claim"
+
+- A post does NOT become "Not a Factual Claim" merely because
+  it also contains greetings, wishes, opinions, emotions,
+  praise, criticism, questions, hashtags, or other non-factual
+  content.
+
+- If a post contains both emotional/non-factual content and a
+  factual assertion, extract the factual assertion and return:
+  "Needs Verification".
+
+- Do not decide whether the factual assertion is true or false.
+  That is the responsibility of the separate Fact Verification
+  module.
 
 Risk score:
 0 = no meaningful linguistic/manipulation risk.
@@ -438,6 +347,103 @@ Possible manipulation signals include:
 - misleading calls to action
 
 Only report a signal when supported by the submitted text.
+EXAMPLES:
+
+Example 1:
+
+Content:
+"Happy birthday! Wishing you health, happiness and success
+always."
+
+Result:
+- claim = ""
+- prediction = "Not a Factual Claim"
+
+Reason:
+The content contains only a birthday wish and no independently
+verifiable factual assertion.
+
+
+Example 2:
+
+Content:
+"Happy birthday! He has acted in more than 20 films and has
+also directed several movies."
+
+Result:
+- claim = "He has acted in more than 20 films and has also
+  directed several movies."
+- prediction = "Needs Verification"
+
+Reason:
+The birthday greeting is non-factual, but the post contains
+verifiable factual assertions.
+
+
+Example 3:
+
+Content:
+"I think this is the greatest movie ever made."
+
+Result:
+- claim = ""
+- prediction = "Not a Factual Claim"
+
+Reason:
+This is an opinion rather than an independently verifiable
+factual assertion.
+
+
+Example 4:
+
+Content:
+"The company announced a 20% increase in revenue this year."
+
+Result:
+- claim = "The company announced a 20% increase in revenue
+  this year."
+- prediction = "Needs Verification"
+
+Reason:
+This is a factual assertion that can be checked against
+evidence.
+
+
+Example 5:
+
+Content:
+"This medicine completely cures diabetes."
+
+Result:
+- claim = "This medicine completely cures diabetes."
+- prediction = "Needs Verification"
+
+Reason:
+This is a factual/medical assertion requiring external
+verification.
+
+
+Example 6:
+
+Content:
+"Congratulations to the team! They won yesterday's match
+by 7 wickets."
+
+Result:
+- claim = "The team won yesterday's match by 7 wickets."
+- prediction = "Needs Verification"
+
+Reason:
+The congratulatory text is non-factual, but the match result
+is a verifiable factual assertion.
+
+
+IMPORTANT:
+These examples demonstrate the distinction between the PURPOSE
+or tone of a post and the presence of verifiable factual
+assertions. Always extract a factual assertion when one exists,
+even when it appears inside a greeting, opinion, emotional post,
+advertisement, or social-media caption.
 
 Return ONLY valid JSON.
 """
@@ -581,7 +587,7 @@ Return ONLY valid JSON.
                         "confidence": 0,
                         "risk_score": 0,
                         "keywords": [],
-                        "entities": [],
+                         
                         "language": str(
                             result.get(
                                 "language",
@@ -603,7 +609,7 @@ Return ONLY valid JSON.
                         "risk_score": None,
                         "language": "Unknown",
                         "keywords": [],
-                        "entities": [],
+                         
                         "manipulation_signals": [],
                     }
 
@@ -727,7 +733,7 @@ Return ONLY valid JSON.
                 "risk_score": risk_score,
                 "language": language,
                 "keywords": keywords,
-                "entities": self.extract_entities(text),
+                 
                 "manipulation_signals": manipulation_signals,
             }
 
@@ -743,7 +749,7 @@ Return ONLY valid JSON.
                 "risk_score": None,
                 "language": "Unknown",
                 "keywords": [],
-                "entities": self.extract_entities(text),
+                 
                 "manipulation_signals": [],
             }
 
