@@ -110,7 +110,10 @@ def get_dashboard_stats(current_user=Depends(get_current_user)):
             ocr_uploads += 1
 
     avg_confidence = (
-        round(sum(confidence_values) / len(confidence_values), 2)
+        round(
+            (sum(confidence_values) / len(confidence_values)) * 100,
+            2
+        )
         if confidence_values
         else 0
     )

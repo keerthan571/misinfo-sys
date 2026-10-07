@@ -168,21 +168,16 @@ class AnalysisPipeline:
                 "publisher_detection_method"
             )
         )
-
         # ---------------------------------------------------------
-        # Engagement defaults
+        # Engagement values
+        # Start empty — only detected metrics are added later.
         # ---------------------------------------------------------
 
-        engagement_values = {
-            "likes": 0,
-            "comments": 0,
-            "replies": 0,
-            "reposts": 0,
-            "shares": 0,
-            "bookmarks": 0,
-            "views": 0,
-        }
+        engagement_values = {}
 
+        lines = text.splitlines()
+
+        cleaned_lines = []
         # ---------------------------------------------------------
         # IMAGE PROCESSING
         # ---------------------------------------------------------
@@ -691,6 +686,11 @@ class AnalysisPipeline:
         # ---------------------------------------------------------
         # NLP
         # ---------------------------------------------------------
+        
+        print("\n================ NLP INPUT DEBUG ================")
+        print("TEXT ACTUALLY SENT TO NLP:")
+        print(repr(nlp_text))
+        print("==================================================\n")
         nlp_start = time.perf_counter()
         detection = (
             nlp_service.analyze_text(
@@ -698,7 +698,10 @@ class AnalysisPipeline:
             )
         )
         nlp_time = time.perf_counter() - nlp_start
-
+        print("\n========== NLP RESULT DEBUG ==========")
+        print("DETECTION:")
+        print(detection)
+        print("======================================\n")
         # =========================================================
         # PRESERVE ORIGINAL POST LANGUAGE
         # =========================================================
@@ -1316,10 +1319,6 @@ class AnalysisPipeline:
 
                 temperature=0,
 
-                # IMPORTANT:
-                # Qwen 3.6 supports reasoning_effort="none".
-                # This prevents reasoning from consuming the
-                # entire completion budget.
                 reasoning_effort="none",
 
                 max_completion_tokens=600,
@@ -1332,47 +1331,84 @@ class AnalysisPipeline:
                         "content": (
                             "Translate the user's OCR text into English.\n\n"
 
-                            "The OCR may contain Kannada, Hindi, English, "
-                            "mixed languages, OCR spacing errors, character "
-                            "recognition errors, and social-media interface text.\n\n"
+                            "The input is OCR extracted from a social-media post. "
+                            "It may contain Kannada, Hindi, English, mixed languages, "
+                            "OCR spelling errors, spacing errors, numbers, names, "
+                            "publisher names, timestamps, and social-media UI text.\n\n"
 
-                            "Instructions:\n"
+                            "IMPORTANT TRANSLATION RULES:\n\n"
 
-                            "1. Translate readable Kannada or Hindi into English.\n"
+                            "1. Translate the COMPLETE meaningful post text. "
+                            "Do NOT summarize, shorten, or rewrite the post.\n\n"
 
-                            "2. Preserve proper names, people, organizations, "
-                            "abbreviations, numbers, dates and factual statements.\n"
+                            "2. Preserve the original sentence order and meaning.\n\n"
 
-                            "3. Preserve the meaning of the original text exactly.\n"
+                            "3. Preserve names, people, organizations, political parties, "
+                            "abbreviations, numbers, dates and other identifiable entities.\n\n"
 
-                            "4. Do NOT invent, expand, reinterpret or guess "
-                            "abbreviations, names or OCR-corrupted words.\n"
+                            "4. VERY IMPORTANT: Preserve WHO is making the statement "
+                            "and WHO is being addressed or questioned. "
+                            "If a person's name appears at the end of a quotation or "
+                            "statement as an attribution, connect that name to the "
+                            "statement in the English translation.\n\n"
 
-                            "5. If an abbreviation or name is ambiguous, preserve "
-                            "the original Latin form instead of guessing its meaning.\n"
+                            "For example, if the source structure is:\n"
+                            "'... answer these questions, Anna! : Priyank Kharge'\n\n"
 
-                            "6. Do not convert an unclear OCR word into a different "
-                            "word merely because it seems more likely from context.\n"
+                            "translate it naturally as:\n"
+                            "'Priyank Kharge asked Ashok Anna to answer these questions.'\n"
+                            "or, if preserving the original wording is clearer:\n"
+                            "'... answer these questions, Anna! — Priyank Kharge.'\n\n"
 
-                            "7. Preserve questions as questions.\n"
+                            "Do NOT output the person's name as an unrelated standalone "
+                            "line when the source clearly uses that name as an attribution.\n\n"
 
-                            "8. Ignore obvious social-media UI text such as "
-                            "More, See translation, Like, Comment, Share, "
-                            "Follow and Show translation.\n"
+                            "5. If the text clearly indicates that PERSON A is asking, "
+                            "questioning, accusing, responding to, or addressing PERSON B, "
+                            "preserve that relationship explicitly in English.\n\n"
 
-                            "9. Fix only obvious OCR spacing errors when the "
-                            "intended word is unambiguous.\n"
+                            "6. Preserve questions as questions. "
+                            "Do not turn a question into a factual statement.\n\n"
 
-                            "10. If a portion is genuinely unreadable, omit only "
-                            "that portion rather than inventing content.\n"
+                            "7. Do NOT invent facts or relationships that are not supported "
+                            "by the source text. Only preserve an attribution when the "
+                            "source structure supports it.\n\n"
 
-                            "11. Do not explain your reasoning.\n"
+                            "8. OCR may contain corrupted words. "
+                            "Correct an OCR error only when the intended word is clearly "
+                            "supported by the surrounding text.\n\n"
 
-                            "12. Do not describe OCR quality.\n"
+                            "9. Do NOT guess the expansion or identity of an unclear "
+                            "abbreviation. If an abbreviation is unclear, preserve it "
+                            "rather than inventing a meaning.\n\n"
 
-                            "13. Do not summarize.\n"
+                            "10. Do not turn an OCR-corrupted word into a different "
+                            "person, organization, or political entity merely because "
+                            "it seems likely from context.\n\n"
 
-                            "14. Return ONLY the English translation."
+                            "11. Preserve explicit references such as "
+                            "'Anna', 'brother', 'sir', 'you', 'they', etc. when they "
+                            "are meaningful to understanding who is being addressed.\n\n"
+
+                            "12. Ignore obvious social-media interface text such as "
+                            "'More', 'See translation', 'Like', 'Comment', 'Share', "
+                            "'Follow', timestamps, and similar UI elements.\n\n"
+
+                            "13. If publisher/source information is present, do not "
+                            "confuse the publisher with the person making the quoted "
+                            "statement.\n\n"
+
+                            "14. If the OCR contains multiple lines belonging to one "
+                            "sentence or quotation, combine them naturally in English "
+                            "instead of treating every line as an independent statement.\n\n"
+
+                            "15. Do NOT summarize.\n\n"
+
+                            "16. Do NOT explain your reasoning.\n\n"
+
+                            "17. Do NOT describe OCR quality.\n\n"
+
+                            "18. Return ONLY the English translation."
                         )
                     },
 
@@ -1383,7 +1419,6 @@ class AnalysisPipeline:
 
                 ]
             )
-
             # ---------------------------------------------------------
             # DEBUG
             # ---------------------------------------------------------

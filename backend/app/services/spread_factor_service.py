@@ -1,6 +1,5 @@
 class SpreadFactorService:
-
-
+    
     def analyze(
         self,
         engagement,
@@ -8,253 +7,321 @@ class SpreadFactorService:
         platform=None
     ):
 
+        # ---------------------------------------------------------
+        # NORMALIZE INPUTS
+        # ---------------------------------------------------------
+
+        engagement = (
+            engagement
+            if isinstance(engagement, dict)
+            else {}
+        )
+
         platform_name = str(
             platform or ""
-        ).lower()
+        ).lower().strip()
 
+        # ---------------------------------------------------------
+        # RAW ENGAGEMENT METRICS
+        #
+        # Keep the actual extracted metric names.
+        # Do NOT expect "reactions" or "saves" when the backend
+        # actually provides "likes" or "bookmarks".
+        # ---------------------------------------------------------
 
-        likes = 0
-        comments = 0
-        shares = 0
-        views = 0
-        saves = 0
+        likes = engagement.get(
+            "likes",
+            0
+        ) or 0
+
+        comments = engagement.get(
+            "comments",
+            0
+        ) or 0
+
+        replies = engagement.get(
+            "replies",
+            0
+        ) or 0
+
+        shares = engagement.get(
+            "shares",
+            0
+        ) or 0
+
+        reposts = engagement.get(
+            "reposts",
+            0
+        ) or 0
+
+        bookmarks = engagement.get(
+            "bookmarks",
+            0
+        ) or 0
+
+        views = engagement.get(
+            "views",
+            0
+        ) or 0
 
         followers = engagement.get(
             "followers",
             0
-        )
+        ) or 0
 
+        # Make sure numerical values are safe.
+        try:
+            likes = float(likes)
+        except (TypeError, ValueError):
+            likes = 0
 
-        # =========================
-        # INSTAGRAM (UNCHANGED)
-        # =========================
+        try:
+            comments = float(comments)
+        except (TypeError, ValueError):
+            comments = 0
 
-        if "instagram" in platform_name:
+        try:
+            replies = float(replies)
+        except (TypeError, ValueError):
+            replies = 0
 
-            likes = engagement.get(
-                "likes",
-                0
+        try:
+            shares = float(shares)
+        except (TypeError, ValueError):
+            shares = 0
+
+        try:
+            reposts = float(reposts)
+        except (TypeError, ValueError):
+            reposts = 0
+
+        try:
+            bookmarks = float(bookmarks)
+        except (TypeError, ValueError):
+            bookmarks = 0
+
+        try:
+            views = float(views)
+        except (TypeError, ValueError):
+            views = 0
+
+        try:
+            followers = float(followers)
+        except (TypeError, ValueError):
+            followers = 0
+
+        # ---------------------------------------------------------
+        # PLATFORM-SPECIFIC INTERNAL METRICS
+        #
+        # These preserve the meaning of each platform.
+        #
+        # Instagram:
+        #   likes, comments, shares, bookmarks, views
+        #
+        # Facebook:
+        #   likes, comments, shares, bookmarks, views
+        #
+        # Twitter / X:
+        #   likes, replies, reposts, bookmarks, views
+        # ---------------------------------------------------------
+
+        if "twitter" in platform_name or platform_name == "x":
+
+            # For X:
+            # replies = discussion activity
+            # reposts = redistribution activity
+
+            discussion_count = replies
+
+            redistribution_count = reposts
+
+        else:
+
+            # Instagram / Facebook
+            discussion_count = comments
+
+            redistribution_count = shares
+
+        # ---------------------------------------------------------
+        # TOTAL ENGAGEMENT
+        #
+        # Use the metrics actually extracted.
+        #
+        # Replies and comments represent discussion.
+        # Reposts and shares represent redistribution.
+        # Bookmarks represent saving activity.
+        #
+        # Avoid double-counting platform aliases.
+        # ---------------------------------------------------------
+
+        if "twitter" in platform_name or platform_name == "x":
+
+            total_engagement = (
+                likes +
+                replies +
+                reposts +
+                bookmarks
             )
 
-            comments = engagement.get(
-                "comments",
-                0
+        else:
+
+            total_engagement = (
+                likes +
+                comments +
+                shares +
+                bookmarks
             )
 
-            shares = engagement.get(
-                "shares",
-                0
-            )
-
-            saves = engagement.get(
-                "saves",
-                0
-            )
-
-            views = engagement.get(
-                "views",
-                0
-            )
-
-
-
-        # =========================
-        # FACEBOOK
-        # =========================
-
-        elif "facebook" in platform_name:
-
-            likes = engagement.get(
-                "reactions",
-                0
-            )
-
-            comments = engagement.get(
-                "comments",
-                0
-            )
-
-            shares = engagement.get(
-                "shares",
-                0
-            )
-
-            views = engagement.get(
-                "views",
-                0
-            )
-
-
-
-        # =========================
-        # TWITTER / X
-        # =========================
-
-        elif "twitter" in platform_name or platform_name == "x":
-
-
-            likes = engagement.get(
-                "likes",
-                0
-            )
-
-
-            comments = engagement.get(
-                "replies",
-                0
-            )
-
-
-            shares = engagement.get(
-                "reposts",
-                0
-            )
-
-
-            views = engagement.get(
-                "views",
-                0
-            )
-
-
-            saves = engagement.get(
-                "bookmarks",
-                0
-            )
-
-
-
-
-        factors=[]
-        warnings=[]
-        risk_factors=[]
-
-
-
-        total_engagement = (
-            likes +
-            comments +
-            shares +
-            saves
-        )
-
-
+        # ---------------------------------------------------------
+        # ENGAGEMENT RATE
+        # ---------------------------------------------------------
 
         if views > 0:
 
             engagement_rate = round(
-                (total_engagement / views) * 100,
+                (
+                    total_engagement /
+                    views
+                ) * 100,
                 2
             )
-
 
             share_ratio = round(
-                (shares / views) * 100,
+                (
+                    redistribution_count /
+                    views
+                ) * 100,
                 2
             )
-
 
         else:
 
             engagement_rate = 0
+
             share_ratio = 0
 
+        # ---------------------------------------------------------
+        # FACTORS / WARNINGS
+        # ---------------------------------------------------------
 
+        factors = []
 
+        warnings = []
 
-        if shares > 0:
+        risk_factors = []
 
-            factors.append(
-                {
-                    "factor":"Content redistribution detected",
-                    "impact":"High"
-                }
-            )
+        # ---------------------------------------------------------
+        # REDISTRIBUTION SIGNAL
+        # ---------------------------------------------------------
 
-
-
-        if comments > likes:
-
-            factors.append(
-                {
-                    "factor":"High discussion activity",
-                    "impact":"Medium"
-                }
-            )
-
-
-
-        if saves > 0:
+        if redistribution_count > 0:
 
             factors.append(
                 {
-                    "factor":"Users saving content",
-                    "impact":"Medium"
+                    "factor":
+                        "Content redistribution detected",
+                    "impact":
+                        "High"
                 }
             )
 
+        # ---------------------------------------------------------
+        # DISCUSSION SIGNAL
+        # ---------------------------------------------------------
 
+        if discussion_count > likes:
 
-        influence="Low"
+            factors.append(
+                {
+                    "factor":
+                        "High discussion activity",
+                    "impact":
+                        "Medium"
+                }
+            )
 
+        # ---------------------------------------------------------
+        # BOOKMARK / SAVE SIGNAL
+        # ---------------------------------------------------------
 
+        if bookmarks > 0:
+
+            factors.append(
+                {
+                    "factor":
+                        "Users saving content",
+                    "impact":
+                        "Medium"
+                }
+            )
+
+        # ---------------------------------------------------------
+        # PLATFORM INFLUENCE
+        # ---------------------------------------------------------
+
+        influence = "Low"
 
         if "instagram" in platform_name:
 
-            influence="High"
-
-
+            influence = "High"
 
             if followers:
 
                 factors.append(
                     {
                         "factor":
-                        f"Instagram account influence ({followers} followers)",
-                        "impact":"High"
+                            f"Instagram account influence "
+                            f"({int(followers):,} followers)",
+                        "impact":
+                            "High"
                     }
                 )
 
-
-
         elif "facebook" in platform_name:
 
-            influence="High"
+            influence = "High"
 
+        elif (
+            "twitter" in platform_name
+            or platform_name == "x"
+        ):
 
+            influence = "High"
 
-        elif "twitter" in platform_name or platform_name=="x":
-
-            influence="High"
-
-
-
-            if shares > 0:
+            if reposts > 0:
 
                 factors.append(
                     {
                         "factor":
-                        "Twitter repost activity increasing distribution",
-                        "impact":"High"
+                            "Twitter repost activity "
+                            "increasing distribution",
+                        "impact":
+                            "High"
                     }
                 )
 
+        # ---------------------------------------------------------
+        # NLP RISK SCORE
+        # ---------------------------------------------------------
 
-
-
-
-        risk_score=0
-
-
+        risk_score = 0
 
         if content_analysis:
 
             risk_score = content_analysis.get(
                 "risk_score",
                 0
-            )
+            ) or 0
 
-
+            try:
+                risk_score = float(
+                    risk_score
+                )
+            except (
+                TypeError,
+                ValueError
+            ):
+                risk_score = 0
 
             if risk_score >= 70:
 
@@ -262,19 +329,18 @@ class SpreadFactorService:
                     "High NLP misinformation risk"
                 )
 
-
-
                 factors.append(
                     {
                         "factor":
-                        "High misinformation risk",
-                        "impact":"High"
+                            "High misinformation risk",
+                        "impact":
+                            "High"
                     }
                 )
 
-
-
-
+        # ---------------------------------------------------------
+        # WARNINGS
+        # ---------------------------------------------------------
 
         if views == 0:
 
@@ -282,53 +348,55 @@ class SpreadFactorService:
                 "View count unavailable"
             )
 
-
-
-        if shares == 0:
+        if redistribution_count == 0:
 
             warnings.append(
                 "No redistribution signal detected"
             )
 
+        # ---------------------------------------------------------
+        # SPREAD SCORE
+        # ---------------------------------------------------------
 
+        spread_score = 0
 
+        # =========================================================
+        # TWITTER / X FORMULA
+        # =========================================================
 
-
-        spread_score=0
-
-
-
-
-        # =========================
-        # TWITTER FORMULA
-        # =========================
-
-        if "twitter" in platform_name or platform_name=="x":
-
+        if (
+            "twitter" in platform_name
+            or platform_name == "x"
+        ):
 
             view_score = min(
-                (views / 100000) * 40,
+                (
+                    views /
+                    100000
+                ) * 40,
                 40
             )
 
-
             repost_score = min(
-                (shares / max(views,1)) * 10000,
+                (
+                    reposts /
+                    max(views, 1)
+                ) * 10000,
                 25
             )
-
 
             engagement_score = min(
                 engagement_rate * 2,
                 25
             )
 
-
             discussion_score = min(
-                (comments / max(views,1)) * 10000,
+                (
+                    replies /
+                    max(views, 1)
+                ) * 10000,
                 10
             )
-
 
             spread_score = (
                 view_score +
@@ -337,10 +405,11 @@ class SpreadFactorService:
                 discussion_score
             )
 
-
+        # =========================================================
+        # FACEBOOK / INSTAGRAM FORMULA
+        # =========================================================
 
         else:
-
 
             if views > 0:
 
@@ -349,49 +418,54 @@ class SpreadFactorService:
                     40
                 )
 
-
                 spread_score += min(
                     engagement_rate * 2,
                     40
                 )
 
-
             else:
 
                 spread_score += min(
                     (
-                        likes*0.4 +
-                        shares*1.5 +
-                        comments*0.8 +
-                        saves*1.2
-                    )/100,
+                        likes * 0.4 +
+                        redistribution_count * 1.5 +
+                        discussion_count * 0.8 +
+                        bookmarks * 1.2
+                    ) / 100,
                     70
                 )
 
-
-
+        # ---------------------------------------------------------
+        # RISK CONTRIBUTION
+        # ---------------------------------------------------------
 
         spread_score += min(
-            risk_score*0.1,
+            risk_score * 0.1,
             10
         )
 
-
+        # ---------------------------------------------------------
+        # INSTAGRAM FOLLOWER CONTRIBUTION
+        # ---------------------------------------------------------
 
         if "instagram" in platform_name:
 
-            follower_score=min(
-                (followers/1000000)*100,
+            follower_score = min(
+                (
+                    followers /
+                    1000000
+                ) * 100,
                 100
             )
 
             spread_score += min(
-                follower_score*0.2,
+                follower_score * 0.2,
                 20
             )
 
-
-
+        # ---------------------------------------------------------
+        # FINAL SCORE
+        # ---------------------------------------------------------
 
         spread_score = round(
             min(
@@ -401,77 +475,92 @@ class SpreadFactorService:
             2
         )
 
-
-
+        # ---------------------------------------------------------
+        # RETURN
+        # ---------------------------------------------------------
 
         return {
 
+            "metrics": {
 
-            "metrics":{
+                "likes":
+                    likes,
 
+                "comments":
+                    comments,
 
-                "likes":likes,
+                "replies":
+                    replies,
 
-                "comments":comments,
+                "shares":
+                    shares,
 
-                "shares":shares,
+                "reposts":
+                    reposts,
 
-                "views":views,
+                "bookmarks":
+                    bookmarks,
 
-                "saves":saves,
+                "views":
+                    views,
 
-                "followers":followers,
+                "followers":
+                    followers,
 
-                "engagement_rate":engagement_rate,
+                "engagement_rate":
+                    engagement_rate,
 
-                "share_ratio":share_ratio,
+                "share_ratio":
+                    share_ratio,
 
-                "spread_score":spread_score
+                "spread_score":
+                    spread_score
 
             },
 
+            "factors":
+                factors,
 
-            "factors":factors,
+            "warnings":
+                warnings,
 
+            "risk_factors":
+                risk_factors,
 
-            "warnings":warnings,
+            "platform_influence":
+                influence,
 
-
-            "risk_factors":risk_factors,
-
-
-            "platform_influence":influence,
-
-
-            "summary":self.generate_summary(
-                spread_score
-            )
+            "summary":
+                self.generate_summary(
+                    spread_score
+                )
 
         }
 
-
-
+    # -------------------------------------------------------------
+    # SUMMARY
+    # -------------------------------------------------------------
 
     def generate_summary(
         self,
         score
     ):
 
-
         if score >= 70:
 
-            return "High spread potential detected."
-
+            return (
+                "High spread potential detected."
+            )
 
         if score >= 40:
 
-            return "Moderate spread potential detected."
+            return (
+                "Moderate spread potential detected."
+            )
 
-
-        return "Low spread potential detected."
-
-
-
+        return (
+            "Low spread potential detected."
+        )
 
 
 spread_factor_service = SpreadFactorService()

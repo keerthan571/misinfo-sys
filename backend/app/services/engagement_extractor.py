@@ -1343,34 +1343,39 @@ class EngagementExtractor:
 
         return None
 
+    
     def extract_instagram_feed_numbers(
         self,
         image,
         icons
     ):
         """
-        Extract Instagram Feed / Horizontal engagement counts.
+        Robust Instagram Feed / Horizontal OCR.
 
         IMPORTANT:
-            This function is completely independent of the Reel /
-            Vertical extraction path.
+        This function is ONLY for horizontal Instagram feed posts.
 
         Strategy:
-            1. Use the detected horizontal engagement icons.
-            2. Determine the actual engagement-row Y from those icons.
-            3. For each icon, search for its number using the
-            neighboring icon positions.
-            4. Never use a fixed screen Y such as 0.93 * height.
-            5. Never use hard-coded per-icon X offsets.
+        - Use each detected icon as an anchor.
+        - OCR ONLY the number region immediately to the
+        right of that icon.
+        - Never perform global OCR assignment.
+        - Never allow numbers from another engagement slot
+        to merge together.
 
-        Expected horizontal layout:
+        Example:
 
-            ❤️ 301   💬 7   🔁 1   ✈️ 17   🔖
+            ❤️ 301   💬 7   🔁 1   ✈ 17
 
-        Bookmark has no numeric count in the Feed UI.
+        becomes:
+
+            likes    -> 301
+            comments -> 7
+            reposts  -> 1
+            shares   -> 17
         """
 
-        output = {
+        numbers = {
             "likes": 0,
             "comments": 0,
             "reposts": 0,
@@ -1378,14 +1383,14 @@ class EngagementExtractor:
             "bookmarks": 0,
         }
 
-        if not isinstance(icons, dict):
-            return output
+        if not icons:
+            return numbers
 
         height, width = image.shape[:2]
 
-        # ------------------------------------------------------------
-        # Only the four count-bearing Instagram Feed icons.
-        # ------------------------------------------------------------
+        # ---------------------------------------------------------
+        # Instagram feed engagement order
+        # ---------------------------------------------------------
 
         keys = [
             "likes",
@@ -1394,215 +1399,184 @@ class EngagementExtractor:
             "shares",
         ]
 
-        present = [
+        available = [
             key
             for key in keys
             if key in icons
-            and isinstance(icons[key], dict)
-            and "x" in icons[key]
-            and "y" in icons[key]
         ]
 
-        if not present:
-            print(
-                "INSTAGRAM FEED OCR: no valid horizontal icons"
-            )
-            return output
-
-        # ------------------------------------------------------------
-        # STEP 1
-        #
-        # Determine the REAL engagement-row Y.
-        #
-        # Do NOT assume it is at 93%-99% of the image.
-        # The detected icons already tell us where the row is.
-        # ------------------------------------------------------------
-
-        row_y = int(
-            round(
-                np.median(
-                    [
-                        float(icons[key]["y"])
-                        for key in present
-                    ]
-                )
-            )
-        )
+        if not available:
+            return numbers
 
         print(
-            "INSTAGRAM FEED ROW Y:",
-            row_y
+            "INSTAGRAM FEED OCR ICON ORDER:",
+            available
         )
 
-        # ------------------------------------------------------------
-        # STEP 2
+        # ---------------------------------------------------------
+        # IMPORTANT:
         #
-        # Sort all detected Feed icons from left to right.
+        # The detected icon x-coordinate is the LEFT SIDE
+        # of the icon bounding box.
         #
-        # This gives us the actual geometry of THIS screenshot.
+        # The number is NOT immediately at icon_x.
         #
-        # Example:
+        # Example from your screenshot:
         #
-        # likes     x=13
-        # comments  x=144
-        # reposts   x=238
-        # shares    x=339
-        # bookmarks x=625
-        # ------------------------------------------------------------
-
-        all_icons = []
-
-        for key, icon in icons.items():
-
-            if not isinstance(icon, dict):
-                continue
-
-            if (
-                "x" not in icon
-                or "y" not in icon
-            ):
-                continue
-
-            all_icons.append({
-                "key": key,
-                "x": float(icon["x"]),
-                "y": float(icon["y"])
-            })
-
-        all_icons.sort(
-            key=lambda item: item["x"]
-        )
-
-        print(
-            "INSTAGRAM FEED SORTED ICONS:",
-            all_icons
-        )
-
-        # ------------------------------------------------------------
-        # STEP 3
+        # icon x = 13
+        # heart ends around x = 69
+        # "301" begins around x = 80
         #
-        # OCR each number using the SPACE BETWEEN ICONS.
+        # Therefore we deliberately start OCR at:
         #
-        # This is the important universal change.
+        #     icon_x + 55
         #
-        # We no longer say:
-        #
-        #     likes = icon_x + 55
-        #
-        # Instead we say:
-        #
-        #     number belongs somewhere between this icon
-        #     and the next icon.
-        #
-        # Therefore the solution adapts automatically when:
-        #
-        # - screenshot width changes
-        # - icon spacing changes
-        # - number has 1 digit
-        # - number has 3 digits
-        # - number has 4+ digits
-        # - Instagram UI spacing changes
-        # ------------------------------------------------------------
+        # This removes the icon from the OCR region.
+        # ---------------------------------------------------------
 
-        for index, key in enumerate(keys):
+        for index, key in enumerate(available):
 
-            if key not in icons:
-                continue
-
-            icon = icons[key]
-
-            icon_x = float(
-                icon["x"]
-            )
-
-            # --------------------------------------------------------
-            # Find the next icon to the right.
-            # --------------------------------------------------------
-
-            next_x = None
-
-            for candidate in all_icons:
-
-                if candidate["x"] > icon_x:
-
-                    next_x = candidate["x"]
-                    break
-
-            # --------------------------------------------------------
-            # Determine horizontal OCR region.
-            #
-            # The number normally appears immediately after the icon.
-            #
-            # Start slightly BEFORE the estimated icon boundary because
-            # template matching returns the template's top-left corner,
-            # not necessarily the visible icon center.
-            # --------------------------------------------------------
-
-            x1 = int(
-                max(
-                    0,
-                    icon_x + 18
+            icon_x = int(
+                round(
+                    icons[key]["x"]
                 )
             )
 
-            if next_x is not None:
+            icon_y = int(
+                round(
+                    icons[key]["y"]
+                )
+            )
 
-                # Leave a small gap before the next icon.
-                x2 = int(
-                    min(
-                        width,
-                        next_x - 10
+            # -----------------------------------------------------
+            # X START
+            #
+            # Move past the icon itself.
+            # -----------------------------------------------------
+
+            x1 = icon_x + 55
+
+            # -----------------------------------------------------
+            # X END
+            #
+            # Stop BEFORE the next engagement icon.
+            #
+            # This prevents:
+            #
+            #     301 + 7 + 1 + 17
+            #
+            # from becoming:
+            #
+            #     3017117
+            # -----------------------------------------------------
+
+            if index + 1 < len(available):
+
+                next_key = available[index + 1]
+
+                next_x = int(
+                    round(
+                        icons[next_key]["x"]
                     )
                 )
+
+                x2 = next_x - 12
 
             else:
 
-                # No next icon:
-                # use a reasonable remaining horizontal area.
-                x2 = int(
-                    min(
-                        width,
-                        icon_x + 140
+                # -------------------------------------------------
+                # Shares is the last counted engagement.
+                #
+                # Stop before bookmark icon.
+                # -------------------------------------------------
+
+                if "bookmarks" in icons:
+
+                    bookmark_x = int(
+                        round(
+                            icons["bookmarks"]["x"]
+                        )
                     )
+
+                    x2 = bookmark_x - 20
+
+                else:
+
+                    x2 = width - 5
+
+            # -----------------------------------------------------
+            # Y REGION
+            #
+            # The icon itself is around y.
+            #
+            # The engagement number is slightly BELOW the icon
+            # center in these Instagram screenshots.
+            #
+            # We therefore use a narrow vertical strip.
+            #
+            # This is VERY important because your previous
+            # extractor was also picking numbers from the post
+            # image / banner above the engagement row.
+            # -----------------------------------------------------
+
+            y1 = icon_y + 12
+            y2 = icon_y + 62
+
+            # -----------------------------------------------------
+            # Clamp coordinates
+            # -----------------------------------------------------
+
+            x1 = max(
+                0,
+                min(
+                    x1,
+                    width
                 )
+            )
 
-            # --------------------------------------------------------
-            # Safety check.
-            # --------------------------------------------------------
+            x2 = max(
+                0,
+                min(
+                    x2,
+                    width
+                )
+            )
 
-            if x2 <= x1:
+            y1 = max(
+                0,
+                min(
+                    y1,
+                    height
+                )
+            )
+
+            y2 = max(
+                0,
+                min(
+                    y2,
+                    height
+                )
+            )
+
+            if x2 <= x1 or y2 <= y1:
 
                 print(
                     "INSTAGRAM FEED OCR:",
                     key,
-                    "invalid horizontal region",
-                    x1,
-                    x2
+                    "INVALID ROI",
+                    (
+                        x1,
+                        y1,
+                        x2,
+                        y2
+                    )
                 )
 
                 continue
 
-            # --------------------------------------------------------
-            # STEP 4
-            #
-            # Y region is centered around the ACTUAL icon row.
-            #
-            # No fixed image percentage.
-            # --------------------------------------------------------
-
-            y1 = int(
-                max(
-                    0,
-                    row_y - 28
-                )
-            )
-
-            y2 = int(
-                min(
-                    height,
-                    row_y + 35
-                )
-            )
+            # -----------------------------------------------------
+            # Extract ONLY this engagement number region.
+            # -----------------------------------------------------
 
             crop = image[
                 y1:y2,
@@ -1610,150 +1584,130 @@ class EngagementExtractor:
             ]
 
             if crop.size == 0:
+
+                print(
+                    "INSTAGRAM FEED OCR:",
+                    key,
+                    "EMPTY ROI"
+                )
+
                 continue
 
-            # --------------------------------------------------------
-            # STEP 5
-            # OCR preprocessing.
-            # --------------------------------------------------------
+            # -----------------------------------------------------
+            # Grayscale
+            # -----------------------------------------------------
 
             gray = cv2.cvtColor(
                 crop,
                 cv2.COLOR_BGR2GRAY
             )
 
+            # -----------------------------------------------------
+            # Upscale
+            #
+            # Your screenshots have small white numbers.
+            # Upscaling makes Tesseract much more reliable.
+            # -----------------------------------------------------
+
             gray = cv2.resize(
                 gray,
                 None,
-                fx=8,
-                fy=8,
+                fx=7,
+                fy=7,
                 interpolation=cv2.INTER_CUBIC
             )
 
-            # --------------------------------------------------------
-            # Try several OCR modes.
+            candidates = []
+
+            # -----------------------------------------------------
+            # OCR variants
             #
-            # This makes the horizontal path much more tolerant of
-            # 1-digit / multi-digit / K / M values.
-            # --------------------------------------------------------
+            # We intentionally keep OCR INSIDE THIS SLOT ONLY.
+            # -----------------------------------------------------
 
-            ocr_results = []
+            variants = [
+                gray
+            ]
 
-            for psm in [7, 8, 13]:
+            for threshold_value in [
+                150,
+                180,
+                200,
+                220
+            ]:
 
-                text = pytesseract.image_to_string(
+                thresholded = cv2.threshold(
                     gray,
-                    config=(
-                        f"--psm {psm} "
-                        "-c tessedit_char_whitelist="
-                        "0123456789KkMm.,"
-                    )
-                ).strip()
+                    threshold_value,
+                    255,
+                    cv2.THRESH_BINARY
+                )[1]
 
-                if text:
+                variants.append(
+                    thresholded
+                )
+
+            # -----------------------------------------------------
+            # OCR
+            # -----------------------------------------------------
+
+            for variant_index, variant in enumerate(
+                variants
+            ):
+
+                for psm in [
+                    7,
+                    8,
+                    10,
+                    13
+                ]:
+
+                    raw_text = pytesseract.image_to_string(
+                        variant,
+                        config=(
+                            f"--psm {psm} "
+                            "-c tessedit_char_whitelist="
+                            "0123456789KkMm"
+                        )
+                    ).strip()
+
                     value = self.clean_number(
-                        text
+                        raw_text
                     )
 
                     if value > 0:
 
-                        ocr_results.append({
-                            "text": text,
-                            "value": value,
-                            "psm": psm
-                        })
-
-            # --------------------------------------------------------
-            # If OCR found nothing, try a thresholded version.
-            # --------------------------------------------------------
-
-            if not ocr_results:
-
-                _, thresholded = cv2.threshold(
-                    gray,
-                    0,
-                    255,
-                    cv2.THRESH_BINARY
-                    + cv2.THRESH_OTSU
-                )
-
-                for psm in [7, 8, 13]:
-
-                    text = pytesseract.image_to_string(
-                        thresholded,
-                        config=(
-                            f"--psm {psm} "
-                            "-c tessedit_char_whitelist="
-                            "0123456789KkMm.,"
-                        )
-                    ).strip()
-
-                    if text:
-
-                        value = self.clean_number(
-                            text
+                        candidates.append(
+                            value
                         )
 
-                        if value > 0:
+            # -----------------------------------------------------
+            # Select strongest OCR consensus.
+            # -----------------------------------------------------
 
-                            ocr_results.append({
-                                "text": text,
-                                "value": value,
-                                "psm": psm
-                            })
+            if candidates:
 
-            # --------------------------------------------------------
-            # Select a stable OCR result.
-            #
-            # Majority value wins.
-            # --------------------------------------------------------
+                from collections import Counter
 
-            if ocr_results:
-
-                votes = {}
-
-                for result in ocr_results:
-
-                    value = result["value"]
-
-                    votes[value] = (
-                        votes.get(value, 0)
-                        + 1
-                    )
-
-                best_value = max(
-                    votes,
-                    key=votes.get
+                counts = Counter(
+                    candidates
                 )
 
-                best_result = next(
-                    result
-                    for result in ocr_results
-                    if result["value"] == best_value
+                value, votes = (
+                    counts.most_common(1)[0]
                 )
 
-                output[key] = int(
-                    best_value
-                )
+                numbers[key] = value
 
                 print(
                     "INSTAGRAM FEED OCR:",
                     key,
-                    "region=(",
-                    x1,
-                    ",",
-                    y1,
-                    ",",
-                    x2,
-                    ",",
-                    y2,
-                    ")",
-                    "raw=",
-                    repr(best_result["text"]),
                     "value=",
-                    best_value,
+                    value,
                     "votes=",
-                    votes
+                    votes,
+                    "candidates=",
+                    dict(counts)
                 )
 
             else:
@@ -1761,31 +1715,21 @@ class EngagementExtractor:
                 print(
                     "INSTAGRAM FEED OCR:",
                     key,
-                    "OCR FAILED",
-                    "region=(",
-                    x1,
-                    ",",
-                    y1,
-                    ",",
-                    x2,
-                    ",",
-                    y2,
-                    ")"
+                    "OCR FAILED"
                 )
 
-        # ------------------------------------------------------------
-        # Instagram Feed does NOT expose a bookmark count here.
-        # Never derive it from another OCR number.
-        # ------------------------------------------------------------
+        # ---------------------------------------------------------
+        # Instagram feed bookmark has no numeric count here.
+        # ---------------------------------------------------------
 
-        output["bookmarks"] = 0
+        numbers["bookmarks"] = 0
 
         print(
             "INSTAGRAM FEED NUMBERS:",
-            output
+            numbers
         )
 
-        return output
+        return numbers
     
     def _instagram_reel_icon_centers(self, image, all_candidates=None):
         """
@@ -2737,18 +2681,24 @@ class EngagementExtractor:
     def match_instagram_engagement(
         self,
         image,
-        icons=None,
-        numbers=None,
-        *args,
-        **kwargs
+        icons,
+        numbers
     ):
         """
-        Instagram engagement mapper.
+        Instagram engagement dispatcher.
 
-        The *args compatibility is intentional: older running copies of
-        the backend used slightly different positional arguments.  The
-        method must not crash merely because a stale caller supplies one
-        extra value.
+        IMPORTANT:
+        Horizontal and vertical Instagram layouts are completely
+        separated.
+
+        Horizontal:
+            ONLY extract_instagram_feed_numbers()
+
+        Vertical:
+            ONLY extract_instagram_reel_numbers()
+
+        Never run Reel logic for a horizontal screenshot.
+        Never run Feed logic for a vertical screenshot.
         """
 
         output = {
@@ -2759,67 +2709,123 @@ class EngagementExtractor:
             "bookmarks": 0,
         }
 
-        if image is None:
+        if not icons:
             return output
 
-        # Do not infer Instagram layout from arbitrary template matches.
-        # First look for the actual vertical Reel rail.
-        robust_rail = self._instagram_reel_icon_centers(
-            image,
-            all_candidates=None
+        # ---------------------------------------------------------
+        # Detect layout from the already-selected icon positions
+        # ---------------------------------------------------------
+
+        layout = self.detect_instagram_layout(icons)
+
+        print(
+            "INSTAGRAM FINAL LAYOUT:",
+            layout
         )
 
-        if len(robust_rail) >= 2:
+        # =========================================================
+        # HORIZONTAL / FEED
+        # =========================================================
+
+        if layout == "horizontal":
+
             print(
-                "INSTAGRAM MATCH LAYOUT: vertical"
+                "INSTAGRAM FEED: USING HORIZONTAL OCR ONLY"
             )
 
-            result = self.extract_instagram_reel_numbers(
+            feed_numbers = self.extract_instagram_feed_numbers(
                 image,
-                icons=icons,
-                all_candidates=None
-            )
-
-            print(
-                "FINAL INSTAGRAM ENGAGEMENT:",
-                result
-            )
-
-            return result
-
-        # ------------------------------------------------------------
-        # Feed layout: retain the existing horizontal extractor.
-        # ------------------------------------------------------------
-        if isinstance(icons, dict) and icons:
-            layout = self.detect_instagram_layout(
                 icons
             )
 
-            if layout == "horizontal":
-                feed_numbers = self.extract_instagram_feed_numbers(
-                    image,
-                    icons
-                )
+            output["likes"] = feed_numbers.get(
+                "likes",
+                0
+            )
 
-                for key in output:
-                    output[key] = feed_numbers.get(
-                        key,
-                        0
-                    )
+            output["comments"] = feed_numbers.get(
+                "comments",
+                0
+            )
 
-                print(
-                    "FINAL INSTAGRAM ENGAGEMENT:",
-                    output
-                )
+            output["reposts"] = feed_numbers.get(
+                "reposts",
+                0
+            )
 
-                return output
+            output["shares"] = feed_numbers.get(
+                "shares",
+                0
+            )
+
+            # Instagram feed does not expose a bookmark count.
+            output["bookmarks"] = 0
+
+            print(
+                "FINAL INSTAGRAM FEED ENGAGEMENT:",
+                output
+            )
+
+            return output
+
+        # =========================================================
+        # VERTICAL / REELS
+        # =========================================================
+
+        if layout == "vertical":
+
+            print(
+                "INSTAGRAM REEL: USING VERTICAL OCR ONLY"
+            )
+
+            reel_numbers = self.extract_instagram_reel_numbers(
+                image,
+                icons
+            )
+
+            output["likes"] = reel_numbers.get(
+                "likes",
+                0
+            )
+
+            output["comments"] = reel_numbers.get(
+                "comments",
+                0
+            )
+
+            output["reposts"] = reel_numbers.get(
+                "reposts",
+                0
+            )
+
+            output["shares"] = reel_numbers.get(
+                "shares",
+                0
+            )
+
+            output["bookmarks"] = reel_numbers.get(
+                "bookmarks",
+                0
+            )
+
+            print(
+                "FINAL INSTAGRAM REEL ENGAGEMENT:",
+                output
+            )
+
+            return output
+
+        # =========================================================
+        # UNKNOWN
+        # =========================================================
 
         print(
-            "INSTAGRAM MATCH: no confident Reel rail and no horizontal feed rail"
+            "INSTAGRAM LAYOUT UNKNOWN - "
+            "returning zero engagement values."
         )
 
         return output
-
+    
     # ============================================================
     # MAIN ANALYSIS
     # ============================================================
@@ -3176,31 +3182,7 @@ class EngagementExtractor:
                     output["shares"]
 
                 )
-
-        # -------------------------------------------------
-        # EXISTING BOOKMARK FALLBACK
-        # -------------------------------------------------
-
-        if output["bookmarks"] == 0:
-
-            remaining = []
-
-            for index, num in enumerate(
-                numbers
-            ):
-
-                if index not in used:
-
-                    remaining.append(
-                        num["value"]
-                    )
-
-            if remaining:
-
-                output["bookmarks"] = (
-                    remaining[-1]
-                )
-
+                
         # -------------------------------------------------
         # EXISTING FACEBOOK FALLBACK
         # -------------------------------------------------
@@ -3226,12 +3208,22 @@ class EngagementExtractor:
                     values[-1]
                 )
 
+        # -------------------------------------------------
+        # RETURN ONLY ACTUALLY DETECTED ENGAGEMENT VALUES
+        # -------------------------------------------------
+
+        final_output = {
+            key: value
+            for key, value in output.items()
+            if value > 0
+        }
+
         print(
             "FINAL ENGAGEMENT:",
-            output
+            final_output
         )
 
-        return output
+        return final_output
 
 
 engagement_extractor = EngagementExtractor()

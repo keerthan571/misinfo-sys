@@ -199,29 +199,6 @@ export default function DetectionCard({ data }) {
           </div>
         )}
 
-        <div className="flex items-center justify-between bg-[#0F172A] border border-slate-700/70 rounded-2xl p-5">
-          <div>
-            <p className="text-slate-500 text-xs uppercase tracking-wider font-semibold">
-              Similar Claim
-            </p>
-
-            <p className="text-slate-300 text-sm mt-1">
-              Previously detected matching claim
-            </p>
-          </div>
-
-          <span
-            className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${
-              data.similar_claim
-                ? "bg-yellow-500/10 border border-yellow-500/20 text-yellow-400"
-                : "bg-green-500/10 border border-green-500/20 text-green-400"
-            }`}
-          >
-            {data.similar_claim
-              ? "Detected"
-              : "Not Detected"}
-          </span>
-        </div>
       </div>
     </div>
   );

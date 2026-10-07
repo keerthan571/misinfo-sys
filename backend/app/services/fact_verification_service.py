@@ -321,11 +321,18 @@ def build_search_queries(
 ) -> list[str]:
 
     """
-    Generate context-aware search queries.
+    Build focused verification queries.
 
-    The claim remains the primary verification target,
-    while surrounding OCR context, publisher and platform
-    are used to prevent unrelated search results.
+    Special handling is used for attribution-style claims such as:
+    - X said ...
+    - X claimed ...
+    - X questioned ...
+    - X posted ...
+    - X stated ...
+
+    These claims are better verified by searching for the
+    attributed person/source and the distinctive factual
+    details instead of searching the entire generated sentence.
     """
 
     claim = normalize_text(claim)
@@ -335,67 +342,333 @@ def build_search_queries(
 
     queries = []
 
-    # --------------------------------------------------------
-    # 1. Exact claim
-    # --------------------------------------------------------
+    # ========================================================
+    # Detect attribution-style claims
+    # ========================================================
 
-    if claim:
-        queries.append(
-            f'"{claim[:350]}"'
-        )
+    attribution_pattern = re.compile(
+        r"\b("
+        r"said|stated|claimed|questioned|asked|posted|"
+        r"wrote|according to|alleged|argued|shared|"
+        r"mentioned|asserted"
+        r")\b",
+        re.IGNORECASE
+    )
 
-    # --------------------------------------------------------
-    # 2. Claim + publisher
-    # --------------------------------------------------------
+    is_attribution_claim = bool(
+        attribution_pattern.search(claim)
+    )
 
-    if claim and publisher:
-        queries.append(
-            f'"{claim[:250]}" "{publisher[:150]}"'
-        )
+    # ========================================================
+    # Extract useful entities / numbers from claim
+    # ========================================================
 
-    # --------------------------------------------------------
-    # 3. Claim + important context
-    # --------------------------------------------------------
+    # Currency / numeric expressions such as:
+    # ₹200, ₹360, ₹400, 5 to 6, 1 kg
+    numbers = re.findall(
+        r"(?:₹|Rs\.?|INR)?\s*\d+(?:\.\d+)?(?:\s*(?:kg|litres?|liters?))?",
+        claim,
+        flags=re.IGNORECASE
+    )
 
-    if claim and context:
-        context_words = context[:700]
-
-        queries.append(
-            f'"{claim[:220]}" "{context_words}"'
-        )
-
-    # --------------------------------------------------------
-    # 4. Context-focused fallback
-    # --------------------------------------------------------
-
-    if context and publisher:
-        queries.append(
-            f'"{publisher[:150]}" "{context[:400]}"'
-        )
-
-    # --------------------------------------------------------
-    # 5. Platform-specific context
-    # --------------------------------------------------------
-
-    if claim and platform:
-        queries.append(
-            f'"{claim[:250]}" "{platform[:80]}"'
-        )
-
-    # --------------------------------------------------------
-    # Remove duplicates
-    # --------------------------------------------------------
-
-    unique_queries = list(
+    numbers = list(
         dict.fromkeys(
-            query.strip()
-            for query in queries
-            if query.strip()
+            x.strip()
+            for x in numbers
+            if x.strip()
         )
     )
 
-    return unique_queries[:5]
+    # ========================================================
+    # Extract important attribution names
+    # ========================================================
 
+    attribution_name = ""
+
+    name_match = re.search(
+        r"\b("
+        r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,4}"
+        r")\b",
+        claim
+    )
+
+    if name_match:
+        attribution_name = name_match.group(1).strip()
+
+    # Prefer known publisher/source name if available.
+    if publisher:
+        publisher_clean = re.sub(
+            r"\s+",
+            " ",
+            publisher
+        ).strip()
+
+        # Avoid OCR junk such as "Sociallssues PublicAw..."
+        if len(publisher_clean) >= 4:
+            publisher_name = publisher_clean
+        else:
+            publisher_name = ""
+    else:
+        publisher_name = ""
+
+    # ========================================================
+    # Extract distinctive keywords
+    # ========================================================
+
+    keyword_candidates = re.findall(
+        r"\b[A-Za-z][A-Za-z0-9₹-]{2,}\b",
+        claim
+    )
+
+    stopwords = {
+        "this",
+        "that",
+        "when",
+        "where",
+        "what",
+        "which",
+        "with",
+        "from",
+        "into",
+        "about",
+        "because",
+        "approximately",
+        "approx",
+        "questions",
+        "questioned",
+        "asks",
+        "asked",
+        "claims",
+        "claimed",
+        "says",
+        "said",
+        "stated",
+        "information",
+        "available",
+        "central",
+        "assertion",
+        "according",
+        "while",
+        "could",
+        "should",
+        "would",
+        "less",
+        "than",
+        "more",
+        "only",
+        "alone",
+        "cost",
+        "price",
+        "produce",
+        "production",
+    }
+
+    keywords = []
+
+    for word in keyword_candidates:
+
+        lower = word.lower()
+
+        if lower in stopwords:
+            continue
+
+        if len(word) < 4:
+            continue
+
+        if word not in keywords:
+            keywords.append(word)
+
+    # Keep only a few useful words.
+    keywords = keywords[:8]
+
+    # ========================================================
+    # ATTRIBUTION CLAIM SEARCH
+    # ========================================================
+
+    if is_attribution_claim:
+
+        # ----------------------------------------------------
+        # Query 1:
+        # Person + distinctive topic
+        # ----------------------------------------------------
+
+        if attribution_name:
+
+            topic_words = [
+                word
+                for word in keywords
+                if word.lower()
+                not in {
+                    attribution_name.lower(),
+                    "ias",
+                }
+            ][:4]
+
+            if topic_words:
+
+                queries.append(
+                    f'"{attribution_name}" '
+                    + " ".join(topic_words)
+                )
+
+        # ----------------------------------------------------
+        # Query 2:
+        # Person + important numeric values
+        # ----------------------------------------------------
+
+        if attribution_name and numbers:
+
+            queries.append(
+                f'"{attribution_name}" '
+                + " ".join(numbers[:4])
+            )
+
+        # ----------------------------------------------------
+        # Query 3:
+        # Person + key topic from original context
+        # ----------------------------------------------------
+
+        if attribution_name and context:
+
+            context_lower = context.lower()
+
+            context_terms = []
+
+            important_terms = [
+                "paneer",
+                "milk",
+                "price",
+                "cost",
+                "₹200",
+                "₹360",
+                "₹400",
+                "litres",
+                "liters",
+                "kg",
+            ]
+
+            for term in important_terms:
+
+                if term.lower() in context_lower:
+                    context_terms.append(term)
+
+            if context_terms:
+
+                queries.append(
+                    f'"{attribution_name}" '
+                    + " ".join(context_terms)
+                )
+
+        # ----------------------------------------------------
+        # Query 4:
+        # Exact distinctive phrase from claim
+        # ----------------------------------------------------
+
+        distinctive_phrases = []
+
+        phrase_patterns = [
+            r"less than\s+₹?\s*\d+",
+            r"\d+\s+to\s+\d+\s+(?:litres?|liters?)",
+            r"\d+\s*kg",
+        ]
+
+        for pattern in phrase_patterns:
+
+            matches = re.findall(
+                pattern,
+                claim,
+                flags=re.IGNORECASE
+            )
+
+            distinctive_phrases.extend(
+                matches
+            )
+
+        if attribution_name and distinctive_phrases:
+
+            queries.append(
+                f'"{attribution_name}" '
+                + " ".join(
+                    distinctive_phrases[:3]
+                )
+            )
+
+        # ----------------------------------------------------
+        # Query 5:
+        # Publisher + topic
+        # ----------------------------------------------------
+
+        if publisher_name:
+
+            if keywords:
+
+                queries.append(
+                    f'"{publisher_name}" '
+                    + " ".join(
+                        keywords[:4]
+                    )
+                )
+
+    # ========================================================
+    # NORMAL FACTUAL CLAIM
+    # ========================================================
+
+    else:
+
+        # Exact claim
+        if claim:
+
+            queries.append(
+                f'"{claim[:300]}"'
+            )
+
+        # Claim + publisher
+        if claim and publisher_name:
+
+            queries.append(
+                f'"{claim[:220]}" '
+                f'"{publisher_name[:120]}"'
+            )
+
+        # Claim + important context
+        if claim and context:
+
+            queries.append(
+                f'"{claim[:220]}" '
+                f'"{context[:300]}"'
+            )
+
+        # Platform
+        if claim and platform:
+
+            queries.append(
+                f'"{claim[:250]}" '
+                f'"{platform[:80]}"'
+            )
+
+    # ========================================================
+    # CLEAN + DEDUPLICATE
+    # ========================================================
+
+    cleaned_queries = []
+
+    for query in queries:
+
+        query = re.sub(
+            r"\s+",
+            " ",
+            query
+        ).strip()
+
+        if not query:
+            continue
+
+        if query not in cleaned_queries:
+            cleaned_queries.append(
+                query
+            )
+
+    return cleaned_queries[:5]
 # ============================================================
 # TAVILY SEARCH
 # ============================================================
@@ -435,10 +708,10 @@ def collect_evidence(
         try:
 
             search = tavily_client.search(
-                query=query,
-                search_depth="advanced",
-                max_results=5
-            )
+            query=query,
+            search_depth="basic",
+            max_results=5
+        )
 
             results = search.get(
                 "results",
@@ -536,7 +809,7 @@ def collect_evidence(
         )
 
     # Keep evidence manageable.
-    unique_results = unique_results[:10]
+    unique_results = unique_results[:8]
 
     # --------------------------------------------------------
     # Build evidence text
@@ -568,7 +841,7 @@ def collect_evidence(
         )
 
         # Limit individual evidence chunks.
-        content = content[:1800]
+        content = content[:1200]
 
         evidence_parts.append(
             f"""
@@ -622,91 +895,403 @@ def build_verification_prompt(
 ) -> str:
 
     return f"""
-    You are performing strict evidence-based fact verification.
+You are an evidence-based fact verification system.
 
-    CLAIM TO VERIFY:
-    {claim}
+Your task is to determine the correct verdict for the CLAIM using
+ONLY the PROVIDED WEB EVIDENCE.
 
-    SOURCE CONTEXT:
-    {context or "Not available"}
+CLAIM TO VERIFY:
+{claim}
 
-    PUBLISHER / SOURCE:
-    {publisher or "Not available"}
+SOURCE CONTEXT:
+{context or "Not available"}
 
-    PLATFORM:
-    {platform or "Not available"}
+PUBLISHER / SOURCE:
+{publisher or "Not available"}
 
-    PROVIDED WEB EVIDENCE:
-    {evidence}
+PLATFORM:
+{platform or "Not available"}
 
-IMPORTANT:
+PROVIDED WEB EVIDENCE:
+{evidence}
 
-1. Use ONLY the provided evidence.
-2. Do not use your own memory, assumptions, medical knowledge,
-   general knowledge, or outside information.
-3. Evaluate the COMPLETE claim, not just individual keywords.
-4. Every important part of the claim must be considered,
-   including:
-   - who/what
+
+============================================================
+CORE VERIFICATION RULES
+============================================================
+
+1. Use ONLY the provided web evidence.
+
+2. Do NOT use your own knowledge, memory, assumptions,
+   calculations, or outside information.
+
+3. Evaluate the COMPLETE claim.
+
+4. Consider all material parts of the claim:
+   - person or organization
    - action or event
-   - date/year
+   - date or year
    - location
    - quantity or measurement
-   - certainty words such as "completely", "always", "never",
-     "only", or "guarantees"
-5. Evidence is relevant only if it directly addresses the
-   claim or a material part of the claim.
-6. Evidence can contradict a claim even when it does not use
-   exactly the same wording as the claim.
-7. If reliable evidence explicitly states that the claimed
-   effect does NOT occur, treat that as contradictory evidence.
-8. If the claim says that an action "prevents", "cures",
-   "guarantees", "always", "never", "completely", or otherwise
-   makes an absolute claim, require strong evidence for that
-   exact effect.
-9. Do NOT mark a claim as False merely because the evidence
-   does not mention it.
-10. Mark the claim as False Information when reliable evidence
-    directly contradicts the central factual assertion.
-11. Mark the claim as Misleading Information when part of the
-    claim is supported but the claim materially exaggerates,
-    distorts, or extends that evidence.
-12. Mark the claim as Insufficient Evidence only when the
-    provided evidence neither clearly supports nor clearly
-    contradicts the central claim.
-13. For health claims, do not infer medical effects from general
-    hydration benefits. Evidence that water is beneficial for
-    hydration is NOT evidence that it prevents or cures a disease.
-14. When evaluating a claim containing an absolute word such as
-    "completely", the evidence must support that absolute claim.
-    Evidence showing that the proposed action does not prevent
-    the disease is sufficient to classify the claim as False
-    Information.
-15. Pay close attention to dates and years.
-16. A claim about a specific date or year must be evaluated using
-    evidence relevant to that same date or year.
-17. Evidence about an earlier or later event must not automatically
-    be treated as evidence about the claimed date.
-18. Do not mark a claim False merely because no source repeats
-    the exact wording.
-19. Do not mark a claim Verified merely because the sources discuss
-    the same general topic.
-20. When sources disagree, consider the actual statements made
-    by the sources and determine whether they directly support,
-    contradict, or fail to resolve the claim.
-Return ONLY valid JSON.
+   - certainty or absolute wording
 
-Use exactly this structure:
+5. Evidence must directly address the claim or a material part
+   of the claim.
 
-{{
-    "verdict": "Verified Information | False Information | Misleading Information | Insufficient Evidence",
-    "reason": "brief explanation directly based on the provided evidence",
-    "evidence_strength": 0
-}}
+6. Do NOT mark a claim False merely because the evidence does
+   not mention it.
+
+7. Do NOT mark a claim Verified merely because the evidence
+   discusses the same general topic.
+
+8. Use these verdicts:
+
+   Verified Information
+   = The provided evidence directly supports the claim.
+
+   False Information
+   = The provided evidence directly contradicts the claim.
+
+   Misleading Information
+   = The evidence supports part of the claim, but the claim
+     materially exaggerates, changes, or extends what the
+     evidence actually establishes.
+
+   Insufficient Evidence
+   = The provided evidence does not clearly support or
+     contradict the claim.
+
+
+============================================================
+ATTRIBUTION CLAIMS — VERY IMPORTANT
+============================================================
+
+An attribution claim is a claim that a person or organization
+said, stated, claimed, questioned, asked, posted, wrote, shared,
+or otherwise expressed something.
+
+Examples:
+
+"X said that..."
+"X questioned whether..."
+"X posted..."
+"X claimed..."
+"X asked how..."
+
+For attribution claims, the PRIMARY verification target is:
+
+DID THE NAMED PERSON OR ORGANIZATION ACTUALLY MAKE, SHARE,
+POST, WRITE, ASK, QUESTION, OR EXPRESS THE STATEMENT?
+
+Do NOT automatically verify the underlying factual proposition.
+
+For example:
+
+CLAIM:
+"IAS Tukaram Mundhe questioned how paneer could be sold below
+₹200 when producing 1 kg requires 5 to 6 litres of milk."
+
+The primary verification target is whether Tukaram Mundhe
+actually made or shared that question.
+
+It is NOT automatically necessary to prove that:
+- 5 to 6 litres are required,
+- milk costs ₹60 per litre,
+- production costs ₹360,
+- paneer costs ₹400,
+- paneer cannot be sold below ₹200.
+
+Those underlying propositions must NOT be treated as proven
+unless the provided evidence independently establishes them.
+
+A question must remain a QUESTION.
+
+Do NOT rewrite:
+
+"How is paneer available below ₹200?"
+
+as:
+
+"Paneer cannot be sold below ₹200."
+
+Do NOT convert rhetorical wording into a factual assertion.
+
+
+============================================================
+WHAT COUNTS AS ATTRIBUTION EVIDENCE
+============================================================
+
+Evidence can support an attribution when it contains:
+
+- the original social-media post
+- a screenshot of the original post
+- a direct quotation
+- a reliable report reproducing the statement
+- a credible source explicitly attributing the statement
+  to the named person
+
+If the evidence contains an actual post or quotation from the
+named person, explicitly recognize that as attribution evidence.
+
+If the evidence only talks about paneer, milk prices, production
+costs, or the same general topic but does NOT connect the
+statement to the named person, attribution is NOT established.
+
+In that situation use:
+
+"Insufficient Evidence"
+
+Do not infer attribution from topic similarity.
+
+
+============================================================
+IMPORTANT DISTINCTION FOR ATTRIBUTION
+============================================================
+
+For an attribution claim, keep these two questions separate:
+
+A. DID THE PERSON MAKE THE STATEMENT?
+
+B. IS THE UNDERLYING STATEMENT FACTUALLY TRUE?
+
+If the evidence establishes A but does not establish B:
+
+Verdict:
+"Verified Information"
+
+Reason:
+Explain that the evidence supports the attribution, while
+explicitly stating that it does not by itself establish the
+truth of the underlying proposition.
+
+Do NOT downgrade the attribution to Insufficient Evidence merely
+because the underlying proposition was not independently verified.
+
+Do NOT say:
+
+"The paneer cost claim is verified."
+
+Do NOT say:
+
+"The paneer cannot be sold below ₹200."
+
+Do NOT say:
+
+"The production cost is definitely ₹400."
+
+Instead say something like:
+
+"The provided evidence contains a post attributing the question
+about paneer being sold below ₹200 to IAS Tukaram Mundhe. This
+supports the attribution, but does not by itself establish the
+truth of the underlying cost calculation."
+
+Only use wording that is actually supported by the evidence.
+
+
+============================================================
+EVIDENCE DESCRIPTION RULES
+============================================================
+
+When writing the reason:
+
+1. Describe the ACTUAL evidence provided.
+
+2. Do not invent evidence.
+
+3. Do not call something a "direct quotation" unless the evidence
+   actually contains a quotation.
+
+4. Do not call something an "original post" unless the evidence
+   actually shows or identifies an original post.
+
+5. Do not say "social-media posts" if only one relevant post is
+   present.
+
+6. Do not say "multiple sources confirm" unless multiple provided
+   sources actually establish the relevant point.
+
+7. Do not mention "Source 1", "Source 2", etc.
+
+8. Do not mention search-engine ranking or retrieval details.
+
+9. Do not claim that evidence proves something merely because
+   several sources repeat the same statement.
+
+10. Do not introduce facts that are absent from the evidence.
+
+
+============================================================
+VERIFIED ATTRIBUTION REASON
+============================================================
+
+If attribution is directly supported, the reason MUST contain
+two ideas:
+
+1. What evidence supports the attribution.
+2. A clear distinction that this does not independently establish
+   the underlying factual proposition.
+
+Preferred structure:
+
+"The provided evidence contains [specific evidence] attributing
+the statement/question to [person]. This supports the attribution,
+but does not by itself establish the truth of the underlying
+proposition."
+
+Adapt the wording to the actual evidence.
+
+Do NOT blindly copy this sentence if the evidence differs.
+
+
+============================================================
+FALSE ATTRIBUTION
+============================================================
+
+If reliable provided evidence directly shows that the named person
+did NOT make, share, post, write, ask, or state the statement:
+
+Verdict:
+"False Information"
+
+Reason should explain:
+
+"The provided evidence indicates that [person] did not make or
+share the stated statement, contradicting the attribution."
+
+Only use this if the evidence actually establishes that.
+
+
+============================================================
+INSUFFICIENT ATTRIBUTION
+============================================================
+
+If the evidence discusses the same subject but does not establish
+that the named person made or shared the statement:
+
+Verdict:
+"Insufficient Evidence"
+
+Reason should explain:
+
+"The provided evidence discusses the same subject but does not
+establish that [person] made or shared the statement."
+
+Do NOT infer attribution from topic similarity.
+
+
+============================================================
+MISLEADING ATTRIBUTION
+============================================================
+
+Use "Misleading Information" only when the provided evidence
+supports part of the attribution but materially changes,
+exaggerates, or distorts what the person actually said.
+
+Clearly identify what is supported and what is distorted.
+
+Do NOT use Misleading merely because the underlying factual
+proposition has not been independently verified.
+
+
+============================================================
+NON-ATTRIBUTION CLAIMS
+============================================================
+
+For ordinary factual claims that do not primarily concern what
+someone said or asked:
+
+Evaluate the factual proposition itself.
+
+Mark:
+
+Verified Information
+only when the evidence supports the proposition.
+
+False Information
+only when reliable evidence directly contradicts it.
+
+Misleading Information
+when evidence supports only part of it and the claim materially
+overstates or distorts the evidence.
+
+Insufficient Evidence
+when the evidence does not resolve it.
+
+
+============================================================
+ABSOLUTE CLAIMS
+============================================================
+
+Words such as:
+
+- always
+- never
+- completely
+- only
+- guarantees
+- prevents
+- cures
+- cannot
+
+require evidence supporting that exact level of certainty.
+
+Do not weaken or strengthen the claim during verification.
+
+
+============================================================
+DATES AND NUMBERS
+============================================================
+
+Pay close attention to:
+
+- dates
+- years
+- locations
+- quantities
+- measurements
+- prices
+- percentages
+
+Evidence about another date, year, location, or quantity must not
+automatically be treated as evidence for the claim.
+
+
+============================================================
+REASON WRITING
+============================================================
+
+The reason MUST:
+
+- directly explain why the selected verdict was assigned
+- use ONLY provided evidence
+- be concise
+- normally be 1-3 sentences
+- avoid unnecessary background
+- avoid repeating the entire claim
+- distinguish attribution from underlying factual truth
+  when applicable
+
+Do NOT use:
+
+"According to my knowledge"
+"Generally known"
+"Likely"
+"I believe"
+"It seems"
+"Probably"
+
+Do NOT introduce outside information.
+
+Do NOT say "the claim is true" when only attribution has
+been verified.
+
+
+============================================================
+EVIDENCE STRENGTH
+============================================================
 
 evidence_strength must be an integer from 0 to 100.
-
-Interpret evidence_strength as:
 
 0-25:
 Very weak or insufficient evidence.
@@ -720,11 +1305,31 @@ Moderately strong evidence.
 76-100:
 Strong and consistent evidence.
 
-Do NOT use evidence_strength as probability that the claim
-is true. It measures the strength of the available evidence
-for the selected verdict.
-"""
+This value measures the strength of the AVAILABLE EVIDENCE
+FOR THE SELECTED VERDICT.
 
+It is NOT the probability that the claim itself is true.
+
+
+============================================================
+OUTPUT
+============================================================
+
+Return ONLY valid JSON.
+
+Use EXACTLY this structure:
+
+{{
+    "verdict": "Verified Information | False Information | Misleading Information | Insufficient Evidence",
+    "reason": "brief evidence-based explanation",
+    "evidence_strength": 0
+}}
+
+No markdown.
+No code fences.
+No additional fields.
+No additional text.
+"""
 
 # ============================================================
 # GROQ VERIFICATION
@@ -958,6 +1563,25 @@ Rules:
 - Mixed/distorted evidence means Misleading Information.
 - Otherwise use Insufficient Evidence.
 - evidence_strength must be 0-100.
+- Evaluate the exact claim being made.
+- If the claim describes what a person said,
+  questioned, posted, or stated, verify the attribution itself.
+- Do not convert a rhetorical question into an absolute factual claim.
+- A reliable source confirming that the named person made the
+  statement can support an attribution claim.
+
+For attribution claims such as "Person X stated/claimed/questioned Y":
+- Verify the attribution separately from the underlying claim.
+- If the evidence supports that Person X made or questioned the statement,
+  the attribution can be Verified even if the underlying factual details
+  are not independently proven.
+- The reason must explain exactly what was verified.
+- Do not write "Source 8", "Source 1", etc.
+- Do not claim that the underlying factual statement is proven unless
+  the evidence actually establishes it.
+- A good reason should clearly distinguish:
+  (1) the person made/questioned the statement, and
+  (2) whether the underlying statement itself was independently verified.
 """
                     }
 

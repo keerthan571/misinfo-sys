@@ -23,17 +23,21 @@ export default function EngagementVerification() {
   const showFollowers = platform === "instagram";
   const followers = Number(originalEngagement.followers || 0);
   const [editMode, setEditMode] = useState(false);
+  
   const [engagement, setEngagement] = useState(() => {
     const data = {};
+
     Object.entries(originalEngagement)
       .filter(
-        ([key]) =>
+        ([key, value]) =>
           key !== "followers" &&
-          key !== "metrics"
+          key !== "metrics" &&
+          typeof value === "number"
       )
       .forEach(([key, value]) => {
         data[key] = Number(value);
       });
+
     return data;
   });
 

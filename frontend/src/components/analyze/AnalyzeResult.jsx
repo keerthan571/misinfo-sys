@@ -136,23 +136,6 @@ export default function DetectionCard({ data }) {
           </div>
         )}
 
-        <div className="flex justify-between">
-          <span className="text-gray-400">
-            Similar Claim
-          </span>
-
-          <span
-            className={
-              data.similar_claim
-                ? "text-yellow-400 font-semibold"
-                : "text-green-400 font-semibold"
-            }
-          >
-            {data.similar_claim
-              ? "Detected"
-              : "Not Detected"}
-          </span>
-        </div>
       </div>
     </div>
   );
