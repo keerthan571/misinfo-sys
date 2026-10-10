@@ -458,28 +458,27 @@ export default function AnalyzeInput({
 
         </select>
 
+
         {platform === "Instagram" && (
-          <div className="mt-5">
-
-            <label className="block text-sm font-semibold text-slate-200 mb-3">
-              Instagram Account Followers
-            </label>
-
-            <input
-              type="number"
-              min="0"
-              value={followers}
-              onChange={(e) =>
-                setFollowers(
-                  Number(e.target.value)
-                )
-              }
-              placeholder="Enter followers count"
-              className="w-full bg-[#0F172A] text-white placeholder:text-slate-500 rounded-2xl px-4 py-3.5 border border-slate-700/80 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 outline-none transition-all"
+          <div className="mt-4 flex items-start gap-3 rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
+            <AlertCircle
+              size={20}
+              className="mt-0.5 shrink-0 text-blue-400"
             />
-
+            <div>
+              <p className="text-sm font-semibold text-blue-300">
+                Instagram Reel Engagement Note
+              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-400">
+                For Instagram Reels, please verify and enter the correct
+                engagement values (likes, comments, reposts, and shares)
+                in the Engagement Verification screen before proceeding
+                with analysis.
+              </p>
+            </div>
           </div>
         )}
+
 
       </div>
 

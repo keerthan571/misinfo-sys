@@ -1194,13 +1194,13 @@ Return ONLY valid JSON.
 
             confidence = (
                 int(confidence)
-                if confidence.is_integer()
+                if float(confidence).is_integer()
                 else confidence
             )
 
             risk_score = (
                 int(risk_score)
-                if risk_score.is_integer()
+                if float(risk_score).is_integer()
                 else risk_score
             )
 

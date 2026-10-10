@@ -22,7 +22,9 @@ export default function Analyze() {
   const [news, setNews] = useState(
     analysis?.news || ""
   );
-  const [image, setImage] = useState(null);
+  const [image, setImage] = useState(
+    analysis?.imageFile || null
+  );
   const [platform, setPlatform] = useState(
     analysis?.platform || ""
   );
@@ -155,10 +157,9 @@ export default function Analyze() {
       // SAVE ANALYSIS CONTEXT
       // =====================================================
       setAnalysis({
-        result:
-          response.data,
-        imagePreview:
-          preview,
+        result: response.data,
+        imagePreview: preview,
+        imageFile: image,
         news,
         platform,
         followers,

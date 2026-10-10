@@ -2407,111 +2407,91 @@ class OCRService:
         )
 
         return best
+
+    
     # ============================================================
     # DETECT ACTUAL TEXT LANGUAGE
     # ============================================================
 
     def detect_text_language(self, text):
-        
+        """Detect the dominant script while ignoring common OCR noise."""
+
         if not text:
             return "Unknown"
 
-        text = str(text)
+        text = unicodedata.normalize("NFC", str(text))
 
-        english_count = 0
-        hindi_count = 0
-        kannada_count = 0
+        # Remove URLs, hashtags, usernames, and common English UI text.
+        text = re.sub(r"https?://\S+|www\.\S+", " ", text)
+        text = re.sub(r"(?<!\w)#[^\s]+", " ", text)
+        text = re.sub(r"(?<!\w)@[A-Za-z0-9_.]+", " ", text)
+
+        text = re.sub(
+            r"\b(?:like|likes|comment|comments|share|shares|"
+            r"repost|reposts|reply|replies|views|follow|following|"
+            r"bookmark|bookmarks|more|translation|translate|"
+            r"add comment|show translation|see translation)\b",
+            " ",
+            text,
+            flags=re.IGNORECASE,
+        )
+
+        # Count meaningful alphabetic characters by script.
+        counts = {
+            "Hindi": 0,
+            "Kannada": 0,
+            "English": 0,
+        }
 
         for char in text:
+            if not char.isalpha():
+                continue
 
             code = ord(char)
 
-            # Devanagari
             if 0x0900 <= code <= 0x097F:
-                hindi_count += 1
-
-            # Kannada
+                counts["Hindi"] += 1
             elif 0x0C80 <= code <= 0x0CFF:
-                kannada_count += 1
+                counts["Kannada"] += 1
+            elif char.isascii():
+                counts["English"] += 1
 
-            # English alphabet
-            elif (
-                "A" <= char <= "Z"
-                or "a" <= char <= "z"
-            ):
-                english_count += 1
+        total = sum(counts.values())
 
-        total = (
-            english_count
-            + hindi_count
-            + kannada_count
-        )
-
-        if total == 0:
+        if total < 3:
             return "Unknown"
 
-        # ---------------------------------------------------------
-        # Calculate script ratios
-        # ---------------------------------------------------------
+        # Indic scripts should outweigh incidental Latin UI text.
+        indic_total = counts["Hindi"] + counts["Kannada"]
 
-        english_ratio = english_count / total
-        hindi_ratio = hindi_count / total
-        kannada_ratio = kannada_count / total
+        if indic_total:
+            indic_ranked = sorted(
+                [
+                    ("Hindi", counts["Hindi"]),
+                    ("Kannada", counts["Kannada"]),
+                ],
+                key=lambda item: item[1],
+                reverse=True,
+            )
 
-        # ---------------------------------------------------------
-        # Dominant-language detection
-        #
-        # Social-media screenshots commonly contain:
-        # - publisher names
-        # - timestamps
-        # - buttons
-        # - UI labels
-        # - English acronyms
-        #
-        # Therefore, a small amount of English should NOT turn
-        # an otherwise Kannada/Hindi post into "Mixed".
-        # ---------------------------------------------------------
+            primary_language, primary_count = indic_ranked[0]
+            secondary_count = indic_ranked[1][1]
 
-        ratios = {
-            "English": english_ratio,
-            "Hindi": hindi_ratio,
-            "Kannada": kannada_ratio,
-        }
+            if primary_count < 3:
+                return "English" if counts["English"] >= 3 else "Unknown"
 
-        sorted_languages = sorted(
-            ratios.items(),
-            key=lambda item: item[1],
-            reverse=True
-        )
+            # Mixed only when both Indic scripts have substantial presence.
+            if (
+                secondary_count >= 10
+                and secondary_count / indic_total >= 0.35
+                and primary_count / indic_total < 0.65
+            ):
+                return "Mixed"
 
-        primary_language, primary_ratio = sorted_languages[0]
-        secondary_language, secondary_ratio = sorted_languages[1]
-
-        # ---------------------------------------------------------
-        # Clearly dominant language
-        # ---------------------------------------------------------
-
-        if primary_ratio >= 0.60:
             return primary_language
 
-        # ---------------------------------------------------------
-        # Genuine mixed-language content
-        #
-        # Require both languages to have substantial presence.
-        # ---------------------------------------------------------
+        return "English" if counts["English"] >= 3 else "Unknown"
 
-        if (
-            primary_ratio >= 0.40
-            and secondary_ratio >= 0.30
-        ):
-            return "Mixed"
-
-        # ---------------------------------------------------------
-        # Otherwise use the dominant script.
-        # This prevents OCR/UI noise from producing Mixed.
-        # ---------------------------------------------------------
-
-        return primary_language
     # -----------------------------------------------------
     # OCR EXTRACTION
     # -----------------------------------------------------
