@@ -1,5 +1,7 @@
 from __future__ import annotations
-
+import cv2
+import numpy as np
+from app.services.engagement_extractor import engagement_extractor
 import io
 import logging
 import os
@@ -601,11 +603,13 @@ class OCRService:
         # FINAL CLEANUP
         # ========================================================
 
+        
         result = "\n".join(
             cleaned_lines
         ).strip()
 
         return result
+  
     
     # ========================================================
     # PUBLISHER DETECTION
@@ -1223,6 +1227,7 @@ ocr_service = OCRService()
 async def extract_ocr(
     file: UploadFile = File(...),
     language: str = "eng+hin+kan",
+    platform: str = "",
 ):
 
     if not file.filename:
@@ -1239,6 +1244,35 @@ async def extract_ocr(
         # ----------------------------------------------------
 
         image_bytes = await file.read()
+        instagram_layout = None
+
+        if platform.strip().lower() == "instagram":
+            try:
+                image_array = np.frombuffer(
+                    image_bytes,
+                    dtype=np.uint8
+                )
+                image_cv = cv2.imdecode(
+                    image_array,
+                    cv2.IMREAD_COLOR
+                )
+
+                if image_cv is not None:
+                    detected = engagement_extractor.analyze(
+                        image_cv,
+                        platform="Instagram"
+                    )
+
+                    # Layout must be determined by the existing
+                    # icon-position detector, not engagement values.
+                    if isinstance(detected, dict):
+                        instagram_layout = detected.get(
+                            "instagram_layout"
+                        )
+            except Exception:
+                logger.exception(
+                    "Instagram layout detection failed"
+                )
 
         if not image_bytes:
 
@@ -1257,16 +1291,13 @@ async def extract_ocr(
                 language=language
             )
         )
+        print("DEBUG OCR RESULT TYPE:", type(result))
+        print("DEBUG OCR RESULT:", repr(result))
 
         # ----------------------------------------------------
         # OCR failure
         # ----------------------------------------------------
-
-        if (
-            result.get("status")
-            == "error"
-        ):
-
+        if result.get("status") == "error":
             raise HTTPException(
                 status_code=400,
                 detail=result.get(
@@ -1275,6 +1306,7 @@ async def extract_ocr(
                 )
             )
 
+        result["instagram_layout"] = instagram_layout
         return result
 
     except HTTPException:

@@ -2414,18 +2414,16 @@ class OCRService:
     # ============================================================
 
     def detect_text_language(self, text):
-        """Detect the dominant script while ignoring common OCR noise."""
-
+        """Detect the dominant language while tolerating OCR script noise."""
         if not text:
             return "Unknown"
 
         text = unicodedata.normalize("NFC", str(text))
 
-        # Remove URLs, hashtags, usernames, and common English UI text.
+        # Remove URLs, hashtags, usernames, and common English social UI.
         text = re.sub(r"https?://\S+|www\.\S+", " ", text)
         text = re.sub(r"(?<!\w)#[^\s]+", " ", text)
         text = re.sub(r"(?<!\w)@[A-Za-z0-9_.]+", " ", text)
-
         text = re.sub(
             r"\b(?:like|likes|comment|comments|share|shares|"
             r"repost|reposts|reply|replies|views|follow|following|"
@@ -2436,19 +2434,11 @@ class OCRService:
             flags=re.IGNORECASE,
         )
 
-        # Count meaningful alphabetic characters by script.
-        counts = {
-            "Hindi": 0,
-            "Kannada": 0,
-            "English": 0,
-        }
-
+        counts = {"English": 0, "Hindi": 0, "Kannada": 0}
         for char in text:
             if not char.isalpha():
                 continue
-
             code = ord(char)
-
             if 0x0900 <= code <= 0x097F:
                 counts["Hindi"] += 1
             elif 0x0C80 <= code <= 0x0CFF:
@@ -2456,41 +2446,50 @@ class OCRService:
             elif char.isascii():
                 counts["English"] += 1
 
-        total = sum(counts.values())
+        english = counts["English"]
+        hindi = counts["Hindi"]
+        kannada = counts["Kannada"]
+        indic_total = hindi + kannada
+        total = english + indic_total
 
         if total < 3:
             return "Unknown"
 
-        # Indic scripts should outweigh incidental Latin UI text.
-        indic_total = counts["Hindi"] + counts["Kannada"]
+        # An overwhelmingly Latin-script post should remain English even
+        # when OCR mistakes a few pixels for stray Hindi/Kannada characters.
+        if english >= 3 and english / total >= 0.65:
+            return "English"
 
-        if indic_total:
-            indic_ranked = sorted(
-                [
-                    ("Hindi", counts["Hindi"]),
-                    ("Kannada", counts["Kannada"]),
-                ],
-                key=lambda item: item[1],
-                reverse=True,
-            )
-
-            primary_language, primary_count = indic_ranked[0]
-            secondary_count = indic_ranked[1][1]
-
-            if primary_count < 3:
-                return "English" if counts["English"] >= 3 else "Unknown"
-
-            # Mixed only when both Indic scripts have substantial presence.
+        # Explicit Hindi/Kannada rule: an exact tie is Mixed; otherwise the
+        # larger script count is the dominant language (Hindi or Kannada).
+        if hindi and kannada:
+            # If English is also a substantial part of the text, retain the
+            # meaningful three-script/multilingual classification.
             if (
-                secondary_count >= 10
-                and secondary_count / indic_total >= 0.35
-                and primary_count / indic_total < 0.65
+                english >= 10
+                and indic_total >= 10
+                and english / total >= 0.20
+                and indic_total / total >= 0.20
             ):
                 return "Mixed"
+            if hindi == kannada:
+                return "Mixed"
+            return "Hindi" if hindi > kannada else "Kannada"
 
-            return primary_language
+        # A genuine English + one-Indic-script post is Mixed only when both
+        # scripts contribute a substantial amount, not from a few OCR errors.
+        if (
+            english >= 10
+            and indic_total >= 10
+            and english / total >= 0.20
+            and indic_total / total >= 0.20
+        ):
+            return "Mixed"
 
-        return "English" if counts["English"] >= 3 else "Unknown"
+        if indic_total:
+            return "Hindi" if hindi > kannada else "Kannada"
+
+        return "English" if english >= 3 else "Unknown"
 
     # -----------------------------------------------------
     # OCR EXTRACTION

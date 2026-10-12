@@ -2678,6 +2678,115 @@ class EngagementExtractor:
 
         return output
 
+    def extract_instagram_feed_numbers_fallback(self, image):
+        """Read Instagram Feed counts from the bottom horizontal action row.
+
+        This is a fallback for screenshots where the icon templates fail to
+        match.  It is deliberately Instagram-only and uses four separate
+        count slots, so adjacent values cannot be concatenated into one number.
+        """
+        output = {
+            "likes": 0,
+            "comments": 0,
+            "reposts": 0,
+            "shares": 0,
+            "bookmarks": 0,
+        }
+
+        if image is None or image.size == 0:
+            return output
+
+        height, width = image.shape[:2]
+        if width < 200 or height < 200:
+            return output
+
+        # Instagram Feed counts sit in the lower horizontal engagement row.
+        # These normalized slots are fallback-only; icon-anchored extraction
+        # remains the primary method whenever it succeeds.
+        y1 = max(0, int(height * 0.90))
+        y2 = min(height, int(height * 0.98))
+        slots = {
+            "likes": (0.10, 0.20),
+            "comments": (0.27, 0.33),
+            "reposts": (0.43, 0.49),
+            "shares": (0.56, 0.65),
+        }
+
+        from collections import Counter
+
+        for key, (left_ratio, right_ratio) in slots.items():
+            x1 = max(0, int(width * left_ratio))
+            x2 = min(width, int(width * right_ratio))
+            if x2 <= x1 or y2 <= y1:
+                continue
+
+            crop = image[y1:y2, x1:x2]
+            if crop.size == 0:
+                continue
+
+            gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+            gray = cv2.resize(
+                gray,
+                None,
+                fx=8,
+                fy=8,
+                interpolation=cv2.INTER_CUBIC,
+            )
+
+            variants = [gray]
+            for threshold_value in (150, 180, 200, 220):
+                variants.append(
+                    cv2.threshold(
+                        gray,
+                        threshold_value,
+                        255,
+                        cv2.THRESH_BINARY,
+                    )[1]
+                )
+
+            candidates = []
+            for variant in variants:
+                for psm in (6, 7, 10):
+                    try:
+                        raw_text = pytesseract.image_to_string(
+                            variant,
+                            config=(
+                                f"--psm {psm} "
+                                "-c tessedit_char_whitelist=0123456789KkMm"
+                            ),
+                        ).strip()
+                        value = self.clean_number(raw_text)
+                        if value > 0:
+                            candidates.append(value)
+                    except Exception as exc:
+                        print(
+                            "INSTAGRAM FEED FALLBACK OCR ERROR:",
+                            key,
+                            str(exc),
+                        )
+
+            if candidates:
+                counts = Counter(candidates)
+                value, votes = counts.most_common(1)[0]
+                output[key] = int(value)
+                print(
+                    "INSTAGRAM FEED FALLBACK:",
+                    key,
+                    "value=", int(value),
+                    "votes=", votes,
+                    "candidates=", dict(counts),
+                )
+
+        print("INSTAGRAM FEED FALLBACK NUMBERS:", output)
+        return output
+
+    def _has_confident_instagram_feed_fallback(self, numbers):
+        """Require at least three populated feed count slots."""
+        return sum(
+            int(numbers.get(key, 0) or 0) > 0
+            for key in ("likes", "comments", "reposts", "shares")
+        ) >= 3
+
     def match_instagram_engagement(
         self,
         image,
@@ -2710,6 +2819,15 @@ class EngagementExtractor:
         }
 
         if not icons:
+            # Template matching can fail on compressed / resized screenshots.
+            # Try the Instagram Feed row-specific OCR fallback, but only accept
+            # it when at least three of the four separate count slots are read.
+            fallback = self.extract_instagram_feed_numbers_fallback(image)
+            if self._has_confident_instagram_feed_fallback(fallback):
+                print(
+                    "INSTAGRAM ICONS NOT DETECTED: using confident Feed fallback"
+                )
+                return fallback
             return output
 
         # ---------------------------------------------------------
@@ -2760,6 +2878,16 @@ class EngagementExtractor:
 
             # Instagram feed does not expose a bookmark count.
             output["bookmarks"] = 0
+
+            # If the icon-anchored pass could not recover most counts, use
+            # the independent four-slot OCR fallback for this horizontal row.
+            # Do not change successful existing detections.
+            if sum(output[key] > 0 for key in ("likes", "comments", "reposts", "shares")) < 3:
+                fallback = self.extract_instagram_feed_numbers_fallback(image)
+                if self._has_confident_instagram_feed_fallback(fallback):
+                    for key in ("likes", "comments", "reposts", "shares"):
+                        if output[key] <= 0 and fallback[key] > 0:
+                            output[key] = fallback[key]
 
             print(
                 "FINAL INSTAGRAM FEED ENGAGEMENT:",
@@ -2820,9 +2948,11 @@ class EngagementExtractor:
         # =========================================================
 
         print(
-            "INSTAGRAM LAYOUT UNKNOWN - "
-            "returning zero engagement values."
+            "INSTAGRAM LAYOUT UNKNOWN - trying Feed row OCR fallback."
         )
+        fallback = self.extract_instagram_feed_numbers_fallback(image)
+        if self._has_confident_instagram_feed_fallback(fallback):
+            return fallback
 
         return output
     
@@ -2833,7 +2963,8 @@ class EngagementExtractor:
     def analyze(
         self,
         image,
-        platform=None
+        platform=None,
+        instagram_layout=None
     ):
 
         output = {
@@ -2848,12 +2979,30 @@ class EngagementExtractor:
             return output
 
         # -------------------------------------------------
-        # NORMALIZE PLATFORM
+        # NORMALIZE PLATFORM AND USER-SELECTED INSTAGRAM TYPE
         # -------------------------------------------------
 
         normalized_platform = str(
             platform or ""
         ).strip().lower()
+
+        requested_instagram_layout = str(
+            instagram_layout or ""
+        ).strip().lower()
+
+        # Instagram Reels use the separate manual-engagement form.
+        # Do not guess Reel counts automatically; AnalysisPipeline applies
+        # the counts explicitly entered by the user after this method returns.
+        if (
+            normalized_platform == "instagram"
+            and requested_instagram_layout in {"vertical", "reel"}
+        ):
+            print(
+                "INSTAGRAM REEL SELECTED: skipping automatic engagement OCR; "
+                "manual counts will be applied by the analysis pipeline.",
+                flush=True,
+            )
+            return output
 
         # -------------------------------------------------
         # ICON DETECTION
@@ -2935,26 +3084,41 @@ class EngagementExtractor:
                 reel_icons
             )
 
-            # Choose the layout whose expected UI region contains
-            # more engagement icons.
-            if (
-                len(feed_icons) >= 2
-                and len(feed_icons) >= len(reel_icons)
-            ):
-                icons = feed_icons
-                print("INSTAGRAM LAYOUT PRESELECTED: horizontal")
+            # Respect the user's explicit Post/Reel selection first.
+            # Only use automatic geometry classification when no type was selected.
+            feed_layout = self.detect_instagram_layout(feed_icons)
+            reel_layout = self.detect_instagram_layout(reel_icons)
 
-            elif len(reel_icons) >= 2:
+            if requested_instagram_layout in {"horizontal", "feed", "post"}:
+                icons = feed_icons
+                print(
+                    "INSTAGRAM LAYOUT FORCED BY USER SELECTION: horizontal/feed",
+                    flush=True,
+                )
+
+            elif reel_layout == "vertical":
                 icons = reel_icons
                 print("INSTAGRAM LAYOUT PRESELECTED: vertical")
 
-            elif feed_icons:
+            elif feed_layout == "horizontal":
                 icons = feed_icons
-                print("INSTAGRAM LAYOUT PRESELECTED: horizontal (partial)")
+                print("INSTAGRAM LAYOUT PRESELECTED: horizontal")
+
+            elif len(reel_icons) >= 2 and len(feed_icons) < 2:
+                icons = reel_icons
+                print("INSTAGRAM LAYOUT PRESELECTED: vertical fallback")
+
+            elif len(feed_icons) >= 2:
+                icons = feed_icons
+                print("INSTAGRAM LAYOUT PRESELECTED: horizontal fallback")
 
             elif reel_icons:
                 icons = reel_icons
-                print("INSTAGRAM LAYOUT PRESELECTED: vertical (partial)")
+                print("INSTAGRAM LAYOUT PRESELECTED: partial vertical")
+
+            elif feed_icons:
+                icons = feed_icons
+                print("INSTAGRAM LAYOUT PRESELECTED: partial horizontal")
 
         else:
 
@@ -3218,12 +3382,19 @@ class EngagementExtractor:
             if value > 0
         }
 
-        print(
-            "FINAL ENGAGEMENT:",
-            final_output
-        )
+        if normalized_platform == "instagram":
+            if (
+                len(feed_icons) >= 2
+                and len(feed_icons) >= len(reel_icons)
+            ):
+                final_output["instagram_layout"] = "horizontal"
 
+            elif len(reel_icons) >= 2:
+                final_output["instagram_layout"] = "vertical"
+
+        print("FINAL ENGAGEMENT:", final_output)
         return final_output
+
 
 
 engagement_extractor = EngagementExtractor()
