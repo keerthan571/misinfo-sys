@@ -15,10 +15,14 @@ class GraphGenerator:
         self.engine: PropagationEngine = PropagationEngine(self.config)
 
     def generate(self, analysis_result: dict[str, Any]) -> dict[str, Any]:
+        analysis = analysis_result.get("analysis", {})
+        engagement = analysis_result.get("engagement", {})
+
+        # Keep the new spreading-level inputs available to the engine.
+        # These are observed engagement changes, not legacy spread predictions.
         graph = self.engine.generate(
-            analysis=analysis_result.get("analysis", {}),
-            engagement=analysis_result.get("engagement", {}),
-            spread_prediction=analysis_result.get("spread_prediction", {}),
+            analysis=analysis,
+            engagement=engagement,
         )
 
         influence = InfluenceDetection(graph).analyze()
@@ -28,5 +32,6 @@ class GraphGenerator:
             influence=influence,
             communities=communities,
         )
-        
+
+
 graph_generator = GraphGenerator()

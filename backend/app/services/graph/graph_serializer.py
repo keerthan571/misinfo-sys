@@ -70,6 +70,7 @@ class GraphSerializer:
             "leaders": statistics["leaders"],
             "bots": statistics["bots"],
             "viralNodes": statistics["viral_nodes"],
+            "simulatedNodes": statistics["simulated_nodes"],
             "nodeTypes": statistics["node_types"],
             "averageDegree":
                 influence_statistics.get(
@@ -88,6 +89,7 @@ class GraphSerializer:
             "influencers": top_influencers,
             "communityAnalytics": community_summary,
             "largestCommunity": largest_community,
+            "graphMetadata": dict(self.graph.graph),
         }
 
     def _nodes(
@@ -165,25 +167,34 @@ class GraphSerializer:
                     2,
                 )
 
-            reach = data.get(
-                "reach",
-                None,
-            )
+            # Only report reach when an estimate was explicitly supplied.
+            # Descendant count describes graph structure, not real audience reach.
+            raw_reach = data.get("reach")
+            try:
+                reach = (
+                    int(raw_reach)
+                    if raw_reach is not None and float(raw_reach) >= 0
+                    else None
+                )
+            except (TypeError, ValueError, OverflowError):
+                reach = None
 
-            if reach is None:
-                try:
-                    reach = len(
-                        nx.descendants(
-                            self.graph,
-                            node_id,
-                        )
-                    )
-                except Exception:
-                    reach = 0
+            try:
+                descendant_count = len(
+                    nx.descendants(self.graph, node_id)
+                )
+            except (nx.NetworkXError, nx.NodeNotFound):
+                descendant_count = 0
 
-            reach = int(
-                reach or 0
-            )
+            raw_weighted_reach = data.get("weighted_reach")
+            try:
+                weighted_reach = (
+                    float(raw_weighted_reach)
+                    if raw_weighted_reach is not None
+                    else None
+                )
+            except (TypeError, ValueError, OverflowError):
+                weighted_reach = None
 
             in_degree = self.graph.in_degree(
                 node_id
@@ -329,6 +340,9 @@ class GraphSerializer:
                         network_influence_percent,
 
                     "reach": reach,
+                    "descendantCount": descendant_count,
+                    "isSimulated": bool(data.get("is_simulated", False)),
+                    "botStatus": data.get("bot_status"),
 
                     "shareProbability":
                         round(
@@ -345,14 +359,7 @@ class GraphSerializer:
                     "outDegree": out_degree,
                     "degree": degree,
 
-                    "weightedReach":
-                        float(
-                            data.get(
-                                "weighted_reach",
-                                reach,
-                            )
-                            or 0
-                        ),
+                    "weightedReach": weighted_reach,
 
                     "community": community,
 
@@ -497,6 +504,12 @@ class GraphSerializer:
 
             "viral_nodes":
                 viral,
+
+            "simulated_nodes": sum(
+                1
+                for _, data in self.graph.nodes(data=True)
+                if data.get("is_simulated", False)
+            ),
 
             "node_types":
                 node_types,

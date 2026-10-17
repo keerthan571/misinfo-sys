@@ -1,0 +1,27 @@
+{
+  "dataset": "C:\\Users\\Keerthan\\Downloads\\social-media-post-performance-forecasting\\archive\\train.csv",
+  "usable_rows": 8014,
+  "features": [
+    "post_age_hours",
+    "posting_hour",
+    "posting_day",
+    "posting_month",
+    "caption_length",
+    "word_count",
+    "hashtag_count",
+    "mention_count",
+    "exclamation_count",
+    "question_count",
+    "platform",
+    "page_id",
+    "content_type",
+    "caption"
+  ],
+  "targets": [
+    "likes",
+    "comments"
+  ],
+  "validation": "random 80/20 split; random_state=42",
+  "target_transform": "log1p",
+  "note": "Predicts engagement at the dataset's recorded observation time, not future engagement growth."
+}

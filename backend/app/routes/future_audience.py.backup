@@ -1,0 +1,350 @@
+
+from pathlib import Path
+from typing import Literal, Optional
+
+import numpy as np
+import pandas as pd
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+router = APIRouter(tags=["Future Audience Exposure"])
+
+DATA_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "data"
+    / "future_audience_feature_table.csv"
+)
+
+MAX_HORIZON_DAYS = 88
+
+ENGAGEMENT_FIELDS = [
+    "likes",
+    "comments",
+    "shares",
+    "reposts",
+    "bookmarks",
+    "replies",
+    "quotes",
+]
+
+
+class PredictionRequest(BaseModel):
+    platform: Literal["Instagram", "Facebook", "X"]
+    horizon_days: int = Field(ge=0, le=88)
+    post_age_days: int = Field(ge=0)
+
+    views: Optional[float] = Field(default=None, ge=0)
+    likes: Optional[float] = Field(default=None, ge=0)
+    comments: Optional[float] = Field(default=None, ge=0)
+    shares: Optional[float] = Field(default=None, ge=0)
+    reposts: Optional[float] = Field(default=None, ge=0)
+    bookmarks: Optional[float] = Field(default=None, ge=0)
+    replies: Optional[float] = Field(default=None, ge=0)
+    quotes: Optional[float] = Field(default=None, ge=0)
+
+
+def load_data() -> pd.DataFrame:
+    if not DATA_PATH.exists():
+        raise FileNotFoundError(
+            f"Dataset not found at {DATA_PATH}"
+        )
+
+    df = pd.read_csv(DATA_PATH)
+
+    required = {
+        "platform",
+        "elapsed_days",
+        "views_earlier",
+        "views_latest",
+    }
+
+    missing = required - set(df.columns)
+
+    if missing:
+        raise ValueError(
+            f"Dataset missing columns: {sorted(missing)}"
+        )
+
+    return df
+
+
+def eligible_x_view_pairs() -> pd.DataFrame:
+    df = load_data()
+
+    pairs = df[
+        df["platform"].astype(str).str.lower().eq("x")
+        & df["views_earlier"].notna()
+        & df["views_latest"].notna()
+        & df["elapsed_days"].notna()
+        & (df["elapsed_days"] > 0)
+    ].copy()
+
+    return pairs
+
+
+def estimate_median_daily_log_growth():
+    pairs = eligible_x_view_pairs()
+
+    if len(pairs) < 5:
+        raise ValueError(
+            "Not enough complete X view pairs to estimate growth."
+        )
+
+    start = (
+        pairs["views_earlier"]
+        .astype(float)
+        .clip(lower=0)
+        .to_numpy()
+    )
+
+    end = (
+        pairs["views_latest"]
+        .astype(float)
+        .clip(lower=0)
+        .to_numpy()
+    )
+
+    days = pairs["elapsed_days"].astype(float).to_numpy()
+
+    daily_rates = (
+        np.log1p(end) - np.log1p(start)
+    ) / days
+
+    median_rate = float(np.median(daily_rates))
+    median_rate = float(np.clip(median_rate, -0.03, 0.08))
+
+    return (
+        median_rate,
+        len(pairs),
+        int(pairs["elapsed_days"].min()),
+        int(pairs["elapsed_days"].max()),
+    )
+
+
+def observed_metrics(request: PredictionRequest) -> dict:
+    fields = ["views"] + ENGAGEMENT_FIELDS
+
+    return {
+        field: getattr(request, field)
+        for field in fields
+        if getattr(request, field) is not None
+    }
+
+
+def estimate_engagement_view_ranges(metrics: dict) -> dict:
+    """
+    Create illustrative view ranges using assumed engagement-rate
+    scenarios. These are not measured views or validated predictions.
+
+    Rate units: engagements per 1,000 views.
+
+    IMPORTANT:
+    Replace these assumptions with verified platform-specific
+    benchmark values before using the ranges as research results.
+    """
+
+    benchmarks = {
+        "likes": {
+            "low": (1, 8),
+            "mid": (20, 50),
+            "high": (70, 120),
+        },
+        "comments": {
+            "mid": (1, 5),
+            "high": (5, 10),
+        },
+        "shares": {
+            "mid": (1, 10),
+            "high": (8, 15),
+        },
+    }
+
+    scenarios = {}
+
+    for tier in ("low", "mid", "high"):
+        estimates = []
+        metrics_used = []
+
+        for metric, tiers in benchmarks.items():
+            count = metrics.get(metric)
+            rate_range = tiers.get(tier)
+
+            if count is None or rate_range is None:
+                continue
+
+            count = float(count)
+
+            if count <= 0:
+                continue
+
+            min_rate, max_rate = rate_range
+
+            if min_rate <= 0 or max_rate <= 0:
+                continue
+
+            # Views implied by the assumed engagement-rate range.
+            lower_views = count * 1000 / max_rate
+            upper_views = count * 1000 / min_rate
+
+            estimates.append((lower_views, upper_views))
+            metrics_used.append(metric)
+
+        if estimates:
+            # These are conservative scenario envelopes, not
+            # statistically calibrated confidence intervals.
+            scenarios[tier] = {
+                "estimated_views_min": int(
+                    round(min(item[0] for item in estimates))
+                ),
+                "estimated_views_max": int(
+                    round(max(item[1] for item in estimates))
+                ),
+                "metrics_used": metrics_used,
+            }
+
+    return {
+        "method": "engagement_benchmark_scenarios",
+        "status": "heuristic_not_validated",
+        "scenarios": scenarios,
+        "warning": (
+            "These are illustrative view ranges under assumed "
+            "engagement rates, not observed views or validated future "
+            "forecasts. The rate assumptions are not verified "
+            "platform-specific benchmarks. Different engagement metrics "
+            "may imply conflicting ranges."
+        ),
+    }
+
+
+@router.get("/health")
+def future_audience_health():
+    pairs = eligible_x_view_pairs()
+
+    return {
+        "status": "ok",
+        "dataset_rows": len(load_data()),
+        "complete_view_pairs_for_X": len(pairs),
+        "model_status": "experimental_not_validated",
+        "method": "median daily log-growth",
+        "supported_numerical_forecast_platforms": ["X"],
+        "benchmark_estimation_platforms": [
+            "Instagram",
+            "Facebook",
+        ],
+    }
+
+
+@router.post("/predict")
+def predict_future_audience(request: PredictionRequest):
+    metrics = observed_metrics(request)
+
+    # Day 0 returns the supplied observations without forecasting.
+    if request.horizon_days == 0:
+        return {
+            "platform": request.platform,
+            "horizon_days": 0,
+            "status": "observed_baseline",
+            "observed_metrics": metrics,
+            "predicted_views": request.views,
+            "audience_exposure_proxy": request.views,
+            "unique_reach": None,
+            "message": (
+                "Day 0 returns supplied observations. "
+                "Views are not verified unique reach."
+            ),
+        }
+
+    # Instagram and Facebook: benchmark-based scenarios only.
+    # No complete platform-specific view pairs are available.
+    if request.platform in ("Instagram", "Facebook"):
+        benchmark_estimate = estimate_engagement_view_ranges(metrics)
+
+        return {
+            "platform": request.platform,
+            "horizon_days": request.horizon_days,
+            "status": "heuristic_estimate_only",
+            "observed_metrics": metrics,
+            "predicted_views": None,
+            "audience_exposure_proxy": None,
+            "unique_reach": None,
+            "method": "engagement benchmark scenarios",
+            "engagement_benchmark_estimate": benchmark_estimate,
+            "message": (
+                "A validated future-view forecast is unavailable for "
+                "this platform because complete platform-specific view "
+                "pairs are missing. The engagement scenarios are "
+                "illustrative and do not predict future growth."
+            ),
+            "cautions": [
+                "This is a heuristic, not a validated forecast.",
+                "Benchmark rates have not been verified as "
+                "platform-specific.",
+                "Engagement growth does not establish actual reach.",
+                "Views are not verified unique reach.",
+            ],
+        }
+
+    # X: preserve the existing median daily log-growth method.
+    if request.views is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide current views for an X forecast.",
+        )
+
+    try:
+        rate, n_pairs, min_days, max_days = (
+            estimate_median_daily_log_growth()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    predicted = max(
+        0.0,
+        float(
+            np.expm1(
+                np.log1p(request.views)
+                + rate * request.horizon_days
+            )
+        ),
+    )
+
+    within_interval = (
+        min_days <= request.horizon_days <= max_days
+    )
+
+    return {
+        "platform": request.platform,
+        "horizon_days": request.horizon_days,
+        "status": "experimental_estimate",
+        "observed_metrics": metrics,
+        "predicted_views": int(round(predicted)),
+        "audience_exposure_proxy": int(round(predicted)),
+        "unique_reach": None,
+        "method": "median daily log-growth",
+        "median_daily_log_growth_rate": round(rate, 6),
+        "training_complete_view_pairs": n_pairs,
+        "training_platform": "X only",
+        "training_observation_interval_days": {
+            "min": min_days,
+            "max": max_days,
+        },
+        "horizon_within_observed_interval": within_interval,
+        "uncertainty": (
+            "High: the dataset is small and no calibrated prediction "
+            "interval is available."
+        ),
+        "cautions": [
+            "Experimental estimate, not a validated forecast.",
+            "Views are an exposure proxy, not actual unique reach.",
+            "Engagement growth does not establish actual reach.",
+            (
+                "Horizon is outside the recorded interval; treat this "
+                "as extrapolation."
+                if not within_interval
+                else (
+                    "Being within the recorded interval does not "
+                    "guarantee accuracy."
+                )
+            ),
+        ],
+    }

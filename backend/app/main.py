@@ -24,6 +24,7 @@ from .routes import (
     auth,
     dashboard,
     history,
+    future_audience,
 )
 
 app = FastAPI(
@@ -109,3 +110,8 @@ def root():
     return {
         "message": "Welcome to the Misinformation Analysis System API. Go to /docs for Swagger UI."
     }
+    
+app.include_router(
+    future_audience.router,
+    prefix="/api/future-audience",
+)
