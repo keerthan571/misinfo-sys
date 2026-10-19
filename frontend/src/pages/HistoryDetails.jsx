@@ -44,70 +44,101 @@ export default function HistoryDetails() {
 
 
   const imageUrl = (() => {
-    const path = analysis.image?.path;
+  const rawPath = analysis?.image?.path;
+  if (!rawPath) return null;
 
-    if (!path) {
+  const cleanPath = String(rawPath)
+    .trim()
+    .replace(/\\/g, "/");
+
+  const configuredBase = String(
+    import.meta.env.VITE_API_URL ||
+      apiClient.defaults.baseURL ||
+      ""
+  )
+    .trim()
+    .replace(/\/+$/, "");
+
+  // Uploads are mounted at the backend root, not under /api.
+  const backendBase = configuredBase
+    .replace(/\/api\/?$/i, "")
+    .replace(/\/+$/, "");
+
+  const buildUploadUrl = (path) => {
+    const base = backendBase.replace(/\/+$/, "");
+    const normalizedPath = path
+      .replace(/\\/g, "/")
+      .replace(/^\/+/, "")
+      .replace(/\/{2,}/g, "/");
+
+    const url = `${base}/${normalizedPath}`;
+
+    console.log("FINAL IMAGE URL:", url);
+
+    return url;
+  };
+
+  try {
+    if (/^https?:\/\//i.test(cleanPath)) {
+      const parsed = new URL(cleanPath);
+
+      if (!parsed.pathname.includes("/uploads/")) {
+        return cleanPath;
+      }
+
+      const uploadPath = parsed.pathname.slice(
+        parsed.pathname.indexOf("/uploads/") + 1
+      );
+
+      const finalUrl = backendBase
+        ? buildUploadUrl(uploadPath)
+        : cleanPath;
+
+      console.log("IMAGE DEBUG:", {
+        rawPath,
+        configuredBase,
+        backendBase,
+        uploadPath,
+        finalUrl,
+      });
+
+      return finalUrl;
+    }
+
+    const marker = cleanPath.indexOf("/uploads/");
+
+    const uploadPath =
+      marker >= 0
+        ? cleanPath.slice(marker + 1)
+        : `uploads/${cleanPath
+            .replace(/^\/+/, "")
+            .replace(/^backend\//i, "")
+            .replace(/^uploads\//i, "")}`;
+
+    if (!backendBase) {
+      console.error("IMAGE URL ERROR: Backend URL is missing.", {
+        rawPath,
+        configuredBase,
+      });
       return null;
     }
 
-    const cleanPath = path
-      .replace(/\\/g, "/")
-      .replace(/^\/+/, "");
+    const finalUrl = buildUploadUrl(uploadPath);
 
-    const backendUrl =
-      import.meta.env.VITE_API_URL ||
-      "https://misinfo-system.onrender.com";
+    console.log("IMAGE DEBUG:", {
+      rawPath,
+      configuredBase,
+      backendBase,
+      uploadPath,
+      finalUrl,
+    });
 
-    // --------------------------------------------------------
-    // Existing absolute URL
-    // --------------------------------------------------------
-
-    if (
-      cleanPath.startsWith("http://") ||
-      cleanPath.startsWith("https://")
-    ) {
-      // Convert old/local backend URLs to production backend.
-      if (
-        cleanPath.includes("127.0.0.1:8000") ||
-        cleanPath.includes("localhost:8000")
-      ) {
-        const uploadsIndex = cleanPath.indexOf("/uploads/");
-
-        if (uploadsIndex !== -1) {
-          return (
-            backendUrl +
-            cleanPath.substring(uploadsIndex)
-          );
-        }
-      }
-
-      return cleanPath;
-    }
-
-    // --------------------------------------------------------
-    // backend/uploads/filename
-    // --------------------------------------------------------
-
-    if (cleanPath.startsWith("backend/uploads/")) {
-      return `${backendUrl}/uploads/${cleanPath.substring(
-        "backend/uploads/".length
-      )}`;
-    }
-
-    // --------------------------------------------------------
-    // uploads/filename
-    // --------------------------------------------------------
-
-    if (cleanPath.startsWith("uploads/")) {
-      return `${backendUrl}/${cleanPath}`;
-    }
-
-    // --------------------------------------------------------
-    // filename only
-    // --------------------------------------------------------
-
-    return `${backendUrl}/uploads/${cleanPath}`;
-  })();
+    return finalUrl;
+  } catch (error) {
+    console.error("IMAGE URL ERROR:", error);
+    return null;
+  }
+})();
 
   const downloadPDF = async () => {
     try {
@@ -174,41 +205,92 @@ export default function HistoryDetails() {
         pdf.setTextColor(0);
       };
 
+     
+      
       const addLabelValue = (label, value) => {
-        addPageIfNeeded(10);
+        const labelWidth = 48;
+        const gap = 5;
+        const valueX = margin + labelWidth + gap;
+        const valueWidth = contentWidth - labelWidth - gap;
+        const lineHeight = 5;
+
+        const resetCharSpacing = () => {
+          // jsPDF's setter is setCharSpace(), not charSpace().
+          if (typeof pdf.setCharSpace === "function") {
+            pdf.setCharSpace(0);
+          }
+        };
+
+        resetCharSpacing();
 
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(10);
 
-        pdf.text(
+        const labelLines = pdf.splitTextToSize(
           `${label}:`,
-          margin,
-          y
+          labelWidth
         );
 
         pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(10);
 
-        const lines = pdf.splitTextToSize(
+        const valueLines = pdf.splitTextToSize(
           String(value ?? "-"),
-          contentWidth - 30
+          valueWidth
         );
 
-        pdf.text(
-          lines,
-          margin + 30,
-          y
+        const lineCount = Math.max(
+          labelLines.length,
+          valueLines.length
         );
 
-        y += Math.max(
-          7,
-          lines.length * 5 + 2
-        );
+        const rowHeight = lineCount * lineHeight + 3;
+
+        addPageIfNeeded(rowHeight + 2);
+
+        resetCharSpacing();
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(10);
+        pdf.setTextColor(0);
+
+        labelLines.forEach((line, index) => {
+          pdf.text(String(line), margin, y + index * lineHeight);
+        });
+
+        resetCharSpacing();
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(10);
+        pdf.setTextColor(0);
+
+        valueLines.forEach((line, index) => {
+          pdf.text(String(line), valueX, y + index * lineHeight);
+        });
+
+        resetCharSpacing();
+
+        y += rowHeight;
       };
 
+
       const addTextBlock = (text) => {
+        const cleanText = String(text || "-")
+          .replace(/\u00A0/g, " ")
+          .replace(/[ \t]+/g, " ")
+          .trim();
+
+        const textWidth = contentWidth - 2;
+
+        // Prevent inherited character spacing from affecting this block.
+        if (typeof pdf.setCharSpace === "function") {
+          pdf.setCharSpace(0);
+        }
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(10);
+        pdf.setTextColor(0);
+
         const lines = pdf.splitTextToSize(
-          String(text || "-"),
-          contentWidth
+          cleanText,
+          textWidth
         );
 
         for (const line of lines) {
@@ -216,12 +298,12 @@ export default function HistoryDetails() {
 
           pdf.setFont("helvetica", "normal");
           pdf.setFontSize(10);
+          pdf.setTextColor(0);
 
-          pdf.text(
-            line,
-            margin,
-            y
-          );
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(10);
+          pdf.setTextColor(0);
+          pdf.text(String(line), margin, y);
 
           y += 5;
         }
@@ -421,22 +503,13 @@ export default function HistoryDetails() {
         }
       ];
 
-      if (isSocialAnalysis) {
-        summaryCards.push({
-          label: "Predicted Reach",
-          value:
-            Number(
-              analysis.prediction?.predicted_reach ??
-              0
-            ).toLocaleString()
-        });
-      }
+ 
 
       addCardRow(summaryCards);
 
-      /* ==========================================
-   ORIGINAL CONTENT
-========================================== */
+    /* ==========================================
+    ORIGINAL CONTENT
+    ========================================== */
 
       addSectionTitle("Original Content");
 
@@ -571,16 +644,27 @@ export default function HistoryDetails() {
             (contentWidth -
               drawWidth) / 2;
 
-          /*
-           * Let jsPDF detect PNG/JPEG from
-           * the data URL instead of forcing JPEG.
-           */
+          // Normalize the fetched image through canvas so jsPDF always receives
+          // a supported, explicit JPEG data URL (avoids UNKNOWN image format).
+          const canvas = document.createElement("canvas");
+          canvas.width = imageWidth;
+          canvas.height = imageHeight;
+          const context = canvas.getContext("2d");
+          if (!context) throw new Error("Unable to create image canvas");
+          context.fillStyle = "#ffffff";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 0, 0, imageWidth, imageHeight);
+          const jpegData = canvas.toDataURL("image/jpeg", 0.92);
+
           pdf.addImage(
-            imageData,
+            jpegData,
+            "JPEG",
             imageX,
             y,
             drawWidth,
-            drawHeight
+            drawHeight,
+            undefined,
+            "FAST"
           );
 
           y +=
@@ -608,32 +692,8 @@ export default function HistoryDetails() {
         }
       }
 
-      /*
-       * IMPORTANT:
-       * Do NOT print OCR / vision extracted text.
-       */
-      if (analysis.text?.trim()) {
-
-        addPageIfNeeded(15);
-
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(11);
-        pdf.setTextColor(40, 55, 75);
-
-        pdf.text(
-          imageUrl
-            ? "Analyzed Text"
-            : "Submitted Text",
-          margin,
-          y
-        );
-
-        y += 7;
-
-        addTextBlock(
-          analysis.display_text || analysis.text
-        );
-      }
+      // Intentionally omit OCR/extracted text from the exported PDF.
+      // The original evidence image above is the source of truth.
 
       /* ==========================================
          FACT VERIFICATION
@@ -648,10 +708,41 @@ export default function HistoryDetails() {
         analysis.fact_verification?.verdict
       );
 
-      addLabelValue(
-        "Reason",
-        analysis.fact_verification?.reason
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10);
+      pdf.setTextColor(0);
+
+      addPageIfNeeded(12);
+      pdf.text("Reason:", margin, y);
+      y += 6;
+
+      const reasonText = String(
+        analysis.fact_verification?.reason || "-"
+      ).replace(/\s+/g, " ").trim();
+
+      const reasonLines = pdf.splitTextToSize(
+        reasonText,
+        contentWidth - 2
       );
+
+      // Reset PDF character spacing before writing wrapped reason text.
+      if (typeof pdf.setCharSpace === "function") {
+        pdf.setCharSpace(0);
+      }
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(0);
+
+      for (const line of reasonLines) {
+        addPageIfNeeded(6);
+        if (typeof pdf.setCharSpace === "function") {
+          pdf.setCharSpace(0);
+        }
+        pdf.text(String(line), margin, y);
+        y += 5;
+      }
+
+      y += 3;
 
 
       /* ==========================================
@@ -662,11 +753,21 @@ export default function HistoryDetails() {
         "AI Detection"
       );
 
-      addLabelValue(
-        "Detected Claim",
-        analysis.detection?.claim
-      );
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10);
+      pdf.setTextColor(0);
 
+      addPageIfNeeded(12);
+      pdf.text("Detected Claim:", margin, y);
+      y += 6;
+
+      addTextBlock(analysis.detection?.claim);
+      console.log("PDF TEXT DEBUG", {
+        reason: analysis.fact_verification?.reason,
+        claim: analysis.detection?.claim,
+        reasonChars: [...String(analysis.fact_verification?.reason || "")].slice(0, 100),
+        claimChars: [...String(analysis.detection?.claim || "")].slice(0, 100),
+      });
       addLabelValue(
         "Prediction",
         analysis.detection?.prediction
@@ -733,56 +834,76 @@ export default function HistoryDetails() {
           },
           {
             label: "Followers",
-            value:
-              analysis.engagement?.followers ??
-              0
+            value: [
+              analysis.engagement?.followers,
+              analysis.engagement?.follower_count,
+              analysis.engagement?.followers_count,
+              analysis.platform?.followers,
+              analysis.platform?.follower_count,
+              analysis.platform?.followers_count,
+              analysis.followers,
+              analysis.follower_count,
+              analysis.followers_count,
+            ].find(
+              value =>
+                value !== null &&
+                value !== undefined &&
+                Number(value) > 0
+            ) ?? 0
           }
         ]);
 
       }
 
 
+      
       if (isSocialAnalysis) {
-
-        /* ==========================================
-         SPREAD PREDICTION
-      ========================================== */
-
-        addSectionTitle(
-          "Spread Prediction"
-        );
+        addSectionTitle("Observed Spreading Level");
 
         addCardRow([
           {
-            label: "Predicted Reach",
-            value:
-              Number(
-                analysis.prediction?.predicted_reach ??
-                0
-              ).toLocaleString()
-          },
-          {
-            label: "Spread Probability",
-            value:
-              `${analysis.prediction?.spread_probability ??
-              0
-              }%`
-          },
-          {
-            label: "Virality Score",
-            value:
-              `${analysis.prediction?.virality_score ??
-              0
-              }%`
-          },
-          {
-            label: "Risk Level",
-            value:
-              analysis.prediction?.risk_level ||
-              "-"
+            label: "Current Level",
+            value: ["instagram", "facebook"].includes(
+              String(
+                analysis.platform?.platform || ""
+              ).toLowerCase()
+            )
+              ? (
+                  analysis.future_audience?.performance_tier ||
+                  analysis.future_audience?.engagement_tier ||
+                  "Not available"
+                )
+              : (
+                  analysis.spreading_level?.level ||
+                  "Insufficient historical data"
+                )
           }
         ]);
+
+        addLabelValue(
+          "Selected Forecast Horizon",
+          analysis.future_audience?.horizon_days != null
+            ? `${analysis.future_audience.horizon_days} days`
+            : "Not available"
+        );
+
+        addLabelValue(
+          "Post Publication Date",
+          analysis.posted_at
+            ? new Date(analysis.posted_at).toLocaleString()
+            : "-"
+        );
+
+        addLabelValue(
+          "Latest Screenshot Date",
+          analysis.screenshot_captured_at
+            ? new Date(
+                analysis.screenshot_captured_at
+              ).toLocaleString()
+            : "-"
+        );
       }
+
 
       /* ==========================================
          PLATFORM
@@ -1218,32 +1339,32 @@ export default function HistoryDetails() {
   };
 
   return (
-    <div className="space-y-6 text-white">
+    <div className="mx-auto w-full max-w-[1600px] space-y-6 px-3 pb-8 text-white sm:px-5 lg:space-y-7 lg:px-6">
 
-      <div className="space-y-8">
+      <div className="space-y-6">
 
-        <div className="bg-slate-800 rounded-3xl border border-slate-700 p-8">
+        <div className="rounded-2xl border border-slate-700/80 bg-slate-800/95 p-5 shadow-lg shadow-slate-950/10 sm:p-7 lg:p-8">
 
-          <div className="flex flex-col lg:flex-row justify-between gap-8">
+          <div className="flex min-w-0 flex-col justify-between gap-6 lg:flex-row lg:items-center lg:gap-8">
 
-            <div>
+            <div className="min-w-0 flex-1">
 
-              <h1 className="text-5xl font-bold text-white">
+              <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
                 Analysis Report
               </h1>
 
-              <p className="text-slate-400 mt-3 text-lg">
+              <p className="mt-2 text-sm leading-6 text-slate-400 sm:text-base">
                 Generated by AI Misinformation Analysis System
               </p>
 
-              <div className="grid grid-cols-2 gap-x-10 gap-y-3 mt-8 text-sm">
+              <div className="mt-6 grid min-w-0 grid-cols-1 gap-x-8 gap-y-4 text-sm sm:grid-cols-2 xl:max-w-3xl">
 
                 <div>
                   <span className="text-slate-500">
                     Analysis ID
                   </span>
 
-                  <p className="text-white font-medium">
+                  <p className="mt-1 break-all font-medium leading-5 text-white">
                     {analysis.analysis_id}
                   </p>
                 </div>
@@ -1254,7 +1375,7 @@ export default function HistoryDetails() {
                       Platform
                     </span>
 
-                    <p className="text-white font-medium">
+                    <p className="mt-1 break-words font-medium leading-5 text-white">
                       {analysis.platform?.platform || "Unknown"}
                     </p>
                   </div>
@@ -1265,7 +1386,7 @@ export default function HistoryDetails() {
                     Date
                   </span>
 
-                  <p className="text-white font-medium">
+                  <p className="mt-1 break-words font-medium leading-5 text-white">
                     {new Date(
                       analysis.analysis_time
                     ).toLocaleString()}
@@ -1277,7 +1398,7 @@ export default function HistoryDetails() {
                     Processing Time
                   </span>
 
-                  <p className="text-white font-medium">
+                  <p className="mt-1 break-words font-medium leading-5 text-white">
                     {analysis.metadata?.processing_time ?? "-"} sec
                   </p>
                 </div>
@@ -1288,7 +1409,7 @@ export default function HistoryDetails() {
 
             <button
               onClick={downloadPDF}
-              className="self-start lg:self-center bg-blue-600 hover:bg-blue-700 transition px-8 py-4 rounded-2xl font-semibold text-lg"
+              className="inline-flex w-full shrink-0 items-center justify-center rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-semibold text-white shadow-md shadow-blue-950/20 transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-800 sm:w-auto sm:px-7 sm:text-base"
             >
               Export PDF Report
             </button>
@@ -1298,58 +1419,42 @@ export default function HistoryDetails() {
         </div>
 
         <div
-          className={`grid grid-cols-2 ${isSocialAnalysis ? "xl:grid-cols-4" : "xl:grid-cols-3"
-            } gap-6`}
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5"
         >
 
-          <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
+          <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
             <p className="text-slate-400">
               Verification
             </p>
 
-            <h2 className="text-4xl font-bold text-green-400 mt-2">
+            <h2 className="mt-2 break-words text-2xl font-bold leading-tight text-green-400 sm:text-3xl">
               {analysis.final_result?.label}
             </h2>
           </div>
 
 
 
-          <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
+          <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
             <p className="text-slate-400">
               Risk Level
             </p>
 
-            <h2 className="text-4xl font-bold text-red-400 mt-2">
+            <h2 className="mt-2 break-words text-2xl font-bold leading-tight text-red-400 sm:text-3xl">
               {analysis.final_result?.risk_level}
             </h2>
           </div>
-
-          {isSocialAnalysis && (
-            <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
-              <p className="text-slate-400">
-                Predicted Reach
-              </p>
-
-              <h2 className="text-4xl font-bold text-cyan-400 mt-2">
-                {Number(
-                  analysis.prediction?.predicted_reach || 0
-                ).toLocaleString()}
-              </h2>
-            </div>
-          )}
-
         </div>
 
       </div>
 
-      <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
+      <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
 
-        <h2 className="text-2xl font-bold text-white mb-6">
+        <h2 className="mb-5 border-b border-slate-700 pb-3 text-xl font-bold text-white sm:text-2xl">
           Original Content
         </h2>
 
         {imageUrl && analysis.text?.trim() && (
-          <div className="grid lg:grid-cols-2 gap-6">
+          <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2 xl:gap-6">
 
             <div>
 
@@ -1357,11 +1462,11 @@ export default function HistoryDetails() {
                 Uploaded Evidence
               </h3>
 
-              <div className="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="flex min-h-64 items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-slate-900 p-2 sm:min-h-80">
                 <img
                   src={imageUrl}
                   alt="Uploaded evidence"
-                  className="w-full max-h-[500px] object-contain"
+                  className="max-h-[520px] w-full object-contain"
                 />
               </div>
 
@@ -1373,9 +1478,9 @@ export default function HistoryDetails() {
                 Analyzed Text
               </h3>
 
-              <div className="bg-slate-900 rounded-xl border border-slate-700 p-6 max-h-[500px] overflow-y-auto">
+              <div className="max-h-[520px] min-h-64 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-4 sm:p-5">
 
-                <p className="text-slate-300 leading-8 whitespace-pre-wrap">
+                <p className="whitespace-pre-wrap break-words text-sm leading-7 text-slate-300 sm:text-base sm:leading-7">
                   {analysis.display_text || analysis.text}
                 </p>
 
@@ -1393,12 +1498,12 @@ export default function HistoryDetails() {
               Uploaded Evidence
             </h3>
 
-            <div className="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden flex justify-center">
+            <div className="flex min-h-64 items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-slate-900 p-2 sm:min-h-80">
 
               <img
                 src={imageUrl}
                 alt="Uploaded evidence"
-                className="max-w-full max-h-[650px] object-contain"
+                className="max-h-[650px] max-w-full object-contain"
               />
 
             </div>
@@ -1406,16 +1511,16 @@ export default function HistoryDetails() {
           </div>
         )}
 
-        {!imageUrl && analysis.text?.trim()?.trim() && (
+        {!imageUrl && analysis.text?.trim() && (
           <div>
 
             <h3 className="text-lg font-semibold text-slate-300 mb-4">
               Analyzed Text
             </h3>
 
-            <div className="bg-slate-900 rounded-xl border border-slate-700 p-6 max-h-[500px] overflow-y-auto">
+            <div className="max-h-[520px] min-h-64 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-4 sm:p-5">
 
-              <p className="text-slate-300 leading-8 whitespace-pre-wrap">
+              <p className="whitespace-pre-wrap break-words text-sm leading-7 text-slate-300 sm:text-base sm:leading-7">
                  {analysis.display_text || analysis.text}
               </p>
 
@@ -1426,11 +1531,11 @@ export default function HistoryDetails() {
 
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2 xl:gap-6">
 
-        <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
+        <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
 
-          <h2 className="text-2xl font-bold text-white mb-5">
+          <h2 className="mb-5 border-b border-slate-700 pb-3 text-xl font-bold text-white sm:text-2xl">
             Fact Verification
           </h2>
 
@@ -1442,7 +1547,7 @@ export default function HistoryDetails() {
                 Verdict
               </p>
 
-              <p className="text-xl font-semibold text-green-400 mt-1">
+              <p className="mt-1 break-words text-lg font-semibold text-green-400">
                 {analysis.fact_verification?.verdict || "-"}
               </p>
 
@@ -1454,9 +1559,9 @@ export default function HistoryDetails() {
                 Reason
               </p>
 
-              <div className="mt-2 max-h-48 overflow-y-auto pr-2">
+              <div className="mt-2 max-h-56 overflow-y-auto pr-2">
 
-                <p className="text-slate-300 leading-7">
+                <p className="break-words text-sm leading-7 text-slate-300 sm:text-base">
                   {analysis.fact_verification?.reason || "-"}
                 </p>
 
@@ -1468,9 +1573,9 @@ export default function HistoryDetails() {
 
         </div>
 
-        <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
+        <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
 
-          <h2 className="text-2xl font-bold text-white mb-5">
+          <h2 className="mb-5 border-b border-slate-700 pb-3 text-xl font-bold text-white sm:text-2xl">
             AI Detection
           </h2>
 
@@ -1482,7 +1587,7 @@ export default function HistoryDetails() {
                 Detected Claim
               </p>
 
-              <p className="text-slate-300 mt-1">
+              <p className="mt-1 break-words text-sm leading-7 text-slate-300 sm:text-base">
                 {analysis.detection?.claim || "-"}
               </p>
 
@@ -1494,7 +1599,7 @@ export default function HistoryDetails() {
                 Prediction
               </p>
 
-              <p className="text-slate-300 mt-1">
+              <p className="mt-1 break-words text-sm leading-7 text-slate-300 sm:text-base">
                 {analysis.detection?.prediction || "-"}
               </p>
 
@@ -1513,7 +1618,7 @@ export default function HistoryDetails() {
                     signal => (
                       <span
                         key={signal}
-                        className="px-4 py-2 rounded-full bg-blue-600/20 border border-blue-500 text-blue-300 text-sm"
+                        className="max-w-full break-words rounded-full border border-blue-500/30 bg-blue-600/15 px-3 py-1.5 text-xs font-medium text-blue-200 sm:text-sm"
                       >
                         {signal}
                       </span>
@@ -1532,73 +1637,82 @@ export default function HistoryDetails() {
       </div>
 
       {isSocialAnalysis && (
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2 xl:gap-6">
 
-          <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
+          <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
 
-            <h2 className="text-2xl font-bold text-white mb-6">
+            <h2 className="mb-5 border-b border-slate-700 pb-3 text-xl font-bold text-white sm:text-2xl">
               Engagement Metrics
             </h2>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
 
-              <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+              <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
                 <p className="text-slate-400 text-sm">
                   Likes
                 </p>
 
-                <h3 className="text-2xl font-bold text-pink-400 mt-2">
+                <h3 className="mt-2 break-words text-xl font-bold text-pink-400 sm:text-2xl">
                   {analysis.engagement?.likes ?? 0}
                 </h3>
               </div>
 
-              <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+              <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
                 <p className="text-slate-400 text-sm">
                   Comments
                 </p>
 
-                <h3 className="text-2xl font-bold text-blue-400 mt-2">
+                <h3 className="mt-2 break-words text-xl font-bold text-blue-400 sm:text-2xl">
                   {analysis.engagement?.comments ?? 0}
                 </h3>
               </div>
 
-              <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+              <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
                 <p className="text-slate-400 text-sm">
                   Shares
                 </p>
 
-                <h3 className="text-2xl font-bold text-green-400 mt-2">
+                <h3 className="mt-2 break-words text-xl font-bold text-green-400 sm:text-2xl">
                   {analysis.engagement?.shares ?? 0}
                 </h3>
               </div>
 
-              <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+              <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
                 <p className="text-slate-400 text-sm">
                   Reposts
                 </p>
 
-                <h3 className="text-2xl font-bold text-orange-400 mt-2">
+                <h3 className="mt-2 break-words text-xl font-bold text-orange-400 sm:text-2xl">
                   {analysis.engagement?.reposts ?? 0}
                 </h3>
               </div>
 
-              <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+              <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
                 <p className="text-slate-400 text-sm">
                   Bookmarks
                 </p>
 
-                <h3 className="text-2xl font-bold text-yellow-400 mt-2">
+                <h3 className="mt-2 break-words text-xl font-bold text-yellow-400 sm:text-2xl">
                   {analysis.engagement?.bookmarks ?? 0}
                 </h3>
               </div>
 
-              <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+              <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
                 <p className="text-slate-400 text-sm">
                   Followers
                 </p>
 
-                <h3 className="text-2xl font-bold text-cyan-400 mt-2">
-                  {analysis.engagement?.followers ?? 0}
+                <h3 className="mt-2 break-words text-xl font-bold text-cyan-400 sm:text-2xl">
+                  {analysis.engagement?.followers ??
+                    analysis.engagement?.follower_count ??
+                    analysis.engagement?.followers_count ??
+                    analysis.platform?.followers ??
+                    analysis.platform?.follower_count ??
+                    analysis.platform?.followers_count ??
+                    analysis.followers ??
+                    analysis.follower_count ??
+                    analysis.followers_count ??
+                    0}
                 </h3>
               </div>
 
@@ -1608,74 +1722,95 @@ export default function HistoryDetails() {
 
           <div className="space-y-6">
 
-            <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
+            <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
 
-              <h2 className="text-2xl font-bold text-white mb-6">
-                Spread Prediction
+              <h2 className="mb-5 border-b border-slate-700 pb-3 text-xl font-bold text-white sm:text-2xl">
+                Observed Spreading Level
               </h2>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-                <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+                <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
                   <p className="text-slate-400 text-sm">
-                    Reach
+                    Current Level
                   </p>
 
-                  <h3 className="text-2xl font-bold text-cyan-400 mt-2">
-                    {Number(
-                      analysis.prediction?.predicted_reach ?? 0
-                    ).toLocaleString()}
+                  
+                  <h3 className="mt-2 break-words text-lg font-bold text-cyan-300 sm:text-xl">
+                    {["instagram", "facebook"].includes(
+                      String(analysis.platform?.platform || "").toLowerCase()
+                    )
+                      ? (
+                          analysis.future_audience?.performance_tier ||
+                          analysis.future_audience?.engagement_tier ||
+                          "Not available"
+                        )
+                      : (
+                          analysis.spreading_level?.level ||
+                          "Insufficient historical data"
+                        )}
                   </h3>
+
+                </div>
+                <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
+                    <p className="text-slate-400 text-sm">
+                      Selected Forecast Horizon
+                    </p>
+
+                    <p className="mt-2 break-words text-sm font-medium leading-6 text-white sm:text-base">
+                      {analysis.future_audience?.horizon_days != null
+                        ? `${analysis.future_audience.horizon_days} days`
+                        : "Not available"}
+                    </p>
+                  </div>
+                <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
+                  <p className="text-slate-400 text-sm">
+                    Post Publication Date
+                  </p>
+
+                  <p className="mt-2 break-words text-sm font-medium leading-6 text-white sm:text-base">
+                    {analysis.posted_at
+                      ? new Date(analysis.posted_at).toLocaleString()
+                      : "-"}
+                  </p>
                 </div>
 
-                <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
+                <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
                   <p className="text-slate-400 text-sm">
-                    Probability
+                    Latest Screenshot Date
                   </p>
 
-                  <h3 className="text-2xl font-bold text-blue-400 mt-2">
-                    {analysis.prediction?.spread_probability ?? 0}%
-                  </h3>
-                </div>
-
-                <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
-                  <p className="text-slate-400 text-sm">
-                    Virality
+                  <p className="mt-2 break-words text-sm font-medium leading-6 text-white sm:text-base">
+                    {analysis.screenshot_captured_at
+                      ? new Date(analysis.screenshot_captured_at).toLocaleString()
+                      : "-"}
                   </p>
-
-                  <h3 className="text-2xl font-bold text-purple-400 mt-2">
-                    {analysis.prediction?.virality_score ?? 0}%
-                  </h3>
-                </div>
-
-                <div className="bg-slate-900 rounded-xl p-5 border border-slate-700 h-28">
-                  <p className="text-slate-400 text-sm">
-                    Risk Level
-                  </p>
-
-                  <h3 className="text-2xl font-bold text-red-400 mt-2">
-                    {analysis.prediction?.risk_level || "-"}
-                  </h3>
                 </div>
 
               </div>
 
+              <p className="mt-4 border-t border-slate-700 pt-4 text-xs leading-6 text-slate-400 sm:text-sm">
+                This level summarizes observed engagement growth. It does
+                not verify actual reach or establish whether content is
+                misinformation.
+              </p>
+
             </div>
 
-            <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6">
+            <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
 
-              <h2 className="text-2xl font-bold text-white mb-5">
+              <h2 className="mb-5 border-b border-slate-700 pb-3 text-xl font-bold text-white sm:text-2xl">
                 Platform Information
               </h2>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
 
                 <div>
                   <p className="text-slate-400 text-sm">
                     Platform
                   </p>
 
-                  <p className="text-white text-xl font-semibold mt-2">
+                  <p className="mt-2 break-words text-lg font-semibold text-white sm:text-xl">
                     {analysis.platform?.platform || "Unknown"}
                   </p>
                 </div>
@@ -1692,13 +1827,13 @@ export default function HistoryDetails() {
 
 
       {isSocialAnalysis && (
-        <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-800/90 shadow-sm shadow-slate-950/10">
 
-          <div className="flex items-center justify-between px-8 py-6 border-b border-slate-700">
+          <div className="flex flex-col gap-5 border-b border-slate-700 px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
 
             <div>
 
-              <h2 className="text-3xl font-bold text-white">
+              <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
                 Propagation Network
               </h2>
 
@@ -1708,7 +1843,7 @@ export default function HistoryDetails() {
 
             </div>
 
-            <div className="flex gap-6 text-sm">
+            <div className="grid grid-cols-3 gap-3 text-sm sm:gap-6">
 
               <div className="text-center">
 
@@ -1716,7 +1851,7 @@ export default function HistoryDetails() {
                   Nodes
                 </p>
 
-                <p className="text-2xl font-bold text-blue-400">
+                <p className="mt-1 text-xl font-bold text-blue-400 sm:text-2xl">
                   {analysis.graph?.nodes?.length ?? 0}
                 </p>
 
@@ -1728,7 +1863,7 @@ export default function HistoryDetails() {
                   Edges
                 </p>
 
-                <p className="text-2xl font-bold text-green-400">
+                <p className="mt-1 text-xl font-bold text-green-400 sm:text-2xl">
                   {analysis.graph?.edges?.length ?? 0}
                 </p>
 
@@ -1740,7 +1875,7 @@ export default function HistoryDetails() {
                   Platform
                 </p>
 
-                <p className="text-xl font-semibold text-cyan-400">
+                <p className="mt-1 break-words text-base font-semibold text-cyan-400 sm:text-xl">
                   {analysis.platform?.platform}
                 </p>
 
@@ -1750,13 +1885,13 @@ export default function HistoryDetails() {
 
           </div>
 
-          <div className="p-6">
+          <div className="p-3 sm:p-5 lg:p-6">
 
             <div
               id="pdf-graph-container"
-              className="rounded-xl overflow-hidden border border-slate-700"
+              className="w-full rounded-xl border border-slate-700 bg-slate-900/30"
               style={{
-                height: "1000px",
+                height: "760px",
                 width: "100%",
               }}
             >
@@ -1766,7 +1901,7 @@ export default function HistoryDetails() {
                 interactive={false}
                 pdfMode={true}
                 showControls={false}
-                graphHeight="1000px"
+                graphHeight="760px"
               />
             </div>
 

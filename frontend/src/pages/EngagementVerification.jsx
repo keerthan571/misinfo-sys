@@ -1,4 +1,3 @@
-
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -59,6 +58,7 @@ function getMetricColor(key) {
       border: "border-cyan-500/20",
     };
   }
+
   if (value.includes("repost") || value.includes("retweet")) {
     return {
       text: "text-purple-400",
@@ -66,6 +66,7 @@ function getMetricColor(key) {
       border: "border-purple-500/20",
     };
   }
+
   if (value.includes("share")) {
     return {
       text: "text-green-400",
@@ -73,6 +74,7 @@ function getMetricColor(key) {
       border: "border-green-500/20",
     };
   }
+
   if (value.includes("bookmark") || value.includes("save")) {
     return {
       text: "text-pink-400",
@@ -80,6 +82,7 @@ function getMetricColor(key) {
       border: "border-pink-500/20",
     };
   }
+
   if (value.includes("view") || value.includes("play")) {
     return {
       text: "text-indigo-400",
@@ -254,7 +257,6 @@ export default function EngagementVerification() {
 
       const updatedAnalysis = {
         ...analysis,
-
         postedAt,
         posted_at: postedAt,
         screenshotCapturedAt,
@@ -272,7 +274,6 @@ export default function EngagementVerification() {
 
         spreading_level: data.spreading_level ?? null,
         engagement_observations: data.engagement_observations ?? [],
-
         graph: data.graph ?? null,
         prediction: data.prediction ?? null,
         spread_analysis: data.spread_analysis ?? null,
@@ -296,34 +297,35 @@ export default function EngagementVerification() {
   };
 
   return (
-    <div className="mx-auto max-w-[1500px]">
-      <div className="rounded-3xl border border-slate-700/50 bg-[#1B293F] p-7 shadow-xl md:p-9">
+    <div className="mx-auto max-w-[1500px] min-w-0">
+      <div className="min-w-0 rounded-3xl border border-slate-700/50 bg-[#1B293F] p-5 shadow-xl sm:p-7 md:p-9">
+        {/* Page header */}
         <div className="mb-2 flex items-start gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-indigo-500/20 bg-indigo-500/10">
             <BarChart3 size={24} className="text-indigo-400" />
           </div>
 
-          <div>
-            <h1 className="text-3xl font-extrabold text-white md:text-4xl">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl md:text-4xl">
               Engagement Verification
             </h1>
-            <p className="mt-2 text-slate-400">
+            <p className="mt-2 text-sm leading-6 text-slate-400 sm:text-base">
               Verify engagement values and record the screenshot date before
               continuing.
             </p>
           </div>
         </div>
 
-        <div className="my-7 h-px bg-slate-700/60" />
+        <div className="my-7 h-px bg-slate-700/50" />
 
         {/* Publication and screenshot dates */}
-        <section className="mb-7 rounded-2xl border border-cyan-500/20 bg-[#0F172A] p-5">
-          <h2 className="mb-4 text-lg font-semibold text-white">
+        <section className="mb-7 rounded-2xl border border-cyan-500/20 bg-[#0F172A] p-5 md:p-6">
+          <h2 className="mb-4 text-lg font-semibold tracking-tight text-white">
             Post and screenshot dates
           </h2>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
+            <div className="min-w-0">
               <label
                 htmlFor="posted-at"
                 className="mb-2 block text-sm font-medium text-slate-300"
@@ -338,11 +340,11 @@ export default function EngagementVerification() {
                 max={screenshotCapturedAt || undefined}
                 onChange={(event) => setPostedAt(event.target.value)}
                 required
-                className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white outline-none focus:border-cyan-500"
+                className="w-full min-w-0 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white [color-scheme:dark] outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/15"
               />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label
                 htmlFor="screenshot-captured-at"
                 className="mb-2 block text-sm font-medium text-slate-300"
@@ -359,7 +361,7 @@ export default function EngagementVerification() {
                   setScreenshotCapturedAt(event.target.value)
                 }
                 required
-                className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white outline-none focus:border-cyan-500"
+                className="w-full min-w-0 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white [color-scheme:dark] outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/15"
               />
             </div>
           </div>
@@ -373,13 +375,13 @@ export default function EngagementVerification() {
         {/* Instagram follower count */}
         {showFollowers && (
           <div className="mb-6 rounded-2xl border border-purple-500/20 bg-[#0F172A] p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-purple-500/20 bg-purple-500/10">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-purple-500/20 bg-purple-500/10">
                   <Users size={20} className="text-purple-400" />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Account Followers
                   </p>
@@ -389,7 +391,7 @@ export default function EngagementVerification() {
                 </div>
               </div>
 
-              <span className="text-2xl font-bold text-purple-400">
+              <span className="shrink-0 text-xl font-bold text-purple-400 sm:text-2xl">
                 {followers.toLocaleString()}
               </span>
             </div>
@@ -403,7 +405,7 @@ export default function EngagementVerification() {
             step and confirm that the metrics were extracted.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Object.entries(engagement).map(([key, value]) => {
               const Icon = getMetricIcon(key);
               const color = getMetricColor(key);
@@ -411,15 +413,15 @@ export default function EngagementVerification() {
               return (
                 <div
                   key={key}
-                  className="rounded-2xl border border-slate-700/70 bg-[#0F172A] p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-600"
+                  className="min-w-0 rounded-2xl border border-slate-700/70 bg-[#0F172A] p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-600"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-medium capitalize text-slate-400">
+                    <p className="break-words font-medium capitalize text-slate-400">
                       {key.replace(/_/g, " ")}
                     </p>
 
                     <div
-                      className={`flex h-9 w-9 items-center justify-center rounded-lg border ${color.bg} ${color.border}`}
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${color.bg} ${color.border}`}
                     >
                       <Icon size={17} className={color.text} />
                     </div>
@@ -434,17 +436,15 @@ export default function EngagementVerification() {
                       onChange={(event) =>
                         handleChange(key, event.target.value)
                       }
-                      className="mt-5 w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-3 font-semibold text-white outline-none focus:border-blue-500"
+                      className="mt-5 w-full min-w-0 rounded-xl border border-slate-700 bg-slate-800 px-3 py-3 font-semibold text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/15"
                     />
                   ) : (
-                    <h2 className={`mt-5 text-3xl font-bold ${color.text}`}>
+                    <h2 className={`mt-5 break-words text-3xl font-bold ${color.text}`}>
                       {Number(value || 0).toLocaleString()}
                     </h2>
                   )}
 
-                  <div className="mt-4 h-px w-full bg-slate-700/70" />
-
-                  <p className="mt-3 text-xs text-slate-600">
+                  <p className="mt-3 text-xs text-slate-500">
                     {editMode ? "Editable value" : "Detected value"}
                   </p>
                 </div>
@@ -453,6 +453,7 @@ export default function EngagementVerification() {
           </div>
         )}
 
+        {/* Validation or API errors */}
         {errorMessage && (
           <div
             role="alert"
@@ -462,30 +463,33 @@ export default function EngagementVerification() {
           </div>
         )}
 
-        <div className="my-7 h-px bg-slate-700/60" />
+        <div className="my-7 h-px bg-slate-700/50" />
 
-        <div className="flex flex-col gap-4 md:flex-row">
+        {/* Actions */}
+        <div className="flex min-w-0 flex-col gap-4 sm:flex-row">
           <button
             type="button"
             onClick={continuePrediction}
             disabled={loading}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-3.5 font-bold text-white shadow-lg shadow-blue-600/10 transition-all duration-200 hover:bg-blue-500 active:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3.5 text-center font-bold text-white shadow-lg shadow-blue-600/10 transition-all duration-200 hover:bg-blue-500 active:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:px-6"
           >
-            <CheckCircle2 size={19} />
-            {loading ? "Saving observations..." : "Continue to Prediction"}
+            <CheckCircle2 size={19} className="shrink-0" />
+            <span>
+              {loading ? "Saving observations..." : "Continue to Prediction"}
+            </span>
           </button>
 
           <button
             type="button"
             onClick={() => setEditMode((previous) => !previous)}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-8 py-3.5 font-bold transition-all duration-200 ${
+            className={`inline-flex min-h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-center font-bold transition-all duration-200 sm:px-6 ${
               editMode
                 ? "bg-green-600 text-white hover:bg-green-500"
                 : "border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700"
             }`}
           >
-            <Pencil size={18} />
-            {editMode ? "Finish Editing" : "Edit Values"}
+            <Pencil size={18} className="shrink-0" />
+            <span>{editMode ? "Finish Editing" : "Edit Values"}</span>
           </button>
         </div>
       </div>

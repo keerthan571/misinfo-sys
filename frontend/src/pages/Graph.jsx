@@ -1,34 +1,82 @@
+
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAnalysis } from "../context/AnalysisContext";
+import apiClient from "../api/apiClient";
 import GraphViewer from "../components/graph/GraphViewer";
 
 export default function Graph() {
-
     const location = useLocation();
     const navigate = useNavigate();
 
-    const {
-        analysis: contextAnalysis
-    } = useAnalysis();
+    const { analysis: contextAnalysis } = useAnalysis();
 
-
-    /*
-    ============================================================
-    GET EXISTING ANALYSIS
-    ============================================================
-    */
-
-    const analysis =
+    const initialAnalysis =
         location.state?.analysis ||
         contextAnalysis?.result?.analysis ||
         null;
 
+    const [analysis, setAnalysis] = useState(initialAnalysis);
+    const [loading, setLoading] = useState(false);
 
-    /*
-    ============================================================
-    PLATFORM VALIDATION
-    ============================================================
-    */
+    useEffect(() => {
+        const candidate =
+            location.state?.analysis ||
+            contextAnalysis?.result?.analysis ||
+            null;
+
+        const analysisId = candidate?.analysis_id;
+
+        if (!analysisId) {
+            setAnalysis(candidate);
+            return;
+        }
+
+        let cancelled = false;
+
+        const refreshAnalysis = async () => {
+            setLoading(true);
+
+            try {
+                const response = await apiClient.get(
+                    `/api/history/${analysisId}`
+                );
+
+                if (!cancelled) {
+                    const savedAnalysis = response.data?.analysis;
+
+                    if (savedAnalysis) {
+                        setAnalysis(savedAnalysis);
+                    } else {
+                        setAnalysis(candidate);
+                    }
+                }
+            } catch (error) {
+                console.error(
+                    "Unable to refresh saved analysis:",
+                    error
+                );
+
+                if (!cancelled) {
+                    // Preserve the existing analysis if refresh fails.
+                    setAnalysis(candidate);
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        refreshAnalysis();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        location.state?.analysis,
+        contextAnalysis?.result?.analysis,
+    ]);
 
     const platform =
         analysis?.platform?.platform ||
@@ -38,36 +86,29 @@ export default function Graph() {
     const isTextAnalysis =
         String(platform).toLowerCase() === "text";
 
+    const hasSocialEvidence = Boolean(
+        analysis?.image?.path ||
+        analysis?.vision?.used
+    );
 
-    const hasSocialEvidence =
-        Boolean(
-            analysis?.image?.path ||
-            analysis?.vision?.used
+    const hasSocialAnalysis = Boolean(
+        analysis &&
+        !isTextAnalysis &&
+        hasSocialEvidence
+    );
+
+    if (loading && !analysis) {
+        return (
+            <div className="min-h-[70vh] flex items-center justify-center text-white">
+                Loading saved analysis...
+            </div>
         );
-
-
-    const hasSocialAnalysis =
-        Boolean(
-            analysis &&
-            !isTextAnalysis &&
-            hasSocialEvidence
-        );
-
-
-    /*
-    ============================================================
-    NO GRAPH AVAILABLE
-    ============================================================
-    */
+    }
 
     if (!hasSocialAnalysis) {
-
         return (
-
             <div className="min-h-[70vh] flex items-center justify-center">
-
                 <div className="max-w-xl w-full bg-slate-800 border border-slate-700 rounded-3xl p-10 text-center text-white">
-
                     <h1 className="text-3xl font-bold">
                         No Propagation Graph Available
                     </h1>
@@ -85,42 +126,20 @@ export default function Graph() {
 
                     <button
                         type="button"
-                        onClick={() =>
-                            navigate("/analyze")
-                        }
+                        onClick={() => navigate("/analyze")}
                         className="!w-auto mt-8 bg-blue-600 hover:bg-blue-500 px-7 py-3 rounded-xl text-white font-semibold transition"
-                        style={{
-                            width: "fit-content"
-                        }}
+                        style={{ width: "fit-content" }}
                     >
                         Go to Analyze
                     </button>
-
                 </div>
-
             </div>
-
         );
-
     }
 
-
-    /*
-    ============================================================
-    GRAPH PAGE
-    ============================================================
-    */
-
     return (
-
         <div className="space-y-6">
-
-            {/* =================================================
-                HEADER
-            ================================================= */}
-
             <section className="bg-slate-800 border border-slate-700 rounded-3xl p-7">
-
                 <p className="text-blue-400 text-xs font-semibold uppercase tracking-wider">
                     Network Intelligence
                 </p>
@@ -134,19 +153,9 @@ export default function Graph() {
                     content propagates through users, influencers,
                     communities and automated accounts.
                 </p>
-
             </section>
 
-
-            {/* =================================================
-                GRAPH VIEWER
-            ================================================= */}
-
-            <GraphViewer
-                analysis={analysis}
-            />
-
+            <GraphViewer analysis={analysis} />
         </div>
-
     );
 }

@@ -132,18 +132,10 @@ export default function OCRCard({ data }) {
             <div className="bg-[#0F172A] border border-slate-700/70 rounded-2xl p-5">
               <div className="flex justify-between items-center mb-3">
                 <div>
-                  <p className="text-slate-500 text-xs uppercase tracking-wider font-semibold">
-                    OCR Confidence
-                  </p>
-
                   <p className="text-slate-300 text-sm mt-1">
                     Recognition confidence
                   </p>
                 </div>
-
-                <span className="text-green-400 text-lg font-bold">
-                  {confidence}%
-                </span>
               </div>
 
               <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">

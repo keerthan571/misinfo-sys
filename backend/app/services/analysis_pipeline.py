@@ -294,15 +294,11 @@ class AnalysisPipeline:
 
             image_bytes = await image.read()
 
-            upload_dir = "uploads"
-
-            os.makedirs(
-
-                upload_dir,
-
-                exist_ok=True
-
-            )
+            # Store uploads in a configurable directory. In deployment,
+            # point UPLOAD_DIR at a persistent disk/volume so images survive
+            # application restarts and redeployments.
+            upload_dir = os.getenv("UPLOAD_DIR", "uploads")
+            os.makedirs(upload_dir, exist_ok=True)
 
             original_filename = (
 
@@ -322,27 +318,19 @@ class AnalysisPipeline:
 
             )
 
-            image_path = os.path.join(
+            image_path = os.path.join(upload_dir, filename)
 
-                upload_dir,
+            with open(image_path, "wb") as file:
+                file.write(image_bytes)
 
-                filename
-
+            # Public URL used by Analysis Report. Configure PUBLIC_BASE_URL
+            # to the deployed backend origin, e.g. https://api.example.com.
+            public_base_url = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
+            image_url = (
+                f"{public_base_url}/uploads/{filename}"
+                if public_base_url
+                else f"/uploads/{filename}"
             )
-
-            with open(
-
-                image_path,
-
-                "wb"
-
-            ) as file:
-
-                file.write(
-
-                    image_bytes
-
-                )
 
             # Load image for engagement / Vision processing.
 
@@ -1788,25 +1776,15 @@ class AnalysisPipeline:
                 publisher_detection_method,
 
             "image": (
-
                 {
-
-                    "path":
-
-                        image_path.replace(
-
-                            "\\\\",
-
-                            "/"
-
-                        )
-
+                    # Keep "path" for compatibility with existing frontend code.
+                    # It is now a browser-accessible URL, not a server disk path.
+                    "path": image_url,
+                    "url": image_url,
+                    "filename": os.path.basename(image_path),
                 }
-
                 if image_path
-
                 else None
-
             ),
 
             "vision": {

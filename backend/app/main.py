@@ -33,13 +33,23 @@ app = FastAPI(
     version="1.0.0",
 )
 
-os.makedirs("uploads", exist_ok=True)
+# Upload storage must match UPLOAD_DIR in analysis_pipeline.py.
+# On a hosting provider, configure UPLOAD_DIR to a persistent disk/volume.
+UPLOAD_DIR = os.path.abspath(os.getenv("UPLOAD_DIR", "uploads"))
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app.mount(
     "/uploads",
-    StaticFiles(directory="uploads"),
+    StaticFiles(directory=UPLOAD_DIR, check_dir=True),
     name="uploads",
 )
+@app.get("/debug/uploads")
+def debug_uploads():
+    return {
+        "upload_dir": UPLOAD_DIR,
+        "directory_exists": os.path.isdir(UPLOAD_DIR),
+        "files": os.listdir(UPLOAD_DIR)[:10],
+    }
 
 app.add_middleware(
     CORSMiddleware,

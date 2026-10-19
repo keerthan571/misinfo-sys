@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import {
   BarChart3,
@@ -87,7 +88,7 @@ export default function Dashboard() {
       value: dashboard.verifiedTrue,
       subtitle: "Claims verified as true",
       icon: ShieldCheck,
-      valueColor: "text-emerald-400",
+      valueColor: "text-teal-400",
     },
     {
       title: "Verified False",
@@ -107,7 +108,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="min-h-[60vh] w-full flex items-center justify-center px-4">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-full border-4 border-slate-700 border-t-blue-500 animate-spin" />
 
@@ -121,8 +122,11 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="bg-red-500/10 border border-red-500/20 rounded-2xl px-6 py-5 text-red-300">
+      <div className="min-h-[60vh] w-full flex items-center justify-center px-4">
+        <div
+          role="alert"
+          className="max-w-lg rounded-xl border border-red-500/30 bg-red-500/10 px-6 py-5 text-red-300"
+        >
           {error}
         </div>
       </div>
@@ -130,33 +134,42 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <div className="mb-7">
-        <DashboardHeader
-          userName={user?.name || "User"}
-        />
-      </div>
+    <main className="w-full min-h-full min-w-0 bg-transparent px-4 py-6 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
+      <div className="w-full min-w-0 space-y-6 lg:space-y-8">
+        {/* Dashboard header */}
+        <header>
+          <DashboardHeader userName={user?.name || "User"} />
+        </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-7">
-        {stats.map((stat) => (
-          <StatCard
-            key={stat.title}
-            title={stat.title}
-            value={stat.value}
-            subtitle={stat.subtitle}
-            icon={stat.icon}
-            valueColor={stat.valueColor}
+        {/* Summary statistics */}
+        <section
+          aria-label="Dashboard statistics"
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5"
+        >
+          {stats.map((stat) => (
+            <StatCard
+              key={stat.title}
+              title={stat.title}
+              value={stat.value}
+              subtitle={stat.subtitle}
+              icon={stat.icon}
+              valueColor={stat.valueColor}
+            />
+          ))}
+        </section>
+
+        {/* Dashboard charts */}
+        <section
+          aria-label="Analysis charts"
+          className="w-full min-w-0"
+        >
+          <Charts
+            fakeNews={dashboard.verifiedFalse}
+            realNews={dashboard.verifiedTrue}
+            weeklyAnalysis={dashboard.weeklyAnalysis}
           />
-        ))}
+        </section>
       </div>
-
-      <div className="w-full">
-        <Charts
-          fakeNews={dashboard.verifiedFalse}
-          realNews={dashboard.verifiedTrue}
-          weeklyAnalysis={dashboard.weeklyAnalysis}
-        />
-      </div>
-    </div>
+    </main>
   );
 }

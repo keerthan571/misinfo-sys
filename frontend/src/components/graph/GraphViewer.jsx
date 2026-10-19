@@ -178,7 +178,14 @@ function GraphControls() {
       </button>
       <button
         type="button"
-        onClick={() => fitView({ padding: 0.08, duration: 300 })}
+        onClick={() =>
+          fitView({
+            padding: 0.08,
+            duration: 300,
+            minZoom: 0.02,
+            maxZoom: 1.5,
+          })
+        }
         className="flex h-11 w-11 items-center justify-center text-lg font-semibold text-white transition hover:bg-blue-600"
         title="Fit view"
       >
@@ -218,21 +225,9 @@ function GraphViewportController({ nodes, pdfMode }) {
 
       fitView({
         nodes: currentNodes,
-
-        /*
-         * Small padding keeps the graph large
-         * instead of shrinking it unnecessarily.
-         */
-        padding: pdfMode ? 0.04 : 0.035,
-
-        duration: 0,
-
-        /*
-         * IMPORTANT:
-         * Prevent React Flow from zooming out
-         * to an unreadably small graph.
-         */
-        minZoom: pdfMode ? 0.20 : 0.30,
+        padding: 0.08,
+        duration: 300,
+        minZoom: 0.02,
         maxZoom: 1.5,
       });
 
@@ -1218,6 +1213,27 @@ function normalizeSavedGraph(
   };
 }
 
+function getPredictedExposure(analysis) {
+  const candidates = [
+    analysis?.future_audience?.audience_exposure_proxy,
+    analysis?.future_audience?.predicted_views,
+    analysis?.prediction?.data?.audience_exposure_proxy,
+    analysis?.prediction?.data?.predicted_views,
+    analysis?.prediction?.audience_exposure_proxy,
+    analysis?.prediction?.predicted_views,
+  ];
+
+  const value = candidates.find(
+    (item) =>
+      item !== null &&
+      item !== undefined &&
+      item !== "" &&
+      Number.isFinite(Number(item)) &&
+      Number(item) >= 0
+  );
+
+  return value === undefined ? null : Number(value);
+}
 
 export default function GraphViewer({
   analysis,
@@ -1751,24 +1767,35 @@ export default function GraphViewer({
             <span className="text-violet-400 text-lg">↗</span>
           </div>
 
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Predicted Reach
+           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Future Audience Exposure
           </h3>
 
           <p className="text-4xl font-bold text-violet-400 mt-4">
-            {(
-              analysis?.prediction?.data
-                ?.predicted_reach ??
-              analysis?.prediction
-                ?.predicted_reach ??
-              0
-            ).toLocaleString()}
+            {(() => {
+              const predictedExposure = getPredictedExposure(analysis);
+              console.log("GRAPH ANALYSIS ID:", analysis?.analysis_id);
+              console.log("GRAPH FUTURE AUDIENCE:", analysis?.future_audience);
+              console.log(
+                "GRAPH PREDICTED VIEWS:",
+                analysis?.future_audience?.predicted_views
+              );
+              console.log(
+                "GRAPH EXPOSURE PROXY:",
+                analysis?.future_audience?.audience_exposure_proxy
+              );
+              console.log("GRAPH EXPOSURE RESULT:", predictedExposure);
+              return predictedExposure != null &&
+                Number.isFinite(Number(predictedExposure))
+                ? Number(predictedExposure).toLocaleString()
+                : "Not available";
+            })()}
           </p>
 
           <div className="w-full h-px bg-slate-700/70 mt-5" />
 
           <p className="text-xs text-slate-500 mt-3">
-            Estimated network exposure
+            Forecasted views
           </p>
 
         </div>
@@ -1781,16 +1808,16 @@ export default function GraphViewer({
       ===================================================== */}
 
       <div
-        id="graph-container"
-        className={`bg-slate-800/90 rounded-3xl shadow-2xl border border-slate-700/70 overflow-hidden transition-all duration-300 ${interactive && selectedNode
-          ? "mr-[420px]"
-          : ""
+          id="graph-container"
+          className={`flex flex-col bg-slate-800/90 rounded-3xl shadow-2xl border border-slate-700/70 overflow-hidden transition-all duration-300 ${
+            interactive && selectedNode ? "mr-[420px]" : ""
           }`}
-        style={{
-          height: graphHeight,
-          width: "100%",
-        }}
-      >
+          style={{
+            height: graphHeight,
+            width: "100%",
+            minHeight: 0,
+          }}
+        >
         <div className="px-6 py-5 border-b border-slate-700/70 bg-slate-800/80">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
@@ -1826,7 +1853,7 @@ export default function GraphViewer({
           nodes={nodes}
           edges={safeEdges}
           nodeTypes={nodeTypes}
-          fitView
+          className="flex-1 min-h-0"
           minZoom={0.02}
           maxZoom={2}
           onNodeClick={
@@ -2206,6 +2233,8 @@ export default function GraphViewer({
                         data.influenceScore ??
                         0
                       );
+
+                    const predictedExposure = getPredictedExposure(analysis);
 
                     return (
                       <div

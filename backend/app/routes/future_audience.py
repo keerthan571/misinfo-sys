@@ -1,11 +1,16 @@
+
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Literal, Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
+from app.auth.dependencies import get_current_user
+from app.database.mongodb import analysis_collection
 from app.services.audience_forecast_hybrid import (
     predict_x_future_views,
 )
@@ -49,6 +54,7 @@ BENCHMARKS = {
 
 
 class PredictionRequest(BaseModel):
+    analysis_id: str
     platform: Literal["Instagram", "Facebook", "X"]
     horizon_days: int = Field(ge=0, le=MAX_HORIZON_DAYS)
     post_age_days: int = Field(ge=0)
@@ -78,6 +84,37 @@ class PredictionRequest(BaseModel):
         default=None,
         ge=0,
     )
+
+
+def save_future_audience_forecast(
+    analysis_id: str,
+    user_email: str,
+    forecast: dict,
+) -> dict:
+    """Save a forecast to the authenticated user's analysis."""
+
+    result = analysis_collection.update_one(
+        {
+            "analysis_id": analysis_id,
+            "email": user_email,
+        },
+        {
+            "$set": {
+                "future_audience": jsonable_encoder(forecast),
+                "metadata.updated_at": datetime.now(
+                    timezone.utc
+                ).isoformat(),
+            }
+        },
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="Analysis not found for the authenticated user.",
+        )
+
+    return forecast
 
 
 def load_data() -> pd.DataFrame:
@@ -204,9 +241,6 @@ def calculate_request_growth(
 
     post_age_days is the age at the latest screenshot.
     earlier_post_age_days is the age at the first screenshot.
-
-    Full precision is retained internally. Rounding is applied
-    only to values returned by the API.
     """
 
     current_age = request.post_age_days
@@ -247,7 +281,6 @@ def calculate_request_growth(
             change = current
             basis = "since_publication_approximation"
 
-        # Do not round the rate used in calculations.
         rate = change / elapsed_days
 
         metric_growth[metric] = {
@@ -267,7 +300,6 @@ def calculate_request_growth(
 
     combined_rate = float(sum(available_rates))
 
-    # Create a separate rounded copy for the API response.
     response_metrics = {
         metric: {
             **details,
@@ -297,10 +329,7 @@ def calculate_request_growth(
 def calculate_historical_platform_growth(
     platform: str,
 ) -> pd.DataFrame:
-    """
-    Calculate daily engagement-growth scores for historical posts
-    from the requested platform.
-    """
+    """Calculate daily engagement-growth scores for historical posts."""
 
     df = load_data()
 
@@ -361,9 +390,7 @@ def classify_performance(
     platform: str,
     combined_growth_per_day: float,
 ) -> dict:
-    """
-    Classify performance using platform-specific historical tertiles.
-    """
+    """Classify performance using platform-specific historical tertiles."""
 
     historical = calculate_historical_platform_growth(platform)
 
@@ -408,10 +435,8 @@ def project_engagement(
     growth: dict,
 ) -> dict:
     """
-    Project engagement from the latest screenshot to the requested
-    future horizon, using full-precision observed daily rates.
-
-    Projected counts are clipped at zero and rounded once to integers.
+    Project engagement using full-precision observed daily rates.
+    Projected counts are clipped at zero and rounded to integers.
     """
 
     projected_metrics = {}
@@ -438,7 +463,6 @@ def project_engagement(
             + daily_rate * request.horizon_days,
         )
 
-        # Round only the final projected count.
         projected_metrics[metric] = int(
             round(projected_count)
         )
@@ -451,8 +475,8 @@ def estimate_views_from_benchmarks(
     tier: str,
 ) -> dict:
     """
-    Estimate views from projected engagement using the selected tier's
-    benchmark ranges. The median of metric-specific estimates is used.
+    Estimate views from projected engagement using the selected tier.
+    The median of metric-specific estimates is used.
     """
 
     tier_benchmarks = BENCHMARKS[tier]
@@ -557,12 +581,37 @@ def future_audience_health():
 
 
 @router.post("/predict")
-def predict_future_audience(request: PredictionRequest):
+def predict_future_audience(
+    request: PredictionRequest,
+    current_user=Depends(get_current_user),
+):
+    user_email = current_user.get("email")
+
+    if not user_email:
+        raise HTTPException(
+            status_code=401,
+            detail="Authenticated user email is missing.",
+        )
+
+    # Confirm that this analysis belongs to the logged-in user.
+    existing_analysis = analysis_collection.find_one(
+        {
+            "analysis_id": request.analysis_id,
+            "email": user_email,
+        }
+    )
+
+    if not existing_analysis:
+        raise HTTPException(
+            status_code=404,
+            detail="Analysis not found for the authenticated user.",
+        )
+
     metrics = observed_metrics(request)
 
     # Day zero returns supplied observations without forecasting.
     if request.horizon_days == 0:
-        return {
+        forecast = {
             "platform": request.platform,
             "horizon_days": 0,
             "status": "observed_baseline",
@@ -576,15 +625,19 @@ def predict_future_audience(request: PredictionRequest):
             ),
         }
 
+        return save_future_audience_forecast(
+            request.analysis_id,
+            user_email,
+            forecast,
+        )
+
     # ---------------------------------------------------------
     # Instagram / Facebook
     # ---------------------------------------------------------
     if request.platform in ("Instagram", "Facebook"):
         try:
-            # 1. Calculate observed engagement growth.
             growth = calculate_request_growth(request)
 
-            # 2. Classify against historical platform growth.
             classification = classify_performance(
                 platform=request.platform,
                 combined_growth_per_day=(
@@ -594,13 +647,11 @@ def predict_future_audience(request: PredictionRequest):
 
             tier = classification["performance_tier"]
 
-            # 3. Project engagement using full-precision rates.
             projected_metrics = project_engagement(
                 request=request,
                 growth=growth,
             )
 
-            # 4. Estimate views from projected engagement.
             estimate = estimate_views_from_benchmarks(
                 metrics=projected_metrics,
                 tier=tier,
@@ -618,7 +669,6 @@ def predict_future_audience(request: PredictionRequest):
                 detail=str(exc),
             )
 
-        # ensure predicted views are never below any projected engagement count.
         max_projected_engagement = max(
             projected_metrics.values(),
             default=0,
@@ -629,10 +679,9 @@ def predict_future_audience(request: PredictionRequest):
             max_projected_engagement,
         )
 
-        # keep the benchmark estimate consistent with the final prediction.
         estimate["predicted_views"] = predicted
 
-        return {
+        forecast = {
             "platform": request.platform,
             "horizon_days": request.horizon_days,
             "status": "future_view_prediction",
@@ -675,6 +724,12 @@ def predict_future_audience(request: PredictionRequest):
                 "Views are an audience-exposure proxy, not verified unique reach.",
             ],
         }
+
+        return save_future_audience_forecast(
+            request.analysis_id,
+            user_email,
+            forecast,
+        )
 
     # ---------------------------------------------------------
     # X: existing forecasting path preserved.
@@ -745,7 +800,7 @@ def predict_future_audience(request: PredictionRequest):
             "accuracy at this exact horizon is not validated."
         )
 
-    return {
+    forecast = {
         "platform": "X",
         "horizon_days": request.horizon_days,
         "status": hybrid["status"],
@@ -803,3 +858,9 @@ def predict_future_audience(request: PredictionRequest):
         ),
         "cautions": cautions,
     }
+
+    return save_future_audience_forecast(
+        request.analysis_id,
+        user_email,
+        forecast,
+    )
