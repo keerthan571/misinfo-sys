@@ -7,7 +7,7 @@ import ReactFlow, {
 } from "reactflow";
 
 import "reactflow/dist/style.css";
-
+import "../GraphView.css";
 import GraphNode from "./GraphNode";
 import GraphGenerator from "../../graph/GraphGenerator";
 import ELKLayoutEngine from "../../graph/ELKLayoutEngine";
@@ -1235,6 +1235,63 @@ function getPredictedExposure(analysis) {
   return value === undefined ? null : Number(value);
 }
 
+
+function GraphFullscreenButton() {
+  const [isFullscreen, setIsFullscreen] = useState(
+    document.fullscreenElement !== null
+  );
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(
+        document.fullscreenElement ===
+          document.getElementById("graph-container")
+      );
+    };
+
+    document.addEventListener(
+      "fullscreenchange",
+      handleFullscreenChange
+    );
+
+    return () => {
+      document.removeEventListener(
+        "fullscreenchange",
+        handleFullscreenChange
+      );
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    const container = document.getElementById("graph-container");
+
+    if (!container) return;
+
+    try {
+      if (document.fullscreenElement === container) {
+        await document.exitFullscreen();
+      } else if (!document.fullscreenElement) {
+        await container.requestFullscreen();
+      }
+    } catch (error) {
+      console.error("Unable to toggle graph fullscreen:", error);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={toggleFullscreen}
+      className="rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-white font-semibold shadow-lg transition"
+      aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+      title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+    >
+      {isFullscreen ? "⛶ Exit Fullscreen" : "⛶ Fullscreen"}
+    </button>
+  );
+}
+
+
 export default function GraphViewer({
   analysis,
   graph = null,
@@ -1767,7 +1824,7 @@ export default function GraphViewer({
             <span className="text-violet-400 text-lg">↗</span>
           </div>
 
-           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Future Audience Exposure
           </h3>
 
@@ -1808,19 +1865,18 @@ export default function GraphViewer({
       ===================================================== */}
 
       <div
-          id="graph-container"
-          className={`flex flex-col bg-slate-800/90 rounded-3xl shadow-2xl border border-slate-700/70 overflow-hidden transition-all duration-300 ${
-            interactive && selectedNode ? "mr-[420px]" : ""
+        id="graph-container"
+        className={`flex flex-col bg-slate-800/90 rounded-3xl shadow-2xl border border-slate-700/70 overflow-hidden transition-all duration-300 ${interactive && selectedNode ? "mr-[420px]" : ""
           }`}
-          style={{
-            height: graphHeight,
-            width: "100%",
-            minHeight: 0,
-          }}
-        >
+        style={{
+          height: graphHeight,
+          width: "100%",
+          minHeight: 0,
+        }}
+      >
+        {/* Graph header */}
         <div className="px-6 py-5 border-b border-slate-700/70 bg-slate-800/80">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-blue-400">
                 Network Visualization
@@ -1835,8 +1891,7 @@ export default function GraphViewer({
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-
+            <div className="flex items-center gap-3 flex-wrap">
               <span className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-300">
                 {nodes.length} Nodes
               </span>
@@ -1845,47 +1900,54 @@ export default function GraphViewer({
                 {safeEdges.length} Connections
               </span>
 
+              {interactive && !pdfMode && (
+                <GraphFullscreenButton />
+              )}
             </div>
-
           </div>
         </div>
-        <ReactFlow
-          nodes={nodes}
-          edges={safeEdges}
-          nodeTypes={nodeTypes}
-          className="flex-1 min-h-0"
-          minZoom={0.02}
-          maxZoom={2}
-          onNodeClick={
-            interactive
-              ? (_, node) => {
-                console.log("========== CLICKED NODE ==========");
-                console.log("FULL NODE:", node);
-                console.log("NODE DATA:", node?.data);
-                console.log("NODE ID:", node?.id);
-                setSelectedNode(node);
-              }
-              : undefined
-          }
-        >
-          <GraphViewportController
+
+        {/* Network visualization */}
+        <div className="flex-1 min-h-0">
+          <ReactFlow
             nodes={nodes}
-            pdfMode={pdfMode}
-          />
+            edges={safeEdges}
+            nodeTypes={nodeTypes}
+            className="flex-1 min-h-0"
+            minZoom={0.02}
+            maxZoom={2}
+            panOnDrag={true}
+            panOnScroll={false}
+            zoomOnScroll={true}
+            zoomOnPinch={true}
+            zoomOnDoubleClick={false}
+            preventScrolling={true}
+            onNodeClick={
+              interactive
+                ? (_, node) => {
+                  setSelectedNode(node);
+                }
+                : undefined
+            }
+          >
+            <GraphViewportController
+              nodes={nodes}
+              pdfMode={pdfMode}
+            />
 
-          {!pdfMode && <GraphControls />}
+            {!pdfMode && <GraphControls />}
 
+            <Background
+              gap={28}
+              size={1}
+              color="#334155"
+            />
+          </ReactFlow>
+        </div>
 
-
-          <Background
-            gap={28}
-            size={1}
-            color="#334155"
-          />
-        </ReactFlow>
+        {/* Legend */}
         <div className="px-6 py-4 border-t border-slate-700/70 bg-slate-800/80">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-400">
-
             <span className="font-semibold uppercase tracking-wider text-slate-500">
               Legend
             </span>
@@ -1914,11 +1976,9 @@ export default function GraphViewer({
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
               Community Leader
             </span>
-
           </div>
         </div>
       </div>
-
 
       {/* =====================================================
           NODE DETAILS

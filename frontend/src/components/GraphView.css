@@ -13,3 +13,17 @@ border-radius:8px;
 .react-flow__minimap{
 border-radius:10px;
 }
+/* Fullscreen propagation graph */
+#graph-container:fullscreen {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    background: #020617;
+}
+
+/* Show the exit button only in fullscreen */
+#graph-container:fullscreen #graph-exit-fullscreen {
+    display: flex !important;
+}

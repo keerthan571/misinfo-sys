@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import math
+import os
 import random
+from pathlib import Path
 from typing import Any
 
 import networkx as nx
@@ -17,7 +20,45 @@ class PropagationEngine:
     The graph is not a record of actual users who shared a post.
     The spreading level comes from dated engagement observations.
     """
+    # Dataset-based future audience exposure reference boundaries.
+    # These are model estimates, not guaranteed real-world limits.
+    MIN_REFERENCE_EXPOSURE = 152.0
+    MAX_REFERENCE_EXPOSURE = 8_959_565.0
 
+    # Minimum and maximum number of simulated graph nodes.
+    MIN_GRAPH_NODES = 10
+    MAX_GRAPH_NODES = 100
+    MEMBER_NAMES_CSV = (
+        Path(__file__).resolve().parents[3]
+        / "data"
+        / "random_200_members_india_regions.csv"
+    )
+
+    @classmethod
+    def _load_member_names(cls) -> list[str]:
+        csv_path = Path(
+            os.getenv(
+                "PROPAGATION_MEMBER_NAMES_CSV",
+                str(cls.MEMBER_NAMES_CSV),
+            )
+        )
+
+        try:
+            with csv_path.open(
+                "r", encoding="utf-8-sig", newline=""
+            ) as file:
+                reader = csv.DictReader(file)
+                names = [
+                    row["Member_Name"].strip()
+                    for row in reader
+                    if row.get("Member_Name")
+                    and row["Member_Name"].strip()
+                ]
+
+            return list(dict.fromkeys(names))
+
+        except (OSError, KeyError, csv.Error):
+            return []
     ENGAGEMENT_METRICS = (
         "views",
         "likes",
@@ -37,6 +78,7 @@ class PropagationEngine:
         self,
         analysis: dict[str, Any],
         engagement: dict[str, Any],
+        audience_exposure_result: dict[str, Any] | None = None,
     ) -> nx.DiGraph:
         observations = analysis.get("engagement_observations", [])
         spreading = analysis.get("spreading_level", {})
@@ -46,15 +88,45 @@ class PropagationEngine:
         seed = self._build_seed(analysis, metrics, observations)
         rng = random.Random(seed)
 
+        member_names = self._load_member_names()
+        rng.shuffle(member_names)
+        member_name_index = 0
+
+        def next_member_name(fallback: str) -> str:
+            nonlocal member_name_index
+
+            if member_name_index < len(member_names):
+                name = member_names[member_name_index]
+                member_name_index += 1
+                return f"Simulated: {name}"
+
+            return f"Simulated: {fallback}"
+
         platform = str(analysis.get("platform", "Unknown"))
         publisher = self._publisher_name(analysis)
 
-        # Only observed engagement and the new spreading-level result
-        # determine the size and shape of this simulated graph.
+        # Prefer the Future Audience Exposure result when a valid estimate
+        # is supplied. Preserve the previous node-count method as a safe
+        # compatibility fallback until every caller passes the forecast.
+        if audience_exposure_result is None:
+            candidate = (
+                analysis.get("future_audience_exposure")
+                or analysis.get("audience_exposure")
+            )
+            if isinstance(candidate, dict):
+                audience_exposure_result = candidate
+
+        exposure_value = self._read_predicted_exposure(audience_exposure_result)
         total_nodes = self._calculate_node_count(
             metrics=metrics,
             spreading_level=level_name,
             observations=observations,
+            predicted_exposure=exposure_value,
+        )
+        scaling_method = (
+            "future_audience_exposure_min_max"
+            if exposure_value is not None
+            else "legacy_fallback_missing_or_invalid_exposure"
         )
 
         influencer_count = self._calculate_influencer_count(
@@ -90,6 +162,11 @@ class PropagationEngine:
                 "observation_count": len(observations),
                 "engagement_metrics_used": sorted(metrics.keys()),
                 "platform": platform,
+                "predicted_audience_exposure": exposure_value,
+                "graph_scaling_method": scaling_method,
+                "exposure_reference_min": self.MIN_REFERENCE_EXPOSURE,
+                "exposure_reference_max": self.MAX_REFERENCE_EXPOSURE,
+                "target_node_count": total_nodes,
                 "warning": (
                     "Nodes and propagation edges are simulated. "
                     "They do not establish actual sharing, unique reach, "
@@ -144,21 +221,22 @@ class PropagationEngine:
 
             if influence >= 75 and followers >= 50000:
                 role = "influencer"
-                label = f"Major Influencer {index + 1}"
+                fallback = f"Major Influencer {index + 1}"
             elif influence >= 60:
                 role = "community_leader"
-                label = f"Community Leader {index + 1}"
+                fallback = f"Community Leader {index + 1}"
             else:
                 role = "micro_influencer"
-                label = f"Micro Influencer {index + 1}"
+                fallback = f"Micro Influencer {index + 1}"
 
+            label = next_member_name(fallback)
             community = index % max(1, min(6, influencer_count))
 
             graph.add_node(
                 node_id,
                 label=label,
                 display_name=label,
-                username=f"@{label.lower().replace(' ', '_')}",
+                username=f"@simulated_influencer_{index + 1}",
                 role=role,
                 node_type="influencer",
                 followers=followers,
@@ -226,7 +304,9 @@ class PropagationEngine:
                         break
 
                     node_id = f"user-{created_users + 1}"
-                    label = f"User {created_users + 1}"
+                    label = next_member_name(
+                        f"User {created_users + 1}"
+                    )
                     followers = rng.randint(100, 8000)
                     influence = round(
                         max(
@@ -243,7 +323,7 @@ class PropagationEngine:
                         node_id,
                         label=label,
                         display_name=label,
-                        username=f"@user_{created_users + 1}",
+                        username=f"@simulated_user_{created_users + 1}",
                         role="user",
                         node_type="user",
                         followers=followers,
@@ -400,17 +480,101 @@ class PropagationEngine:
         except (TypeError, ValueError):
             return 0.0
 
+    def _read_predicted_exposure(
+        self,
+        exposure_result: dict[str, Any] | None,
+    ) -> float | None:
+        """Return a valid predicted exposure, or None for safe fallback."""
+        if not isinstance(exposure_result, dict):
+            return None
+
+        # Accept successful status values emitted by the current forecasting
+        # endpoint. Reject explicit failures or unknown statuses.
+        status = exposure_result.get("status")
+        successful_statuses = {
+            "experimental_estimate",
+            "experimental_engagement_adjusted_forecast",
+            "future_view_prediction",
+            "observed_baseline",
+        }
+        if status is not None and status not in successful_statuses:
+            return None
+
+        # The forecast API's canonical field is audience_exposure_proxy;
+        # predicted_views is retained as a compatible alias. Neither field
+        # represents verified unique reach.
+        value = exposure_result.get("predicted_audience_exposure")
+        if value is None:
+            value = exposure_result.get("audience_exposure_proxy")
+        if value is None:
+            value = exposure_result.get("predicted_views")
+        if isinstance(value, bool) or value is None:
+            return None
+
+        try:
+            exposure = float(value)
+        except (TypeError, ValueError):
+            return None
+
+        if not math.isfinite(exposure) or exposure < 0:
+            return None
+
+        return exposure
+
     def _calculate_node_count(
         self,
         metrics: dict[str, float],
         spreading_level: str,
         observations: list,
+        predicted_exposure: float | None = None,
     ) -> int:
-        minimum = int(getattr(self.config, "MIN_NODES", 10))
-        maximum = min(int(getattr(self.config, "MAX_NODES", 100)), 100)
+        """
+        Scale simulated graph nodes using the future audience exposure estimate.
 
-        # Engagement signals contribute to simulated graph scale.
-        # Counts are not interpreted as real reach.
+        Reference mapping:
+            Exposure <= 152       -> 10 nodes
+            Exposure >= 8,959,565 -> 100 nodes
+
+        Intermediate exposure values are mapped linearly.
+        If exposure is missing or invalid, retain the legacy fallback.
+        """
+        minimum = self.MIN_GRAPH_NODES
+
+        configured_maximum = int(
+            getattr(self.config, "MAX_NODES", self.MAX_GRAPH_NODES)
+        )
+
+        maximum = max(
+            minimum,
+            min(configured_maximum, self.MAX_GRAPH_NODES),
+        )
+
+        if predicted_exposure is not None:
+            boundary_span = (
+                self.MAX_REFERENCE_EXPOSURE
+                - self.MIN_REFERENCE_EXPOSURE
+            )
+
+            if boundary_span <= 0:
+                return minimum
+
+            ratio = (
+                predicted_exposure - self.MIN_REFERENCE_EXPOSURE
+            ) / boundary_span
+
+            # Clamp exposure to the reference interval.
+            ratio = max(0.0, min(1.0, ratio))
+
+            node_count = minimum + round(
+                ratio * (maximum - minimum)
+            )
+
+            return max(
+                minimum,
+                min(maximum, node_count),
+            )
+
+        # Legacy fallback when no valid exposure estimate is supplied.
         engagement_total = sum(
             metrics.get(key, 0.0)
             for key in (
@@ -430,9 +594,10 @@ class PropagationEngine:
             math.log10(engagement_total + 1) / 6.0,
         )
 
-        # Dated observations contribute only when the current record
-        # has enough history to compare growth.
-        history_score = min(1.0, max(0, len(observations) - 1) / 4.0)
+        history_score = min(
+            1.0,
+            max(0, len(observations) - 1) / 4.0,
+        )
 
         level_score = {
             "Low": 0.20,
@@ -450,10 +615,16 @@ class PropagationEngine:
         )
 
         intensity = max(0.0, min(1.0, intensity))
-        node_count = minimum + round(intensity * (maximum - minimum))
 
-        return max(minimum, min(maximum, node_count))
+        node_count = minimum + round(
+            intensity * (maximum - minimum)
+        )
 
+        return max(
+            minimum,
+            min(maximum, node_count),
+        )
+    
     def _calculate_influencer_count(
         self,
         total_nodes: int,
@@ -470,7 +641,7 @@ class PropagationEngine:
         )
         count = round(total_nodes * min(ratio, max_ratio))
 
-        return max(0, min(count, total_nodes - 1))
+        return min(total_nodes - 1, max(1, count))
 
     def _calculate_simulated_bot_count(
         self,

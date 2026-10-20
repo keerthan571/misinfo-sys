@@ -23,7 +23,7 @@ class GraphConfig:
     BOT_EDGE = "bot"
 
     # Graph size limits
-    MIN_NODES = 25
+    MIN_NODES = 10
     MAX_NODES = 100
 
     MIN_INFLUENCERS = 2

@@ -19,6 +19,7 @@ export default function Graph() {
     const [analysis, setAnalysis] = useState(initialAnalysis);
     const [loading, setLoading] = useState(false);
 
+    // Refresh the saved analysis when an analysis ID is available.
     useEffect(() => {
         const candidate =
             location.state?.analysis ||
@@ -44,12 +45,7 @@ export default function Graph() {
 
                 if (!cancelled) {
                     const savedAnalysis = response.data?.analysis;
-
-                    if (savedAnalysis) {
-                        setAnalysis(savedAnalysis);
-                    } else {
-                        setAnalysis(candidate);
-                    }
+                    setAnalysis(savedAnalysis || candidate);
                 }
             } catch (error) {
                 console.error(
@@ -58,7 +54,6 @@ export default function Graph() {
                 );
 
                 if (!cancelled) {
-                    // Preserve the existing analysis if refresh fails.
                     setAnalysis(candidate);
                 }
             } finally {
@@ -77,6 +72,15 @@ export default function Graph() {
         location.state?.analysis,
         contextAnalysis?.result?.analysis,
     ]);
+
+    // Exit fullscreen if this page unmounts.
+    useEffect(() => {
+        return () => {
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+            }
+        };
+    }, []);
 
     const platform =
         analysis?.platform?.platform ||
@@ -128,7 +132,6 @@ export default function Graph() {
                         type="button"
                         onClick={() => navigate("/analyze")}
                         className="!w-auto mt-8 bg-blue-600 hover:bg-blue-500 px-7 py-3 rounded-xl text-white font-semibold transition"
-                        style={{ width: "fit-content" }}
                     >
                         Go to Analyze
                     </button>
@@ -155,6 +158,7 @@ export default function Graph() {
                 </p>
             </section>
 
+            {/* Keep the graph panel and its own fullscreen button. */}
             <GraphViewer analysis={analysis} />
         </div>
     );

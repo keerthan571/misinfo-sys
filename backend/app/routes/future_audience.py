@@ -8,7 +8,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-
+from app.services.graph.graph_generator import graph_generator
 from app.auth.dependencies import get_current_user
 from app.database.mongodb import analysis_collection
 from app.services.audience_forecast_hybrid import (
@@ -91,19 +91,78 @@ def save_future_audience_forecast(
     user_email: str,
     forecast: dict,
 ) -> dict:
-    """Save a forecast to the authenticated user's analysis."""
+    """
+    Save the future-audience forecast and regenerate the propagation
+    graph using that forecast.
 
-    result = analysis_collection.update_one(
+    The graph uses the forecast as an audience-exposure proxy.
+    It does not represent verified unique reach or actual people.
+    """
+
+    query = {
+        "analysis_id": analysis_id,
+        "email": user_email,
+    }
+
+    existing_analysis = analysis_collection.find_one(query)
+
+    if not existing_analysis:
+        raise HTTPException(
+            status_code=404,
+            detail="Analysis not found for the authenticated user.",
+        )
+
+    saved_forecast = jsonable_encoder(forecast)
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Resolve the platform stored in the analysis document.
+    raw_platform = existing_analysis.get("platform", "Unknown")
+
+    if isinstance(raw_platform, dict):
+        platform = raw_platform.get("platform", "Unknown")
+    else:
+        platform = raw_platform or "Unknown"
+
+    # Prepare the existing analysis metadata for graph generation.
+    analysis_for_graph = {
+        "analysis_id": analysis_id,
+        "text": existing_analysis.get("text", ""),
+        "display_text": existing_analysis.get("display_text", ""),
+        "platform": platform,
+        "publisher": existing_analysis.get("publisher"),
+        "publisher_confidence": existing_analysis.get(
+            "publisher_confidence", 0
+        ),
+        "spreading_level": existing_analysis.get(
+            "spreading_level", {}
+        ),
+        "engagement_observations": existing_analysis.get(
+            "engagement_observations", []
+        ),
+    }
+
+    # Regenerate the graph with the newly calculated forecast.
+    graph = graph_generator.generate(
         {
-            "analysis_id": analysis_id,
-            "email": user_email,
-        },
+            "analysis": analysis_for_graph,
+            "engagement": existing_analysis.get("engagement", {}),
+            "spread_prediction": (
+                existing_analysis.get("prediction") or {}
+            ),
+            "future_audience": saved_forecast,
+        }
+    )
+
+    # Save both the forecast and the regenerated graph.
+    result = analysis_collection.update_one(
+        query,
         {
             "$set": {
-                "future_audience": jsonable_encoder(forecast),
-                "metadata.updated_at": datetime.now(
-                    timezone.utc
-                ).isoformat(),
+                "future_audience": saved_forecast,
+                "graph": graph,
+                "metadata.graph_generated_once": True,
+                "metadata.graph_generated_with_future_audience": True,
+                "metadata.updated_at": now,
             }
         },
     )
