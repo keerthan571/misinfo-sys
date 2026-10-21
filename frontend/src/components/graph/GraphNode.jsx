@@ -37,18 +37,18 @@ export default function GraphNode({ data = {} }) {
         .trim();
 
     const isInfluencer = [
-    "influencer",
-    "micro_influencer",
-    "micro influencer",
-    "community_leader",
-    "community leader"
-].includes(type.replace(/-/g, "_"));
+        "influencer",
+        "micro_influencer",
+        "micro influencer",
+        "community_leader",
+        "community leader"
+    ].includes(type.replace(/-/g, "_"));
 
-const nodeName = isSource
-    ? `Source: ${cleanName}`
-    : isInfluencer
-        ? `Simulated Influencer ${cleanName}`
-        : `Simulated: ${cleanName}`;
+    const nodeName = isSource
+        ? `Source: ${cleanName}`
+        : isInfluencer
+            ? `Simulated Influencer ${cleanName}`
+            : `Simulated: ${cleanName}`;
 
     // Prefer network influence when available.
     const influence = networkInfluencePercent ?? influenceScore;
@@ -57,16 +57,16 @@ const nodeName = isSource
     // Preserve compact formatting such as 37.7K when provided.
     const numericFollowers =
         followers !== null &&
-        followers !== undefined &&
-        followers !== "" &&
-        Number.isFinite(Number(followers))
+            followers !== undefined &&
+            followers !== "" &&
+            Number.isFinite(Number(followers))
             ? Number(followers)
             : null;
 
     const followerValue =
         formattedFollowers !== null &&
-        formattedFollowers !== undefined &&
-        formattedFollowers !== ""
+            formattedFollowers !== undefined &&
+            formattedFollowers !== ""
             ? formattedFollowers
             : numericFollowers !== null
                 ? numericFollowers.toLocaleString()
@@ -75,14 +75,14 @@ const nodeName = isSource
     return (
         <>
             <Handle
+                id="left"
                 type="target"
-                position={Position.Top}
+                position={Position.Left}
             />
 
             <div
-                className={`graph-node ${type} ${
-                    verified ? "verified-node" : ""
-                }`}
+                className={`graph-node ${type} ${verified ? "verified-node" : ""
+                    }`}
             >
                 <div className="graph-node-header">
                     <span
@@ -129,9 +129,9 @@ const nodeName = isSource
 
                         <strong>
                             {influence !== null &&
-                            influence !== undefined &&
-                            influence !== "" &&
-                            Number.isFinite(numericInfluence)
+                                influence !== undefined &&
+                                influence !== "" &&
+                                Number.isFinite(numericInfluence)
                                 ? `${Math.round(numericInfluence)}%`
                                 : "N/A"}
                         </strong>
@@ -140,8 +140,9 @@ const nodeName = isSource
             </div>
 
             <Handle
+                id="right"
                 type="source"
-                position={Position.Bottom}
+                position={Position.Right}
             />
         </>
     );

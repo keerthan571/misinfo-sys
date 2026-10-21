@@ -1269,6 +1269,8 @@ export default function GraphViewer({
   graphHeight = "850px",
 }) {
 
+
+
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
 
@@ -1276,10 +1278,9 @@ export default function GraphViewer({
   const [influencers, setInfluencers] = useState([]);
   const [blueprint, setBlueprint] = useState(null);
 
-  const [selectedNode, setSelectedNode] =
-    useState(null);
+  const [selectedNode, setSelectedNode] = useState(null);
 
-
+  
   /*
    * Load graph.
    *
@@ -1350,11 +1351,11 @@ export default function GraphViewer({
               .map((edge, index) => ({
                 ...edge,
 
-                id:
-                  edge.id ||
-                  `saved-edge-${index}`,
+                id: edge.id || `saved-edge-${index}`,
 
                 type: "smoothstep",
+                sourceHandle: "right",
+                targetHandle: "left",
 
                 animated: false,
 
@@ -1436,13 +1437,25 @@ export default function GraphViewer({
               )
           );
 
-        const reactNodes =
-          generatedGraph.nodes.map(
-            node => ({
-              ...node,
-              type: "custom",
-            })
-          );
+
+        const laidOutNodes = await ELKLayoutEngine.layout(
+          generatedGraph.nodes,
+          visualEdges
+        );
+
+        const reactNodes = laidOutNodes.map((node) => ({
+          ...node,
+          type: "custom",
+        }));
+
+        console.table(
+          reactNodes.map((node) => ({
+            id: node.id,
+            parentId: node.data?.parentId ?? node.parentId ?? null,
+            x: node.position?.x,
+            y: node.position?.y,
+          }))
+        );
 
         setNodes(reactNodes);
 
@@ -1461,6 +1474,8 @@ export default function GraphViewer({
                 `generated-edge-${index}`,
 
               type: "smoothstep",
+              sourceHandle: "right",
+              targetHandle: "left",
 
               animated: false,
 
@@ -1586,7 +1601,9 @@ export default function GraphViewer({
       return {
         ...edge,
         id: edge.id || `edge-${index}`,
-        type: "straight",
+        type: "smoothstep",
+        sourceHandle: "right",
+        targetHandle: "left",
         animated: false,
 
         style: {
@@ -1863,6 +1880,7 @@ export default function GraphViewer({
 
         {/* Network visualization */}
         <div className="flex-1 min-h-0">
+
           <ReactFlow
             nodes={nodes}
             edges={safeEdges}
