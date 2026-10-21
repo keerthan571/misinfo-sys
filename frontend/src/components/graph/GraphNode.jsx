@@ -1,3 +1,4 @@
+
 import { Handle, Position } from "reactflow";
 import "./GraphNode.css";
 
@@ -7,11 +8,11 @@ const ICONS = {
     influencer: "⭐",
     media: "📰",
     user: "👤",
-    bot: "🤖"
+    bot: "🤖",
+    source: "📢"
 };
 
-export default function GraphNode({ data }) {
-
+export default function GraphNode({ data = {} }) {
     const {
         label,
         displayName,
@@ -20,15 +21,56 @@ export default function GraphNode({ data }) {
         formattedFollowers,
         influenceScore,
         networkInfluencePercent,
-        verified,
-        community,
-        reach,
-        isBot
+        verified
     } = data;
 
-    const icon =
-        ICONS[nodeType] ||
-        ICONS.user;
+    const type = String(nodeType || "user").toLowerCase();
+    const icon = ICONS[type] || ICONS.user;
+
+    const isSource = ["claim", "origin", "source"].includes(type);
+
+    // Resolve the displayed name without duplicating prefixes.
+    const rawName = String(displayName || label || "Unknown").trim();
+
+    const cleanName = rawName
+        .replace(/^(simulated|source)\s*:\s*/i, "")
+        .trim();
+
+    const isInfluencer = [
+    "influencer",
+    "micro_influencer",
+    "micro influencer",
+    "community_leader",
+    "community leader"
+].includes(type.replace(/-/g, "_"));
+
+const nodeName = isSource
+    ? `Source: ${cleanName}`
+    : isInfluencer
+        ? `Simulated Influencer ${cleanName}`
+        : `Simulated: ${cleanName}`;
+
+    // Prefer network influence when available.
+    const influence = networkInfluencePercent ?? influenceScore;
+    const numericInfluence = Number(influence);
+
+    // Preserve compact formatting such as 37.7K when provided.
+    const numericFollowers =
+        followers !== null &&
+        followers !== undefined &&
+        followers !== "" &&
+        Number.isFinite(Number(followers))
+            ? Number(followers)
+            : null;
+
+    const followerValue =
+        formattedFollowers !== null &&
+        formattedFollowers !== undefined &&
+        formattedFollowers !== ""
+            ? formattedFollowers
+            : numericFollowers !== null
+                ? numericFollowers.toLocaleString()
+                : "N/A";
 
     return (
         <>
@@ -38,81 +80,62 @@ export default function GraphNode({ data }) {
             />
 
             <div
-                className={`graph-node ${nodeType} ${verified ? "verified-node" : ""
-                    } ${isBot ? "bot-node" : ""
-                    }`}
+                className={`graph-node ${type} ${
+                    verified ? "verified-node" : ""
+                }`}
             >
                 <div className="graph-node-header">
-
-                    <span className="graph-node-icon">
+                    <span
+                        className="graph-node-icon"
+                        aria-hidden="true"
+                    >
                         {icon}
                     </span>
 
                     <div className="graph-node-heading">
-
-                        <div className="graph-node-title">
-                            {label}
+                        <div
+                            className="graph-node-title"
+                            title={nodeName}
+                        >
+                            {nodeName}
                         </div>
-
-                        <div className="graph-node-subtitle">
-                            {displayName}
-                        </div>
-
                     </div>
 
                     {verified && (
-                        <span className="verified">
+                        <span
+                            className="verified"
+                            title="Verified"
+                        >
                             ✔
                         </span>
                     )}
-
                 </div>
 
                 <div className="graph-node-body">
-
-                    {["claim", "origin", "source"].includes(
-                        String(nodeType).toLowerCase()
-                    ) ? (
-                        <div className="metric">
-                            <span>📰 Publisher</span>
-                            <strong>
-                                {displayName || "Not available"}
-                            </strong>
-                        </div>
-                    ) : (
-                        <div className="metric">
-                            <span>👥 Followers</span>
-                            <strong>
-                                {formattedFollowers || followers || "Not available"}
-                            </strong>
-                        </div>
-                    )}
-
                     <div className="metric">
-                        <span>⭐ Influence</span>
-                        <strong>
-                            {Math.round(
-                                networkInfluencePercent ??
-                                influenceScore
-                            )}
-                            %
-                        </strong>
+                        <span className="metric-label">
+                            <span aria-hidden="true">👥</span>
+                            Followers
+                        </span>
+
+                        <strong>{followerValue}</strong>
                     </div>
 
                     <div className="metric">
-                        <span>🌐 Reach</span>
+                        <span className="metric-label">
+                            <span aria-hidden="true">⭐</span>
+                            Influence
+                        </span>
+
                         <strong>
-                            {reach ?? 0}
+                            {influence !== null &&
+                            influence !== undefined &&
+                            influence !== "" &&
+                            Number.isFinite(numericInfluence)
+                                ? `${Math.round(numericInfluence)}%`
+                                : "N/A"}
                         </strong>
                     </div>
-
-                    <div className="metric">
-                        <span>🏷 Community</span>
-                        <strong>
-                            {community}
-                        </strong>
-                    </div>
-
                 </div>
             </div>
 

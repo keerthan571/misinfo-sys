@@ -1,117 +1,170 @@
+
 .graph-node {
-    width: 250px;
-    background: #ffffff;
-    border-radius: 14px;
-    border-left: 6px solid #6366f1;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
-    transition: all 0.25s ease;
+    width: 290px;
+    box-sizing: border-box;
+    background: #111827;
+    border: 2px solid #475569;
+    border-radius: 15px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    transition:
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
     overflow: hidden;
-    font-family: Inter, sans-serif;
+    font-family: Inter, "Segoe UI", Arial, sans-serif;
+    color: #f8fafc;
 }
 
-.graph-node:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 14px 34px rgba(0,0,0,0.28);
-}
-
+/* SOURCE — Emerald green */
 .graph-node.claim,
-.graph-node.origin {
-    border-left-color: #dc2626;
+.graph-node.origin,
+.graph-node.source {
+    border-color: #34D399;
+    background: #102B22;
+    box-shadow: 0 0 10px rgba(52, 211, 153, 0.14);
 }
 
-.graph-node.influencer {
-    border-left-color: #eab308;
+/* INFLUENCER — Golden yellow */
+.graph-node.influencer,
+.graph-node.micro_influencer,
+.graph-node.micro-influencer {
+    border-color: #FBBF24;
+    background: #30270F;
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.14);
 }
 
+/* COMMUNITY LEADER — Teal */
+.graph-node.community_leader,
+.graph-node.community-leader {
+    border-color: #2DD4BF;
+    background: #103432;
+    box-shadow: 0 0 10px rgba(45, 212, 191, 0.14);
+}
+
+/* NORMAL USER — Bright blue */
 .graph-node.user {
-    border-left-color: #2563eb;
+    border-color: #60A5FA;
+    background: #142B4D;
+    box-shadow: 0 0 10px rgba(96, 165, 250, 0.16);
 }
 
+/* BOT — Coral red */
 .graph-node.bot {
-    border-left-color: #7f1d1d;
+    border-color: #FB7185;
+    background: #351A22;
+    box-shadow: 0 0 10px rgba(251, 113, 133, 0.14);
 }
 
+/* MEDIA — Cyan */
+.graph-node.media {
+    border-color: #22D3EE;
+    background: #10303A;
+    box-shadow: 0 0 10px rgba(34, 211, 238, 0.14);
+}
+
+/* Hover effect */
+.graph-node:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+}
+
+/* Node header */
 .graph-node-header {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 14px 16px;
-    border-bottom: 1px solid #e5e7eb;
-}
-
-.graph-title {
-    display: flex;
-    gap: 10px;
     align-items: center;
+    gap: 12px;
+    padding: 17px 16px;
+    border-bottom: 1px solid rgba(203, 213, 225, 0.16);
+    min-width: 0;
 }
 
 .graph-node-icon {
-    font-size: 22px;
+    flex-shrink: 0;
+    font-size: 27px;
+    line-height: 1.2;
+}
+
+.graph-node-heading {
+    flex: 1;
+    min-width: 0;
 }
 
 .graph-node-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: #111827;
-}
-
-.graph-node-subtitle {
-    font-size: 11px;
-    color: #6b7280;
-    margin-top: 2px;
+    font-size: 19px;
+    line-height: 1.35;
+    font-weight: 800;
+    letter-spacing: -0.25px;
+    color: #F8FAFC;
+    overflow-wrap: anywhere;
 }
 
 .verified {
-    color: #2563eb;
-    font-size: 16px;
-    font-weight: bold;
+    flex-shrink: 0;
+    color: #93C5FD;
+    font-size: 19px;
+    font-weight: 800;
 }
 
+/* Metrics */
 .graph-node-body {
-    padding: 14px 16px;
+    padding: 17px 16px;
 }
 
 .metric {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
-    font-size: 13px;
+    gap: 14px;
+    margin-bottom: 15px;
+    font-size: 15px;
+    line-height: 1.45;
 }
 
 .metric:last-child {
     margin-bottom: 0;
 }
 
-.metric span {
-    color: #6b7280;
+.metric-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #CBD5E1;
+    font-weight: 500;
 }
 
 .metric strong {
-    color: #111827;
-    font-weight: 700;
+    flex-shrink: 0;
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: 750;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
+/* Verified account indicator */
 .verified-node {
-    box-shadow: 0 0 0 2px rgba(37,99,235,.15),
-                0 10px 24px rgba(37,99,235,.18);
+    outline: 1px solid rgba(147, 197, 253, 0.25);
 }
 
+/* Bot appearance */
 .bot-node {
-    opacity: .92;
-}
-.graph-node-heading{
-    display:flex;
-    flex-direction:column;
+    opacity: 0.96;
 }
 
-.graph-node-title{
-    font-size:13px;
-    font-weight:700;
-    color:#111827;
-}
+/* Responsive sizing */
+@media (max-width: 480px) {
+    .graph-node {
+        width: 265px;
+    }
 
-.graph-node-subtitle{
-    font-size:11px;
-    color:#6b7280;
-    margin-top:2px;
+    .graph-node-title {
+        font-size: 18px;
+    }
+
+    .metric {
+        font-size: 14px;
+    }
+
+    .metric strong {
+        font-size: 15px;
+    }
 }

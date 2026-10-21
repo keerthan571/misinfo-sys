@@ -265,13 +265,7 @@ function GraphViewportController({ nodes, pdfMode }) {
  * This does NOT generate anything.
  * It only adapts already-saved graph data.
  */
-function normalizeEdgeType(edge) {
-  return {
-    ...edge,
 
-    type: "smoothstep",
-  };
-}
 
 function isPropagationEdge(edge, nodes) {
   if (!edge?.source || !edge?.target) {
@@ -332,6 +326,9 @@ function normalizeSavedGraph(
 
   const sourceFollowers =
     analysis?.engagement?.followers ??
+    analysis?.engagement?.followers_count ??
+    analysis?.follower_count ??
+    analysis?.followerCount ??
     null;
 
   const normalizedNodes =
@@ -341,35 +338,27 @@ function normalizeSavedGraph(
         const originalData =
           node.data || {};
 
-        const nodeType =
+        const nodeType = String(
           originalData.nodeType ||
           originalData.node_type ||
           node.type ||
-          (
-            index === 0
-              ? "claim"
-              : "user"
-          );
+          (index === 0 ? "claim" : "user")
+        ).toLowerCase();
 
-        const isClaim =
-          nodeType === "claim" ||
-          nodeType === "source";
+        const isClaim = ["claim", "source", "origin"].includes(nodeType);
 
-        const rawFollowers =
-          originalData.followers ??
-          node.followers ??
-          (
-            isClaim
-              ? sourceFollowers
-              : null
-          );
+        const rawFollowers = isClaim
+          ? (sourceFollowers ?? originalData.followers ?? node.followers ?? null)
+          : (originalData.followers ?? node.followers ?? null);
 
         const followers =
           rawFollowers !== null &&
             rawFollowers !== undefined &&
-            rawFollowers !== ""
+            rawFollowers !== "" &&
+            Number.isFinite(Number(rawFollowers))
             ? Number(rawFollowers)
             : null;
+
 
         const influenceScore =
           Number(
@@ -442,15 +431,13 @@ function normalizeSavedGraph(
         }
 
         const formattedFollowers =
-          followers >= 1000000
-            ? `${(
-              followers / 1000000
-            ).toFixed(1)}M`
-            : followers >= 1000
-              ? `${(
-                followers / 1000
-              ).toFixed(1)}K`
-              : followers.toString();
+          followers !== null
+            ? followers >= 1_000_000
+              ? `${(followers / 1_000_000).toFixed(1)}M`
+              : followers >= 1_000
+                ? `${(followers / 1_000).toFixed(1)}K`
+                : String(followers)
+            : "Not available";
 
         const roleLabel = getNodeRole({
           ...originalData,
@@ -519,12 +506,15 @@ function normalizeSavedGraph(
              * =====================================================
              */
 
-            label: actualLabel,
+            label: isClaim ? sourceName : actualLabel,
 
-            displayName:
-              originalData.displayName ??
-              node.displayName ??
-              displayName,
+            displayName: isClaim
+              ? sourceName
+              : (
+                originalData.displayName ??
+                node.displayName ??
+                displayName
+              ),
 
             username:
               originalData.username ??
@@ -766,38 +756,16 @@ function normalizeSavedGraph(
              * =====================================================
              */
 
+
             formattedFollowers:
-              (
-                originalData.followers ??
-                node.followers
-              ) != null
-                ? (
-                  Number(
-                    originalData.followers ??
-                    node.followers
-                  ) >= 1000000
-                    ? `${(
-                      Number(
-                        originalData.followers ??
-                        node.followers
-                      ) / 1000000
-                    ).toFixed(1)}M`
-                    : Number(
-                      originalData.followers ??
-                      node.followers
-                    ) >= 1000
-                      ? `${(
-                        Number(
-                          originalData.followers ??
-                          node.followers
-                        ) / 1000
-                      ).toFixed(1)}K`
-                      : String(
-                        originalData.followers ??
-                        node.followers
-                      )
-                )
+              followers !== null
+                ? followers >= 1_000_000
+                  ? `${(followers / 1_000_000).toFixed(1)}M`
+                  : followers >= 1_000
+                    ? `${(followers / 1_000).toFixed(1)}K`
+                    : String(followers)
                 : "Not available",
+
           },
         };
       }
@@ -1245,7 +1213,7 @@ function GraphFullscreenButton() {
     const handleFullscreenChange = () => {
       setIsFullscreen(
         document.fullscreenElement ===
-          document.getElementById("graph-container")
+        document.getElementById("graph-container")
       );
     };
 
@@ -1479,8 +1447,13 @@ export default function GraphViewer({
         setNodes(reactNodes);
 
         setEdges(
-          visualEdges.map(
-            (edge, index) => ({
+          visualEdges.map((edge, index) => {
+            const edgeColor =
+              edge.data?.color ||
+              edge.style?.stroke ||
+              "#93C5FD";
+
+            return {
               ...edge,
 
               id:
@@ -1492,29 +1465,24 @@ export default function GraphViewer({
               animated: false,
 
               style: {
-                stroke: "#ffffff",
+                ...(edge.style || {}),
+                stroke: edgeColor,
                 strokeWidth: 2,
                 opacity: 0.9,
               },
 
               markerEnd: {
+                ...(edge.markerEnd || {}),
                 type: "arrowclosed",
-                color: "#ffffff",
+                color: edgeColor,
               },
 
               data: {
                 ...(edge.data || {}),
-
-                interaction:
-                  edge.data?.interaction ||
-                  edge.interaction ||
-                  edge.edgeType ||
-                  null,
-
-                color: "#ffffff",
+                color: edgeColor,
               },
-            })
-          )
+            };
+          })
         );
 
         setAnalytics(
@@ -1573,57 +1541,76 @@ export default function GraphViewer({
   };
 
 
+
   const safeEdges = useMemo(() => {
+    const getConnectionColor = (edge) => {
+      const sourceNode = nodes.find(
+        (node) => String(node.id) === String(edge.source)
+      );
 
-    return (edges || []).map(
-      (edge, index) => {
+      const sourceData = sourceNode?.data || {};
 
-        return {
+      const sourceType = String(
+        sourceData.nodeType ||
+        sourceData.node_type ||
+        sourceData.role ||
+        sourceNode?.type ||
+        "user"
+      )
+        .toLowerCase()
+        .replace(/[\s-]+/g, "_");
 
-          ...edge,
-
-          id:
-            edge.id ||
-            `edge-${index}`,
-
-          type:
-            "straight",
-
-          animated:
-            false,
-
-          style: {
-
-            ...(edge.style || {}),
-
-            /*
-             * ALL GRAPH CONNECTIONS ARE WHITE.
-             */
-            stroke:
-              "#ffffff",
-
-            strokeWidth:
-              2,
-
-            opacity:
-              0.9
-          },
-
-          data: {
-
-            ...(edge.data || {}),
-
-            interaction:
-              "tree",
-
-            color:
-              "#ffffff"
-          }
-        };
+      // Priority 1: Source connections — light green
+      if (["source", "claim", "origin"].includes(sourceType)) {
+        return "#86EFAC";
       }
-    );
 
-  }, [edges]);
+      // Priority 2: Influencer connections — light yellow
+      if (
+        [
+          "influencer",
+          "micro_influencer",
+          "community_leader",
+        ].includes(sourceType)
+      ) {
+        return "#FDE68A";
+      }
+
+      // Priority 3: Normal-node connections — light blue
+      return "#93C5FD";
+    };
+
+    return (edges || []).map((edge, index) => {
+      const edgeColor = getConnectionColor(edge);
+
+      return {
+        ...edge,
+        id: edge.id || `edge-${index}`,
+        type: "straight",
+        animated: false,
+
+        style: {
+          ...(edge.style || {}),
+          stroke: edgeColor,
+          strokeWidth: 2,
+          opacity: 0.95,
+        },
+
+        markerEnd: {
+          ...(edge.markerEnd || {}),
+          type: "arrowclosed",
+          color: edgeColor,
+        },
+
+        data: {
+          ...(edge.data || {}),
+          interaction: "tree",
+          color: edgeColor,
+        },
+      };
+    });
+  }, [edges, nodes]);
+
 
   const selectedData = {
     ...(selectedNode?.data?.originalData || {}),
@@ -1650,18 +1637,19 @@ export default function GraphViewer({
   const selectedRole =
     getNodeRole(selectedData);
 
-  const rawFollowers =
+  const selectedFollowersRaw =
     selectedData.followers ??
-    selectedData.followerCount ??
-    selectedData.follower_count ??
+    selectedData.followers_count ??
     null;
 
   const selectedFollowers =
-    rawFollowers !== null &&
-      rawFollowers !== undefined &&
-      rawFollowers !== ""
-      ? Number(rawFollowers)
+    selectedFollowersRaw !== null &&
+      selectedFollowersRaw !== undefined &&
+      selectedFollowersRaw !== "" &&
+      Number.isFinite(Number(selectedFollowersRaw))
+      ? Number(selectedFollowersRaw)
       : null;
+
 
   const selectedInfluence =
     Number(
@@ -1721,7 +1709,7 @@ export default function GraphViewer({
           SUMMARY CARDS
       ===================================================== */}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full">
 
         <div className="relative overflow-hidden bg-slate-800/90 border border-blue-500/20 rounded-2xl p-6 shadow-lg hover:border-blue-400/40 hover:-translate-y-0.5 transition-all duration-200">
 
@@ -1753,7 +1741,7 @@ export default function GraphViewer({
           </div>
 
           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Confidence
+            AI Confidence
           </h3>
 
           <p className="text-4xl font-bold text-cyan-400 mt-4">
@@ -1778,45 +1766,10 @@ export default function GraphViewer({
           </div>
 
           <p className="text-xs text-slate-500 mt-3">
-            Model confidence
+            Confidence reported by the AI classifier
           </p>
 
         </div>
-
-
-        <div className="relative overflow-hidden bg-slate-800/90 border border-emerald-500/20 rounded-2xl p-6 shadow-lg hover:border-emerald-400/40 hover:-translate-y-0.5 transition-all duration-200">
-
-          <div className="absolute right-5 top-5 w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-            <span className="text-emerald-400 text-lg">!</span>
-          </div>
-
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Risk Level
-          </h3>
-
-          <p
-            className={`text-3xl font-bold mt-4 ${String(
-              analysis?.final_result?.risk_level || ""
-            ).toLowerCase() === "high"
-              ? "text-red-400"
-              : String(
-                analysis?.final_result?.risk_level || ""
-              ).toLowerCase() === "medium"
-                ? "text-yellow-400"
-                : "text-emerald-400"
-              }`}
-          >
-            {analysis?.final_result?.risk_level || "-"}
-          </p>
-
-          <div className="w-full h-px bg-slate-700/70 mt-5" />
-
-          <p className="text-xs text-slate-500 mt-3">
-            Propagation risk assessment
-          </p>
-
-        </div>
-
 
         <div className="relative overflow-hidden bg-slate-800/90 border border-violet-500/20 rounded-2xl p-6 shadow-lg hover:border-violet-400/40 hover:-translate-y-0.5 transition-all duration-200">
 
@@ -1887,17 +1840,18 @@ export default function GraphViewer({
               </h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                Visual representation of information spread through the network
+                Simulated representation of potential information propagation through
+                source accounts, influencers, users, and other account types.
               </p>
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
               <span className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-300">
-                {nodes.length} Nodes
+                {nodes.length} Simulated Nodes
               </span>
 
               <span className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-300">
-                {safeEdges.length} Connections
+                {safeEdges.length} Simulated Connections
               </span>
 
               {interactive && !pdfMode && (
@@ -1945,11 +1899,12 @@ export default function GraphViewer({
           </ReactFlow>
         </div>
 
+
         {/* Legend */}
         <div className="px-6 py-4 border-t border-slate-700/70 bg-slate-800/80">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-400">
             <span className="font-semibold uppercase tracking-wider text-slate-500">
-              Legend
+              Simulated Node Types
             </span>
 
             <span className="flex items-center gap-2">
@@ -1976,8 +1931,13 @@ export default function GraphViewer({
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
               Community Leader
             </span>
+
+            <span className="text-slate-500">
+              Nodes and connections are simulated, not verified sharing activity.
+            </span>
           </div>
         </div>
+
       </div>
 
       {/* =====================================================
@@ -2166,80 +2126,42 @@ export default function GraphViewer({
                 </h2>
 
                 <p className="text-sm text-slate-500 mt-1">
-                  Network structure and propagation metrics
+                  Summary of the simulated propagation network
                 </p>
               </div>
 
             </div>
 
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
-                <p className="text-xs text-slate-500">
-                  Total Nodes
+                <p className="text-xs text-slate-400">
+                  Simulated Graph Nodes
                 </p>
-
                 <p className="text-2xl font-bold text-blue-400 mt-2">
-                  {analytics?.totalNodes ?? 0}
+                  {nodes.length}
                 </p>
               </div>
 
-
               <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
-                <p className="text-xs text-slate-500">
-                  Total Edges
+                <p className="text-xs text-slate-400">
+                  Simulated Connections
                 </p>
-
                 <p className="text-2xl font-bold text-cyan-400 mt-2">
-                  {analytics?.totalEdges ?? 0}
+                  {safeEdges.length}
                 </p>
               </div>
 
-
               <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
-                <p className="text-xs text-slate-500">
-                  Average Influence
+                <p className="text-xs text-slate-400">
+                  Average Simulated Influence
                 </p>
-
                 <p className="text-2xl font-bold text-violet-400 mt-2">
-                  {analytics?.averageInfluence ?? 0}
+                  {analytics?.averageInfluence != null &&
+                    Number.isFinite(Number(analytics.averageInfluence))
+                    ? `${Number(analytics.averageInfluence).toFixed(2)}%`
+                    : "N/A"}
                 </p>
               </div>
-
-
-              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
-                <p className="text-xs text-slate-500">
-                  Graph Density
-                </p>
-
-                <p className="text-2xl font-bold text-amber-400 mt-2">
-                  {analytics?.density ?? 0}
-                </p>
-              </div>
-
-
-              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
-                <p className="text-xs text-slate-500">
-                  Spread Efficiency
-                </p>
-
-                <p className="text-2xl font-bold text-emerald-400 mt-2">
-                  {analytics?.spreadEfficiency ?? 0}
-                </p>
-              </div>
-
-
-              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4">
-                <p className="text-xs text-slate-500">
-                  Largest Community
-                </p>
-
-                <p className="text-2xl font-bold text-pink-400 mt-2">
-                  {analytics?.largestCommunity ?? "-"}
-                </p>
-              </div>
-
             </div>
 
           </div>
@@ -2257,8 +2179,7 @@ export default function GraphViewer({
                 </h2>
 
                 <p className="text-sm text-slate-500 mt-1">
-                  Accounts with the strongest network influence
-                </p>
+                  Highest influence scores among nodes in the simulated network                </p>
               </div>
 
               <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
@@ -2275,10 +2196,34 @@ export default function GraphViewer({
                 influencers
                   .slice(0, 5)
                   .map((node, index) => {
-                    const data = node?.data || {};
+                    const graphnode =
+                      nodes.find((graphnode) => graphnode.id === node.id);
 
-                    const name =
-                      getNodeDisplayName(data);
+                    const data = graphnode?.data || node?.data || {};
+
+                    const rawInfluencerName =
+                      data.displayName ||
+                      data.display_name ||
+                      data.author ||
+                      data.sourceName ||
+                      data.publisher ||
+                      data.accountName ||
+                      data.username ||
+                      data.handle ||
+                      data.name ||
+                      data.label ||
+                      "";
+
+                    const cleanedInfluencerName = String(rawInfluencerName)
+                      .replace(/^simulated\s*:\s*/i, "")
+                      .replace(/^simulated\s+influencer\s+/i, "")
+                      .replace(/^simulated[_\s-]+/i, "")
+                      .trim();
+
+                    const isPlaceholderInfluencer =
+                      !cleanedInfluencerName ||
+                      /^(influencer|user|micro influencer|community leader|major influencer)[ _-]*\d*$/i
+                        .test(cleanedInfluencerName);
 
                     const role =
                       getNodeRole(data);
@@ -2312,7 +2257,9 @@ export default function GraphViewer({
                             </div>
 
                             <div className="font-semibold text-white truncate">
-                              {name}
+                              {isPlaceholderInfluencer
+                                ? `simulated ${role}`
+                                : `simulated Influencer ${cleanedInfluencerName}`}
                             </div>
 
                           </div>

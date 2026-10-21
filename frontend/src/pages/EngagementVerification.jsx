@@ -112,7 +112,7 @@ export default function EngagementVerification() {
     analysis.platform?.platform || analysis.platform
   );
 
-  const showFollowers = platformName === "Instagram";
+  const showFollowers = ["Instagram", "Facebook", "X"].includes(platformName);
 
   const followers = Number(
     originalEngagement.followers ??
