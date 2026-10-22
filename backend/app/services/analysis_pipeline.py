@@ -17,7 +17,8 @@ from groq import Groq
 import cv2
 
 import numpy as np
-
+import cloudinary
+import cloudinary.uploader
 from PIL import Image
 
 from app.database.mongodb import analysis_collection
@@ -83,7 +84,12 @@ from app.services.vision_engagement_detector import (
 )
 
 load_dotenv()
-
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    secure=True,
+)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 GROQ_MODEL = os.getenv(
@@ -290,182 +296,47 @@ class AnalysisPipeline:
 
         # ---------------------------------------------------------
 
+       
         if image:
-
             image_bytes = await image.read()
 
-            # Store uploads in a configurable directory. In deployment,
-            # point UPLOAD_DIR at a persistent disk/volume so images survive
-            # application restarts and redeployments.
-            upload_dir = os.getenv("UPLOAD_DIR", "uploads")
-            os.makedirs(upload_dir, exist_ok=True)
+            original_filename = os.path.basename(
+                image.filename or "uploaded_image"
+            )
 
-            original_filename = (
+            filename = f"{analysis_id}_{original_filename}"
 
-                os.path.basename(
+            # Upload the original image bytes to Cloudinary.
+            upload_result = cloudinary.uploader.upload(
+                image_bytes,
+                folder="misinformation-system/uploads",
+                public_id=analysis_id,
+                overwrite=True,
+                resource_type="image",
+            )
 
-                    image.filename or "uploaded_image"
-
+            image_url = upload_result.get("secure_url")
+            if not image_url:
+                raise RuntimeError(
+                    "Cloudinary upload succeeded without returning a secure URL."
                 )
 
-            )
+            # Keep a filename for the existing response structure.
+            # The image itself is now stored in Cloudinary.
+            image_path = filename
 
-            filename = (
-
-                f"{analysis_id}_"
-
-                f"{original_filename}"
-
-            )
-
-            image_path = os.path.join(upload_dir, filename)
-
-            with open(image_path, "wb") as file:
-                file.write(image_bytes)
-
-            # Public URL used by Analysis Report. Configure PUBLIC_BASE_URL
-            # to the deployed backend origin, e.g. https://api.example.com.
-            public_base_url = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
-            image_url = (
-                f"{public_base_url}/uploads/{filename}"
-                if public_base_url
-                else f"/uploads/{filename}"
-            )
-
-            # Load image for engagement / Vision processing.
-
-            pil_image = Image.open(
-
-                io.BytesIO(
-
-                    image_bytes
-
-                )
-
-            )
-
+            # Continue local in-memory image processing as before.
+            pil_image = Image.open(io.BytesIO(image_bytes))
             pil_image.load()
 
-            img = np.array(
-
-                pil_image
-
-            )
-
-            # Handle images that contain an alpha channel.
+            img = np.array(pil_image)
 
             if len(img.shape) == 3 and img.shape[2] == 4:
-
-                img = cv2.cvtColor(
-
-                    img,
-
-                    cv2.COLOR_RGBA2BGR
-
-                )
-
+                img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
             else:
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-                img = cv2.cvtColor(
-
-                    img,
-
-                    cv2.COLOR_RGB2BGR
-
-                )
-
-            # =====================================================
-
-            # TWITTER / X ENGAGEMENT
-
-            # =====================================================
-
-            if normalized_platform in {
-
-                "twitter",
-
-                "x"
-
-            }:
-
-                twitter_engagement = (
-
-                    twitter_engagement_extractor.analyze(
-
-                        img
-
-                    )
-
-                )
-
-                twitter_views = (
-
-                    twitter_views_detector.detect(
-
-                        img
-
-                    )
-
-                )
-
-                twitter_engagement[
-
-                    "views"
-
-                ] = twitter_views
-
-                engagement_values.update(
-
-                    twitter_engagement
-
-                )
-
-            # =====================================================
-
-            # OTHER SOCIAL-MEDIA PLATFORMS
-
-            # =====================================================
-
-            else:
-
-                engagement_start = time.perf_counter()
-
-                opencv_engagement = (
-
-                    engagement_extractor.analyze(
-
-                        img,
-
-                        platform=platform,
-
-                        instagram_layout=ocr_values.get("instagram_layout")
-
-                    )
-
-                )
-
-                engagement_time = (
-
-                    time.perf_counter()
-
-                    - engagement_start
-
-                )
-
-                print(
-
-                    f"ENGAGEMENT EXTRACTION TIME: {engagement_time:.2f}s",
-
-                    flush=True
-
-                )
-
-                engagement_values.update(
-
-                    opencv_engagement
-
-                )
-
+       
         ocr_text = str(
 
             ocr_values.get(
