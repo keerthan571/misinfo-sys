@@ -297,16 +297,38 @@ class AnalysisPipeline:
         # ---------------------------------------------------------
 
        
-        if image:
+        if image is not None:
             image_bytes = await image.read()
 
             original_filename = os.path.basename(
                 image.filename or "uploaded_image"
             )
-
             filename = f"{analysis_id}_{original_filename}"
 
-            # Upload the original image bytes to Cloudinary.
+            # ==========================================
+            # 1. PROCESS IMAGE IN MEMORY
+            # ==========================================
+            pil_image = Image.open(io.BytesIO(image_bytes))
+            pil_image.load()
+
+            img = np.array(pil_image)
+
+            if len(img.shape) == 3 and img.shape[2] == 4:
+                img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+            elif len(img.shape) == 3 and img.shape[2] == 3:
+                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            elif len(img.shape) == 2:
+                img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            else:
+                raise ValueError(
+                    f"Unsupported image shape: {img.shape}"
+                )
+
+            # ==========================================
+            # 2. UPLOAD IMAGE TO CLOUDINARY
+            # ==========================================
+            image_url = None
+
             upload_result = cloudinary.uploader.upload(
                 image_bytes,
                 folder="misinformation-system/uploads",
@@ -316,27 +338,56 @@ class AnalysisPipeline:
             )
 
             image_url = upload_result.get("secure_url")
+
             if not image_url:
                 raise RuntimeError(
                     "Cloudinary upload succeeded without returning a secure URL."
                 )
 
-            # Keep a filename for the existing response structure.
-            # The image itself is now stored in Cloudinary.
+            # Keep filename for the existing response structure.
+            # No local image file is created.
             image_path = filename
 
-            # Continue local in-memory image processing as before.
-            pil_image = Image.open(io.BytesIO(image_bytes))
-            pil_image.load()
+            # ==========================================
+            # 3. ENGAGEMENT EXTRACTION
+            # ==========================================
+            if normalized_platform in {"twitter", "x"}:
+                twitter_engagement = (
+                    twitter_engagement_extractor.analyze(img)
+                )
 
-            img = np.array(pil_image)
+                twitter_views = twitter_views_detector.detect(img)
+                twitter_engagement["views"] = twitter_views
 
-            if len(img.shape) == 3 and img.shape[2] == 4:
-                img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+                engagement_values.update(twitter_engagement)
+
             else:
-                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                engagement_start = time.perf_counter()
 
-       
+                opencv_engagement = engagement_extractor.analyze(
+                    img,
+                    platform=platform,
+                    instagram_layout=ocr_values.get("instagram_layout"),
+                )
+
+                engagement_time = (
+                    time.perf_counter() - engagement_start
+                )
+
+                print(
+                    f"ENGAGEMENT EXTRACTION TIME: "
+                    f"{engagement_time:.2f}s",
+                    flush=True,
+                )
+
+                print(
+                    "DEBUG: OPENCV ENGAGEMENT RESULT:",
+                    opencv_engagement,
+                    flush=True,
+                )
+
+                engagement_values.update(opencv_engagement)
+        
         ocr_text = str(
 
             ocr_values.get(
