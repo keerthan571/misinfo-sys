@@ -43,102 +43,47 @@ export default function HistoryDetails() {
   // spread prediction and propagation graph.
 
 
+
   const imageUrl = (() => {
-    const rawPath = analysis?.image?.path;
+    const rawPath =
+      analysis?.image?.url ||
+      analysis?.image?.path;
+
     if (!rawPath) return null;
 
-    const cleanPath = String(rawPath)
-      .trim()
-      .replace(/\\/g, "/");
+    const cleanPath = String(rawPath).trim();
 
+    // Cloudinary URLs must be used directly.
+    // Never rewrite an absolute HTTPS image URL.
+    if (/^https?:\/\//i.test(cleanPath)) {
+      return cleanPath;
+    }
+
+    // Fallback for legacy relative /uploads paths.
     const configuredBase = String(
       import.meta.env.VITE_API_URL ||
       apiClient.defaults.baseURL ||
       ""
-    )
-      .trim()
-      .replace(/\/+$/, "");
+    ).trim().replace(/\/+$/, "");
 
-    // Uploads are mounted at the backend root, not under /api.
-    const backendBase = configuredBase
-      .replace(/\/api\/?$/i, "")
-      .replace(/\/+$/, "");
+    const backendBase = configuredBase.replace(/\/api\/?$/i, "");
 
-    const buildUploadUrl = (path) => {
-      const base = backendBase.replace(/\/+$/, "");
-      const normalizedPath = path
-        .replace(/\\/g, "/")
-        .replace(/^\/+/, "")
-        .replace(/\/{2,}/g, "/");
-
-      const url = `${base}/${normalizedPath}`;
-
-      console.log("FINAL IMAGE URL:", url);
-
-      return url;
-    };
-
-    try {
-      if (/^https?:\/\//i.test(cleanPath)) {
-        const parsed = new URL(cleanPath);
-
-        if (!parsed.pathname.includes("/uploads/")) {
-          return cleanPath;
-        }
-
-        const uploadPath = parsed.pathname.slice(
-          parsed.pathname.indexOf("/uploads/") + 1
-        );
-
-        const finalUrl = backendBase
-          ? buildUploadUrl(uploadPath)
-          : cleanPath;
-
-        console.log("IMAGE DEBUG:", {
-          rawPath,
-          configuredBase,
-          backendBase,
-          uploadPath,
-          finalUrl,
-        });
-
-        return finalUrl;
-      }
-
-      const marker = cleanPath.indexOf("/uploads/");
-
-      const uploadPath =
-        marker >= 0
-          ? cleanPath.slice(marker + 1)
-          : `uploads/${cleanPath
-            .replace(/^\/+/, "")
-            .replace(/^backend\//i, "")
-            .replace(/^uploads\//i, "")}`;
-
-      if (!backendBase) {
-        console.error("IMAGE URL ERROR: Backend URL is missing.", {
-          rawPath,
-          configuredBase,
-        });
-        return null;
-      }
-
-      const finalUrl = buildUploadUrl(uploadPath);
-
-      console.log("IMAGE DEBUG:", {
-        rawPath,
-        configuredBase,
-        backendBase,
-        uploadPath,
-        finalUrl,
-      });
-
-      return finalUrl;
-    } catch (error) {
-      console.error("IMAGE URL ERROR:", error);
+    if (!backendBase) {
+      console.error("Image URL unavailable: backend URL is missing.");
       return null;
     }
+
+    const normalizedPath = cleanPath
+      .replace(/\\/g, "/")
+      .replace(/^\/+/, "");
+
+    const uploadPath = normalizedPath.startsWith("uploads/")
+      ? normalizedPath
+      : `uploads/${normalizedPath}`;
+
+    return `${backendBase}/${uploadPath}`;
   })();
+
 
   const downloadPDF = async () => {
     try {
@@ -1401,7 +1346,7 @@ export default function HistoryDetails() {
       <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
 
         <h2 className="mb-5 border-b border-slate-700 pb-3 text-xl font-bold text-white sm:text-2xl">
-          Original Content
+          Original Coantent
         </h2>
 
         {imageUrl && analysis.text?.trim() && (
@@ -1589,7 +1534,7 @@ export default function HistoryDetails() {
 
       {isSocialAnalysis && (
         <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2 xl:gap-6">
-          
+
           <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
 
             <h2 className="mb-5 border-b border-slate-700 pb-3 text-xl font-bold text-white sm:text-2xl">
