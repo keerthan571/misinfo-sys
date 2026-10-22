@@ -5,7 +5,7 @@ import ReactFlow, {
   useNodesInitialized,
   useReactFlow,
 } from "reactflow";
-
+import PropagationEdge from "./PropagationEdge";
 import "reactflow/dist/style.css";
 import "../GraphView.css";
 import GraphNode from "./GraphNode";
@@ -1280,7 +1280,7 @@ export default function GraphViewer({
 
   const [selectedNode, setSelectedNode] = useState(null);
 
-  
+
   /*
    * Load graph.
    *
@@ -1549,7 +1549,12 @@ export default function GraphViewer({
     }),
     []
   );
-
+  const edgeTypes = useMemo(
+    () => ({
+      propagation: PropagationEdge,
+    }),
+    []
+  );
 
   const closeDetails = () => {
     setSelectedNode(null);
@@ -1558,11 +1563,12 @@ export default function GraphViewer({
 
 
   const safeEdges = useMemo(() => {
-    const getConnectionColor = (edge) => {
-      const sourceNode = nodes.find(
-        (node) => String(node.id) === String(edge.source)
-      );
+    const nodeMap = new Map(
+      nodes.map((node) => [String(node.id), node])
+    );
 
+    const getConnectionColor = (edge) => {
+      const sourceNode = nodeMap.get(String(edge.source));
       const sourceData = sourceNode?.data || {};
 
       const sourceType = String(
@@ -1575,12 +1581,10 @@ export default function GraphViewer({
         .toLowerCase()
         .replace(/[\s-]+/g, "_");
 
-      // Priority 1: Source connections — light green
       if (["source", "claim", "origin"].includes(sourceType)) {
         return "#86EFAC";
       }
 
-      // Priority 2: Influencer connections — light yellow
       if (
         [
           "influencer",
@@ -1591,17 +1595,73 @@ export default function GraphViewer({
         return "#FDE68A";
       }
 
-      // Priority 3: Normal-node connections — light blue
       return "#93C5FD";
     };
 
+    // Group edges by their actual source node ID, not by column
+    // and not by individual edge.
+    const outgoingBySource = new Map();
+
+    for (const edge of edges || []) {
+      const sourceId = String(edge.source);
+
+      if (!outgoingBySource.has(sourceId)) {
+        outgoingBySource.set(sourceId, []);
+      }
+
+      outgoingBySource.get(sourceId).push(edge);
+    }
+
+    // Give each distinct parent in a column its own routing lane.
+    // All outgoing edges from the same parent share one lane offset.
+    const sourcesByColumn = new Map();
+
+    for (const sourceId of outgoingBySource.keys()) {
+      const sourceNode = nodeMap.get(sourceId);
+      if (!sourceNode) continue;
+
+      const x = Number(sourceNode.position?.x ?? 0);
+
+      if (!sourcesByColumn.has(x)) {
+        sourcesByColumn.set(x, []);
+      }
+
+      sourcesByColumn.get(x).push(sourceId);
+    }
+
+    const laneBySource = new Map();
+
+    for (const sourceIds of sourcesByColumn.values()) {
+      sourceIds.sort((a, b) => {
+        const nodeA = nodeMap.get(a);
+        const nodeB = nodeMap.get(b);
+
+        return (
+          Number(nodeA?.position?.y ?? 0) -
+          Number(nodeB?.position?.y ?? 0)
+        );
+      });
+
+      sourceIds.forEach((sourceId, index) => {
+        const centeredIndex =
+          index - (sourceIds.length - 1) / 2;
+
+        // One stable offset per source node.
+        laneBySource.set(
+          sourceId,
+          Math.max(-36, Math.min(36, centeredIndex * 12))
+        );
+      });
+    }
+
     return (edges || []).map((edge, index) => {
       const edgeColor = getConnectionColor(edge);
+      const sourceId = String(edge.source);
 
       return {
         ...edge,
         id: edge.id || `edge-${index}`,
-        type: "smoothstep",
+        type: "propagation",
         sourceHandle: "right",
         targetHandle: "left",
         animated: false,
@@ -1623,10 +1683,12 @@ export default function GraphViewer({
           ...(edge.data || {}),
           interaction: "tree",
           color: edgeColor,
+          laneOffset: laneBySource.get(sourceId) ?? 0,
         },
       };
     });
   }, [edges, nodes]);
+
 
 
   const selectedData = {
@@ -1885,6 +1947,7 @@ export default function GraphViewer({
             nodes={nodes}
             edges={safeEdges}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             className="flex-1 min-h-0"
             minZoom={0.02}
             maxZoom={2}
@@ -1920,34 +1983,24 @@ export default function GraphViewer({
 
         {/* Legend */}
         <div className="px-6 py-4 border-t border-slate-700/70 bg-slate-800/80">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-400">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-xs text-slate-400">
             <span className="font-semibold uppercase tracking-wider text-slate-500">
               Simulated Node Types
             </span>
 
-            <span className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
-              Source
+            <span className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-green-500" />
+              <span>Source</span>
             </span>
 
-            <span className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-violet-400" />
-              Influencer
+            <span className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-yellow-400" />
+              <span>Influencer</span>
             </span>
 
-            <span className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
-              Bot
-            </span>
-
-            <span className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
-              User
-            </span>
-
-            <span className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-              Community Leader
+            <span className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-blue-500" />
+              <span>Other Nodes </span>
             </span>
 
             <span className="text-slate-500">
@@ -1956,20 +2009,21 @@ export default function GraphViewer({
           </div>
         </div>
 
+
+
       </div>
 
       {/* =====================================================
           NODE DETAILS
       ===================================================== */}
 
-      {interactive && selectedNode && (
 
+      {interactive && selectedNode && (
         <div className="fixed top-0 right-0 h-screen w-[420px] max-w-[92vw] bg-slate-900 border-l border-slate-700/80 shadow-2xl z-50 overflow-y-auto">
 
           <div className="sticky top-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/70 p-6 flex justify-between items-center z-10">
 
             <div>
-
               <p className="text-xs font-semibold uppercase tracking-wider text-blue-400">
                 Node Details
               </p>
@@ -1981,19 +2035,16 @@ export default function GraphViewer({
               <p className="text-slate-400 text-sm mt-1">
                 Propagation Node Information
               </p>
-
             </div>
-
 
             <button
               onClick={closeDetails}
               className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-xl text-slate-400 hover:text-white hover:border-slate-600 transition flex items-center justify-center"
+              aria-label="Close node details"
             >
               ×
             </button>
-
           </div>
-
 
           <div className="p-6 space-y-3">
 
@@ -2029,86 +2080,8 @@ export default function GraphViewer({
             />
 
             <InfoCard
-              title="Reach"
-              value={
-                selectedReach > 0
-                  ? selectedReach.toLocaleString()
-                  : "Not available"
-              }
-            />
-
-            <InfoCard
-              title="Community"
-              value={
-                selectedCommunity !== null &&
-                  selectedCommunity !== undefined
-                  ? selectedCommunity
-                  : "Not available"
-              }
-            />
-
-            <InfoCard
-              title="PageRank"
-              value={
-                selectedPageRank !== null &&
-                  Number.isFinite(selectedPageRank)
-                  ? selectedPageRank.toFixed(4)
-                  : "Not available"
-              }
-            />
-
-            {!isSourceNode && (
-              <InfoCard
-                title="Share Probability"
-                value={
-                  selectedShareProbability !== null &&
-                    Number.isFinite(selectedShareProbability)
-                    ? `${(
-                      selectedShareProbability * 100
-                    ).toFixed(2)}%`
-                    : "Not available"
-                }
-              />
-            )}
-
-            <InfoCard
               title="Platform"
-              value={
-                selectedData.platform || "-"
-              }
-            />
-
-            {!isSourceNode && (
-              <>
-                <InfoCard
-                  title="Verified"
-                  value={
-                    selectedData.verified
-                      ? "Yes ✔"
-                      : "No"
-                  }
-                />
-
-                <InfoCard
-                  title="Bot"
-                  value={
-                    selectedData.isBot
-                      ? "Yes 🤖"
-                      : "No"
-                  }
-                />
-              </>
-            )}
-
-            <InfoCard
-              title="Created"
-              value={
-                selectedData.createdAt
-                  ? new Date(
-                    selectedData.createdAt
-                  ).toLocaleString()
-                  : "-"
-              }
+              value={selectedData.platform || "-"}
             />
 
             <InfoCard
@@ -2119,6 +2092,7 @@ export default function GraphViewer({
           </div>
         </div>
       )}
+
 
 
       {/* =====================================================

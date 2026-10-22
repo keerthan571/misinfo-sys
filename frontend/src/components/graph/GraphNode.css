@@ -1,86 +1,83 @@
 
 .graph-node {
-    width: 290px;
+    width: 190px;
     box-sizing: border-box;
     background: #111827;
-    border: 2px solid #475569;
-    border-radius: 15px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-    transition:
-        box-shadow 0.2s ease,
-        transform 0.2s ease;
+    border: 1.5px solid #475569;
+    border-radius: 9px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
     overflow: hidden;
     font-family: Inter, "Segoe UI", Arial, sans-serif;
     color: #f8fafc;
 }
 
-/* SOURCE — Emerald green */
+/* Source — green */
 .graph-node.claim,
 .graph-node.origin,
 .graph-node.source {
     border-color: #34D399;
     background: #102B22;
-    box-shadow: 0 0 10px rgba(52, 211, 153, 0.14);
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.12);
 }
 
-/* INFLUENCER — Golden yellow */
+/* Influencer — amber */
 .graph-node.influencer,
 .graph-node.micro_influencer,
 .graph-node.micro-influencer {
     border-color: #FBBF24;
     background: #30270F;
-    box-shadow: 0 0 10px rgba(251, 191, 36, 0.14);
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.12);
 }
 
-/* COMMUNITY LEADER — Teal */
+/* Community leader — teal */
 .graph-node.community_leader,
 .graph-node.community-leader {
     border-color: #2DD4BF;
     background: #103432;
-    box-shadow: 0 0 10px rgba(45, 212, 191, 0.14);
+    box-shadow: 0 0 8px rgba(45, 212, 191, 0.12);
 }
 
-/* NORMAL USER — Bright blue */
+/* Normal user — blue */
 .graph-node.user {
-    border-color: #60A5FA;
+    border-color: #3B82F6;
     background: #142B4D;
-    box-shadow: 0 0 10px rgba(96, 165, 250, 0.16);
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.13);
 }
 
-/* BOT — Coral red */
+/* Bot — coral */
 .graph-node.bot {
     border-color: #FB7185;
     background: #351A22;
-    box-shadow: 0 0 10px rgba(251, 113, 133, 0.14);
+    box-shadow: 0 0 8px rgba(251, 113, 133, 0.12);
 }
 
-/* MEDIA — Cyan */
+/* Media — cyan */
 .graph-node.media {
     border-color: #22D3EE;
     background: #10303A;
-    box-shadow: 0 0 10px rgba(34, 211, 238, 0.14);
+    box-shadow: 0 0 8px rgba(34, 211, 238, 0.12);
 }
 
-/* Hover effect */
 .graph-node:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 7px 16px rgba(0, 0, 0, 0.34);
 }
 
-/* Node header */
+/* Compact header */
 .graph-node-header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 17px 16px;
-    border-bottom: 1px solid rgba(203, 213, 225, 0.16);
+    gap: 7px;
+    padding: 8px 9px 7px;
+    border-bottom: 1px solid rgba(203, 213, 225, 0.14);
     min-width: 0;
 }
 
 .graph-node-icon {
     flex-shrink: 0;
-    font-size: 27px;
-    line-height: 1.2;
+    font-size: 17px;
+    line-height: 1.1;
 }
 
 .graph-node-heading {
@@ -89,10 +86,10 @@
 }
 
 .graph-node-title {
-    font-size: 19px;
-    line-height: 1.35;
-    font-weight: 800;
-    letter-spacing: -0.25px;
+    font-size: 12px;
+    line-height: 1.25;
+    font-weight: 750;
+    letter-spacing: -0.1px;
     color: #F8FAFC;
     overflow-wrap: anywhere;
 }
@@ -100,23 +97,23 @@
 .verified {
     flex-shrink: 0;
     color: #93C5FD;
-    font-size: 19px;
+    font-size: 13px;
     font-weight: 800;
 }
 
-/* Metrics */
+/* Follower and influence metrics */
 .graph-node-body {
-    padding: 17px 16px;
+    padding: 7px 9px 8px;
 }
 
 .metric {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 14px;
-    margin-bottom: 15px;
-    font-size: 15px;
-    line-height: 1.45;
+    gap: 7px;
+    margin-bottom: 5px;
+    font-size: 10px;
+    line-height: 1.25;
 }
 
 .metric:last-child {
@@ -126,26 +123,26 @@
 .metric-label {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     color: #CBD5E1;
     font-weight: 500;
+    min-width: 0;
 }
 
 .metric strong {
     flex-shrink: 0;
     color: #FFFFFF;
-    font-size: 16px;
+    font-size: 10px;
     font-weight: 750;
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
 
-/* Verified account indicator */
+/* Verified and bot indicators */
 .verified-node {
     outline: 1px solid rgba(147, 197, 253, 0.25);
 }
 
-/* Bot appearance */
 .bot-node {
     opacity: 0.96;
 }
@@ -153,18 +150,15 @@
 /* Responsive sizing */
 @media (max-width: 480px) {
     .graph-node {
-        width: 265px;
+        width: 180px;
     }
 
     .graph-node-title {
-        font-size: 18px;
+        font-size: 11px;
     }
 
-    .metric {
-        font-size: 14px;
-    }
-
+    .metric,
     .metric strong {
-        font-size: 15px;
+        font-size: 9px;
     }
 }

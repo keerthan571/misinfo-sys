@@ -1,5 +1,0 @@
-experiment,features,baseline_MAE,model_MAE,baseline_RMSE,model_RMSE,posts_improved,posts_worsened,posts_tied,MAE_difference_vs_baseline
-views_age,views + age,13632.62,27862.82,23788.39,55346.22,5,13,0,14230.2
-views_age_likes,views + age + likes,13632.62,49303.7,23788.39,105613.85,6,12,0,35671.08
-views_age_likes_comments,"views + age + likes, comments",13632.62,74886.01,23788.39,190397.84,7,11,0,61253.4
-views_age_all_engagement,"views + age + likes, comments, shares, reposts, bookmarks, replies, quotes",13632.62,65899.77,23788.39,167890.84,9,9,0,52267.15

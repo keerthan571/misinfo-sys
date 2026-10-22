@@ -44,55 +44,86 @@ export default function HistoryDetails() {
 
 
   const imageUrl = (() => {
-  const rawPath = analysis?.image?.path;
-  if (!rawPath) return null;
+    const rawPath = analysis?.image?.path;
+    if (!rawPath) return null;
 
-  const cleanPath = String(rawPath)
-    .trim()
-    .replace(/\\/g, "/");
+    const cleanPath = String(rawPath)
+      .trim()
+      .replace(/\\/g, "/");
 
-  const configuredBase = String(
-    import.meta.env.VITE_API_URL ||
+    const configuredBase = String(
+      import.meta.env.VITE_API_URL ||
       apiClient.defaults.baseURL ||
       ""
-  )
-    .trim()
-    .replace(/\/+$/, "");
+    )
+      .trim()
+      .replace(/\/+$/, "");
 
-  // Uploads are mounted at the backend root, not under /api.
-  const backendBase = configuredBase
-    .replace(/\/api\/?$/i, "")
-    .replace(/\/+$/, "");
+    // Uploads are mounted at the backend root, not under /api.
+    const backendBase = configuredBase
+      .replace(/\/api\/?$/i, "")
+      .replace(/\/+$/, "");
 
-  const buildUploadUrl = (path) => {
-    const base = backendBase.replace(/\/+$/, "");
-    const normalizedPath = path
-      .replace(/\\/g, "/")
-      .replace(/^\/+/, "")
-      .replace(/\/{2,}/g, "/");
+    const buildUploadUrl = (path) => {
+      const base = backendBase.replace(/\/+$/, "");
+      const normalizedPath = path
+        .replace(/\\/g, "/")
+        .replace(/^\/+/, "")
+        .replace(/\/{2,}/g, "/");
 
-    const url = `${base}/${normalizedPath}`;
+      const url = `${base}/${normalizedPath}`;
 
-    console.log("FINAL IMAGE URL:", url);
+      console.log("FINAL IMAGE URL:", url);
 
-    return url;
-  };
+      return url;
+    };
 
-  try {
-    if (/^https?:\/\//i.test(cleanPath)) {
-      const parsed = new URL(cleanPath);
+    try {
+      if (/^https?:\/\//i.test(cleanPath)) {
+        const parsed = new URL(cleanPath);
 
-      if (!parsed.pathname.includes("/uploads/")) {
-        return cleanPath;
+        if (!parsed.pathname.includes("/uploads/")) {
+          return cleanPath;
+        }
+
+        const uploadPath = parsed.pathname.slice(
+          parsed.pathname.indexOf("/uploads/") + 1
+        );
+
+        const finalUrl = backendBase
+          ? buildUploadUrl(uploadPath)
+          : cleanPath;
+
+        console.log("IMAGE DEBUG:", {
+          rawPath,
+          configuredBase,
+          backendBase,
+          uploadPath,
+          finalUrl,
+        });
+
+        return finalUrl;
       }
 
-      const uploadPath = parsed.pathname.slice(
-        parsed.pathname.indexOf("/uploads/") + 1
-      );
+      const marker = cleanPath.indexOf("/uploads/");
 
-      const finalUrl = backendBase
-        ? buildUploadUrl(uploadPath)
-        : cleanPath;
+      const uploadPath =
+        marker >= 0
+          ? cleanPath.slice(marker + 1)
+          : `uploads/${cleanPath
+            .replace(/^\/+/, "")
+            .replace(/^backend\//i, "")
+            .replace(/^uploads\//i, "")}`;
+
+      if (!backendBase) {
+        console.error("IMAGE URL ERROR: Backend URL is missing.", {
+          rawPath,
+          configuredBase,
+        });
+        return null;
+      }
+
+      const finalUrl = buildUploadUrl(uploadPath);
 
       console.log("IMAGE DEBUG:", {
         rawPath,
@@ -103,42 +134,11 @@ export default function HistoryDetails() {
       });
 
       return finalUrl;
-    }
-
-    const marker = cleanPath.indexOf("/uploads/");
-
-    const uploadPath =
-      marker >= 0
-        ? cleanPath.slice(marker + 1)
-        : `uploads/${cleanPath
-            .replace(/^\/+/, "")
-            .replace(/^backend\//i, "")
-            .replace(/^uploads\//i, "")}`;
-
-    if (!backendBase) {
-      console.error("IMAGE URL ERROR: Backend URL is missing.", {
-        rawPath,
-        configuredBase,
-      });
+    } catch (error) {
+      console.error("IMAGE URL ERROR:", error);
       return null;
     }
-
-    const finalUrl = buildUploadUrl(uploadPath);
-
-    console.log("IMAGE DEBUG:", {
-      rawPath,
-      configuredBase,
-      backendBase,
-      uploadPath,
-      finalUrl,
-    });
-
-    return finalUrl;
-  } catch (error) {
-    console.error("IMAGE URL ERROR:", error);
-    return null;
-  }
-})();
+  })();
 
   const downloadPDF = async () => {
     try {
@@ -205,8 +205,8 @@ export default function HistoryDetails() {
         pdf.setTextColor(0);
       };
 
-     
-      
+
+
       const addLabelValue = (label, value) => {
         const labelWidth = 48;
         const gap = 5;
@@ -484,32 +484,19 @@ export default function HistoryDetails() {
       const summaryCards = [
         {
           label: "Verification",
-          value:
-            analysis.final_result?.label ||
-            "-"
+          value: analysis.final_result?.label || "-"
         },
         {
           label: "Confidence",
-          value:
-            `${analysis.final_result?.confidence ??
-            0
-            }%`
-        },
-        {
-          label: "Risk Level",
-          value:
-            analysis.final_result?.risk_level ||
-            "-"
+          value: `${analysis.final_result?.confidence ?? 0}%`
         }
       ];
 
- 
-
       addCardRow(summaryCards);
 
-    /* ==========================================
-    ORIGINAL CONTENT
-    ========================================== */
+      /* ==========================================
+      ORIGINAL CONTENT
+      ========================================== */
 
       addSectionTitle("Original Content");
 
@@ -855,30 +842,22 @@ export default function HistoryDetails() {
 
       }
 
-
-      
       if (isSocialAnalysis) {
         addSectionTitle("Observed Spreading Level");
 
-        addCardRow([
-          {
-            label: "Current Level",
-            value: ["instagram", "facebook"].includes(
-              String(
-                analysis.platform?.platform || ""
-              ).toLowerCase()
-            )
-              ? (
-                  analysis.future_audience?.performance_tier ||
-                  analysis.future_audience?.engagement_tier ||
-                  "Not available"
-                )
-              : (
-                  analysis.spreading_level?.level ||
-                  "Insufficient historical data"
-                )
-          }
-        ]);
+        const platformName = String(
+          analysis.platform?.platform || ""
+        ).toLowerCase();
+
+        // Current Level is shown only for Instagram and Facebook.
+        if (["instagram", "facebook"].includes(platformName)) {
+          const currentLevel =
+            analysis.future_audience?.performance_tier ||
+            analysis.future_audience?.engagement_tier ||
+            "Not available";
+
+          addLabelValue("Current Level", currentLevel);
+        }
 
         addLabelValue(
           "Selected Forecast Horizon",
@@ -898,12 +877,11 @@ export default function HistoryDetails() {
           "Latest Screenshot Date",
           analysis.screenshot_captured_at
             ? new Date(
-                analysis.screenshot_captured_at
-              ).toLocaleString()
+              analysis.screenshot_captured_at
+            ).toLocaleString()
             : "-"
         );
       }
-
 
       /* ==========================================
          PLATFORM
@@ -1418,33 +1396,6 @@ export default function HistoryDetails() {
 
         </div>
 
-        <div
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5"
-        >
-
-          <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
-            <p className="text-slate-400">
-              Verification
-            </p>
-
-            <h2 className="mt-2 break-words text-2xl font-bold leading-tight text-green-400 sm:text-3xl">
-              {analysis.final_result?.label}
-            </h2>
-          </div>
-
-
-
-          <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
-            <p className="text-slate-400">
-              Risk Level
-            </p>
-
-            <h2 className="mt-2 break-words text-2xl font-bold leading-tight text-red-400 sm:text-3xl">
-              {analysis.final_result?.risk_level}
-            </h2>
-          </div>
-        </div>
-
       </div>
 
       <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
@@ -1521,7 +1472,7 @@ export default function HistoryDetails() {
             <div className="max-h-[520px] min-h-64 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-4 sm:p-5">
 
               <p className="whitespace-pre-wrap break-words text-sm leading-7 text-slate-300 sm:text-base sm:leading-7">
-                 {analysis.display_text || analysis.text}
+                {analysis.display_text || analysis.text}
               </p>
 
             </div>
@@ -1638,7 +1589,7 @@ export default function HistoryDetails() {
 
       {isSocialAnalysis && (
         <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2 xl:gap-6">
-
+          
           <div className="min-w-0 rounded-2xl border border-slate-700/80 bg-slate-800/90 p-5 shadow-sm shadow-slate-950/10 sm:p-6">
 
             <h2 className="mb-5 border-b border-slate-700 pb-3 text-xl font-bold text-white sm:text-2xl">
@@ -1730,39 +1681,32 @@ export default function HistoryDetails() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
+                {["instagram", "facebook"].includes(
+                  String(analysis.platform?.platform || "").toLowerCase()
+                ) && (
+                    <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
+                      <p className="text-slate-400 text-sm">
+                        Current Level
+                      </p>
+
+                      <h3 className="mt-2 break-words text-lg font-bold text-cyan-300 sm:text-xl">
+                        {analysis.future_audience?.performance_tier ||
+                          analysis.future_audience?.engagement_tier ||
+                          "Not available"}
+                      </h3>
+                    </div>
+                  )}
                 <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
                   <p className="text-slate-400 text-sm">
-                    Current Level
+                    Selected Forecast Horizon
                   </p>
 
-                  
-                  <h3 className="mt-2 break-words text-lg font-bold text-cyan-300 sm:text-xl">
-                    {["instagram", "facebook"].includes(
-                      String(analysis.platform?.platform || "").toLowerCase()
-                    )
-                      ? (
-                          analysis.future_audience?.performance_tier ||
-                          analysis.future_audience?.engagement_tier ||
-                          "Not available"
-                        )
-                      : (
-                          analysis.spreading_level?.level ||
-                          "Insufficient historical data"
-                        )}
-                  </h3>
-
+                  <p className="mt-2 break-words text-sm font-medium leading-6 text-white sm:text-base">
+                    {analysis.future_audience?.horizon_days != null
+                      ? `${analysis.future_audience.horizon_days} days`
+                      : "Not available"}
+                  </p>
                 </div>
-                <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
-                    <p className="text-slate-400 text-sm">
-                      Selected Forecast Horizon
-                    </p>
-
-                    <p className="mt-2 break-words text-sm font-medium leading-6 text-white sm:text-base">
-                      {analysis.future_audience?.horizon_days != null
-                        ? `${analysis.future_audience.horizon_days} days`
-                        : "Not available"}
-                    </p>
-                  </div>
                 <div className="min-w-0 rounded-xl border border-slate-700/80 bg-slate-900/90 p-4 sm:p-5">
                   <p className="text-slate-400 text-sm">
                     Post Publication Date
